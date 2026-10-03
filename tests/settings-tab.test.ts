@@ -7,6 +7,11 @@ vi.mock("../src/obsidian/http", () => ({
   listModels: async () => [],
   clientFor: () => ({ probe: async () => ({ reachable: false, kind: "refused", klartext: "" }), listModels: async () => [] }),
 }));
+const sectionSpy = vi.hoisted(() => ({ calls: [] as Array<Record<string, unknown>> }));
+vi.mock("../src/vendor/kit-obsidian/endpoint-source", async (orig) => {
+  const m = await orig<typeof import("../src/vendor/kit-obsidian/endpoint-source")>();
+  return { ...m, buildEndpointSourceSection: (o: Record<string, unknown>) => { sectionSpy.calls.push(o); return (m.buildEndpointSourceSection as (x: unknown) => unknown)(o); } };
+});
 import { makeFakeEl, Notice } from "./vendor/kit/obsidian-mock";
 import { DEFAULT_SETTINGS } from "../src/core/settings";
 import { SettingsAssistantSettingTab, type SettingsTabHost } from "../src/obsidian/settings-tab";
@@ -67,6 +72,13 @@ describe("SettingsAssistantSettingTab", () => {
     expect(first.hasClass("setting-item")).toBe(true);
     expect(first.__setting.nameValue).toBe("Help");
     expect(first.querySelectorAll("button").length).toBeGreaterThan(0);
+  });
+
+  it("die Chat-Modell-Sektion bekommt die pluginId des Plugins", async () => {
+    sectionSpy.calls.length = 0;
+    await render(host());
+    expect(sectionSpy.calls).toHaveLength(1);
+    expect(sectionSpy.calls[0]?.pluginId).toBe("settings-assistant");
   });
 
   it("lokale Endpunkt-Zeile: Klartext-Schlüssel wandert in den Schlüsselbund, die Zeile zeigt „saved“ statt eines Klartextfelds", async () => {

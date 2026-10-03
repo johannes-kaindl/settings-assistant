@@ -87,6 +87,11 @@ export async function listSnapshots(app: App): Promise<Array<{ dir: string; mani
   return out.sort((a, b) => (a.manifest.at < b.manifest.at ? 1 : a.manifest.at > b.manifest.at ? -1 : a.dir < b.dir ? 1 : -1));
 }
 
+/** Ziel für „Undo last apply“: der neueste Schnappschuss, der selbst keine Wiederherstellung ist (Liste ist neueste zuerst). */
+export function pickUndoTarget<T extends { manifest: { origin: string } }>(list: readonly T[]): T | null {
+  return list.find((s) => !s.manifest.origin.startsWith("restore:")) ?? null;
+}
+
 function targetFromPath(configDir: string, path: string): Target | null {
   const plugin = new RegExp(`^${configDir.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}/plugins/([^/]+)/data\\.json$`).exec(path);
   if (plugin?.[1]) return isValidPluginId(plugin[1]) && plugin[1] !== SELF_PLUGIN_ID ? { kind: "plugin", id: plugin[1] } : null;

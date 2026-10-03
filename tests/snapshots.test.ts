@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { hashText } from "../src/core/snapshot";
 import { DEFAULT_GFS_POLICY } from "../src/vendor/kit/rotation";
-import { beginSnapshot, listSnapshots, loadRestoreItems, makePorts, pruneSnapshots, snapshotRoot } from "../src/obsidian/snapshots";
+import { beginSnapshot, listSnapshots, loadRestoreItems, makePorts, pickUndoTarget, pruneSnapshots, snapshotRoot } from "../src/obsidian/snapshots";
 
 function fakeApp(initial: Record<string, string> = {}) {
   const files = new Map<string, string>(Object.entries(initial));
@@ -138,5 +138,16 @@ describe("snapshots", () => {
     expect(files.get(DATA)).toBe("{}");
     await ports.remove(DATA);
     expect(files.has(DATA)).toBe(false);
+  });
+});
+
+describe("pickUndoTarget", () => {
+  const e = (dir: string, origin: string) => ({ dir, manifest: { origin } });
+  it("nimmt den neuesten Nicht-restore-Eintrag", () => {
+    expect(pickUndoTarget([e("c", "restore:b"), e("b", "profile:x"), e("a", "profile:y")])?.dir).toBe("b");
+  });
+  it("leere oder nur-restore-Liste: null", () => {
+    expect(pickUndoTarget([])).toBeNull();
+    expect(pickUndoTarget([e("a", "restore:z")])).toBeNull();
   });
 });

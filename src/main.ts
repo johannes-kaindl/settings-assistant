@@ -1,8 +1,8 @@
 import { Component, MarkdownRenderer, Notice, Plugin, getLanguage, normalizePath, type WorkspaceLeaf } from "obsidian";
 import "./i18n/strings";
 import { pickLang, setLang, t } from "./vendor/kit/i18n";
-import { prepareLocal } from "./obsidian/local-endpoints";
-import { resolveEndpointSource, type EndpointSourceResult } from "./vendor/kit/endpoint-source";
+import { resolveWithPreparedLocal } from "./obsidian/local-endpoints";
+import type { EndpointSourceResult } from "./vendor/kit/endpoint-source";
 import type { EndpointConfig } from "./vendor/kit/endpoint_config";
 import { onLevelFor, resolveRequestParams, thinkingFor, type RequestSettings, type ThinkingLevel } from "./vendor/kit/sampling-profiles";
 import type { ChatClient } from "./vendor/kit-obsidian/chat-client";
@@ -18,7 +18,7 @@ import { renderProfileBlock } from "./obsidian/profile-block";
 import { PROBE_TIMEOUT_MS, probeEndpoint } from "./obsidian/http";
 import { cachedProbe, createChatSend, makeChatClient, type ChatSend } from "./obsidian/llm";
 import { CHAT_MODE, SettingsAssistantSettingTab } from "./obsidian/settings-tab";
-import { listSnapshots } from "./obsidian/snapshots";
+import { listSnapshots, pickUndoTarget } from "./obsidian/snapshots";
 import { ChatSession } from "./obsidian/chat-session";
 import { SettingsChatView, VIEW_TYPE_SA_CHAT, refreshChatViews } from "./obsidian/chat-view";
 import { readConfig } from "./obsidian/config-io";
@@ -151,7 +151,7 @@ export default class SettingsAssistantPlugin extends Plugin {
   /** Neuester Schnappschuss, der nicht selbst ein Zurückholen ist (Herkunft ≠ `restore:`). */
   private async undoLastApply(): Promise<void> {
     try {
-      const latest = (await listSnapshots(this.app)).find((s) => !s.manifest.origin.startsWith("restore:"));
+      const latest = pickUndoTarget(await listSnapshots(this.app));
       if (!latest) { new Notice(t("snap.empty")); return; }
       await this.applyService.restoreInteractive(latest.dir);
     } catch (e) {
@@ -175,15 +175,18 @@ export default class SettingsAssistantPlugin extends Plugin {
     const manager = findEndpointManager(this.app);
     if (!manager && this.cachedLocal !== null) return this.cachedLocal;
     if (this.pendingResolve !== null) return this.pendingResolve;
-    this.pendingResolve = resolveEndpointSource({
-      manager,
-      local: prepareLocal(this.app, this.manifest.id, this.settings, () => this.saveSettings()),
-      localModel: this.settings.localModel,
-      capability: "chat",
-      choice: this.settings.endpointChoice,
-      caller: "settings-assistant",
-      backendOf: (cfg) => cachedProbe(cfg.url, cfg.model || this.settings.localModel),
-    }, (ep) => probeEndpoint(ep, PROBE_TIMEOUT_MS).then((s) => s.kind === "ok"))
+    this.pendingResolve = resolveWithPreparedLocal({
+      app: this.app, pluginId: this.manifest.id, settings: this.settings, save: () => this.saveSettings(),
+      input: {
+        manager,
+        localModel: this.settings.localModel,
+        capability: "chat",
+        choice: this.settings.endpointChoice,
+        caller: "settings-assistant",
+        backendOf: (cfg) => cachedProbe(cfg.url, cfg.model || this.settings.localModel),
+      },
+      ping: (ep) => probeEndpoint(ep, PROBE_TIMEOUT_MS).then((s) => s.kind === "ok"),
+    })
       .then((r) => {
         this.activeSource = r;
         if (r.kind === "local") this.cachedLocal = r.config;

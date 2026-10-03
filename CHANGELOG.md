@@ -19,6 +19,10 @@ All notable changes to this project are documented here. The format follows [Kee
 - Plugin API v1 (`app.plugins.plugins["settings-assistant"].api`): redacted reading, plan, apply with the plugin's own confirmation dialog, and the tool definitions `read_settings` and `propose_settings`; see `docs/API.md`.
 - English and German interface; README in both languages and user documentation after Diátaxis under `docs/`.
 
+### Changed
+
+- The minimum Obsidian version is raised to 1.11.4, because API keys now live in the keychain (also in the local endpoint list without the Endpoint Manager).
+
 ### Bekannt
 
 - Die Schnappschuss-Liste (Kit-`version-list`) setzt `aria-pressed="false"` auf Aktionsknöpfe, obwohl sie semantisch ein Toggle ist; Kit-Task angelegt (Modus select/action), bis dahin bleibt es so.

@@ -155,6 +155,21 @@ describe("chat-view", () => {
     expect((view.contentEl as any).querySelectorAll(".sa-empty").length).toBe(0);
   });
 
+  it("reload bei unverändertem Endpunkt-Zustand baut nur die Denk-Steuerung neu auf, der Entwurf bleibt", async () => {
+    const { view, deps } = setup();
+    let label = "Thinking: off";
+    (deps.thinking as any).strings.button = () => label;
+    await view.onOpen();
+    const input = (view.contentEl as any).querySelectorAll("textarea")[0];
+    input.value = "halber Entwurf";
+    expect((view.contentEl as any).textContent).toContain("Thinking: off");
+    label = "Thinking: low";
+    await view.reload();
+    expect((view.contentEl as any).textContent).toContain("Thinking: low");
+    expect((view.contentEl as any).querySelectorAll("textarea")[0]).toBe(input);
+    expect(input.value).toBe("halber Entwurf");
+  });
+
   it("Bild-URL in der Antwort erreicht den Renderer nie als Bildsyntax", async () => {
     const { view, deps } = setup({ answer: "look ![x](https://evil.example/?q=maxRounds5) <img src=\"https://evil.example/a\">" });
     await view.onOpen();
