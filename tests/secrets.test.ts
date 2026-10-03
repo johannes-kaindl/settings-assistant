@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { isSecretPath, isSecretValue, redact, REDACTED } from "../src/core/secrets";
 
 // Gemessen 2026-10-03 über 75 data.json in Pallas und Arbeit (nur Namen): echte Treffer …
-const SECRET_STRINGS = ["apiKey", "apiToken", "apiAuthToken", "mcpToken", "syncToken", "email", "taskboneAPIkey", "secretId"];
+const SECRET_STRINGS = ["apiKey", "apiToken", "apiAuthToken", "mcpToken", "syncToken", "email", "taskboneAPIkey", "secretId", "password", "dbPassword", "credentials", "sessionCookie"];
 // … und harmlose Zahlenfelder, die ein reiner Teilstring-Abgleich trifft (Config Sync tut das).
 const HARMLESS_NUMBERS = ["contextWindowTokens", "maxTokens", "llmMaxTokens", "maxOutputTokens", "freezeTokens", "smartApplyMaxTokens", "aiDefaultMaxResponseTokens", "streakFreezeTokensPerMonth"];
 
@@ -26,6 +26,18 @@ describe("secrets", () => {
   it("author is not auth", () => {
     expect(isSecretValue("authorUrl", "https://x")).toBe(false);
     expect(isSecretValue("oauthClient", "x")).toBe(true);
+  });
+  it.each(["authorization", "authorize", "oauth"])("%s with text is secret", (name) => {
+    expect(isSecretValue(name, "x")).toBe(true);
+  });
+  it.each(["author", "authorUrl", "authors"])("%s with text stays free", (name) => {
+    expect(isSecretValue(name, "x")).toBe(false);
+  });
+  it("nested authorization header is secret and redacted", () => {
+    expect(isSecretPath({ headers: { authorization: "Bearer x" } }, ["headers", "authorization"])).toBe(true);
+    const r = redact({ headers: { authorization: "Bearer x", accept: "json" } });
+    expect(r.value).toEqual({ headers: { authorization: REDACTED, accept: "json" } });
+    expect(r.redacted).toEqual(["headers.authorization"]);
   });
   it("isSecretPath: a secret ancestor makes the whole path secret", () => {
     const root = { hostSecrets: { "git.example": "abc" }, llm: { apiKey: "k", model: "m" } };

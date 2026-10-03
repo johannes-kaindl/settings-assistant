@@ -1,7 +1,8 @@
 import { getAt, isPlainObject, type Json } from "./types";
 
 const NAME_PATTERNS = ["apikey", "api_key", "token", "secret", "password", "credential", "cookie", "email"];
-const AUTH = /auth(?!or)/;
+// "author" bleibt frei, "authorization"/"authorize" nicht: `auth` zählt, außer vor "or" ohne folgendes "iz" (Review 2026-10-03, authorization-Fall).
+const AUTH = /auth(?!or(?!iz))/;
 export const REDACTED = "🔒";
 
 /** Spec § 11: Teilstring im kleingeschriebenen Namen. Allein nie ausreichend — siehe isSecretValue. */
