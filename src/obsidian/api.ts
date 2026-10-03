@@ -60,6 +60,8 @@ function toApiRow(r: CheckRow): ApiCheckRow {
   const path = r.path.join(".");
   // 🔒-Zeilen tragen nur Schlüsselname und Status — weder Wert noch Notiz.
   if (r.status === "secret") return { target, path, status: "secret" };
+  // Die eigenen Einstellungen liest die API nie (readSettings → own-settings); der Plan zeigt sie deshalb ohne Werte.
+  if (r.target.kind === "plugin" && isSelfPluginId(r.target.id)) return { target, path, status: "read-only" };
   return {
     target, path, status: r.status,
     ...(r.current !== undefined ? { current: r.current } : {}),

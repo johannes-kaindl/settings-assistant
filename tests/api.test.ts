@@ -46,6 +46,15 @@ describe("Anbieter-API v1", () => {
     expect(JSON.stringify(r)).not.toContain("SECRET-VALUE");
   });
 
+  it("(M1) planProfile zeigt für die eigenen Einstellungen keine Ist-Werte (wie readSettings → own-settings)", async () => {
+    const { api } = setup();
+    const r = await api.planProfile({ version: 1, plugins: { "settings-assistant": { endpoints: [], localModel: "m" } } });
+    expect(r).toEqual({ rows: [
+      { target: "plugins.settings-assistant", path: "endpoints", status: "read-only" },
+      { target: "plugins.settings-assistant", path: "localModel", status: "read-only" },
+    ] });
+  });
+
   it("(M7) die eigene Datei ist in jeder Schreibweise own-settings", async () => {
     const { api } = setup();
     expect(await api.readSettings({ plugin: "Settings-Assistant" })).toEqual({ error: "own-settings" });
