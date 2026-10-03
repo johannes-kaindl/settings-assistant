@@ -82,6 +82,7 @@ export function createChatSend(deps: ChatSendDeps): ChatSend {
     deps.recordRequest(target.params);
     let result: ChatResult;
     try {
+      // client() liegt im try: ein nicht verdrahteter Transport (Kurzbefehl) wirft dort.
       result = await deps.client(target).complete({
         endpoint: target.endpoint, model: target.sentModel, messages, params: target.params, signal,
         onToken: (text) => { onDelta({ content: text }); },
