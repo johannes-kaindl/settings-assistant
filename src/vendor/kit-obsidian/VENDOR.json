@@ -2,5 +2,5 @@
   "source": "obsidian-kit",
   "version": "0.48.1",
   "sha": "e18bf32",
-  "vendored": "clipboard.ts, confirm.ts, endpoint-list.ts, endpoint-secrets.ts, secrets.ts, model-picker.ts, settings_walker.ts, folder-suggest.ts, stream-area.ts, stable-writer.ts, endpoint-source.ts, request-section.ts, request-session.ts, thinking-control.ts, collapsible.ts, chat-client.ts, chat-transport.ts, shortcuts-bridge.ts, clock.ts, lab-client.ts, help-setting.ts, version-list.ts"
+  "vendored": "clipboard.ts, endpoint-list.ts, endpoint-secrets.ts, secrets.ts, model-picker.ts, settings_walker.ts, folder-suggest.ts, stream-area.ts, endpoint-source.ts, request-section.ts, request-session.ts, thinking-control.ts, collapsible.ts, chat-client.ts, chat-transport.ts, shortcuts-bridge.ts, clock.ts, help-setting.ts, version-list.ts"
 }
