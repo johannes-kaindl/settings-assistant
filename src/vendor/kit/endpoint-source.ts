@@ -1,5 +1,6 @@
-// vendored from obsidian-kit@0.47.0, src/pure/endpoint-source.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
-import { resolveActiveEndpointConfig, type EndpointConfig } from "./endpoint_config";
+// vendored from obsidian-kit@0.48.1, src/pure/endpoint-source.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
+import { hydrateEndpointSecrets, resolveActiveEndpointConfig, type EndpointConfig } from "./endpoint_config";
+import type { SecretStore } from "./secrets";
 import { familyFromName, type BackendId, type FamilyId, type ModelFamilyId } from "./sampling-profiles";
 
 /** Öffentlicher Vertrag des Plugins `llm-endpoint-manager` (dessen `src/core/api-types.ts` ist
@@ -63,6 +64,11 @@ export type SourceKind = "manager" | "local";
 export interface EndpointSourceInput {
   manager?: LlmEndpointManagerApi | null;
   local: EndpointConfig[];
+  /** Schlüsselbund der LOKALEN Liste: ist er gesetzt, trägt die aufgelöste Config den Schlüssel
+   *  als `apiKey` (hydriert aus `secretId`), damit `authHeaders` ihn sieht. Nur der lokale Pfad;
+   *  der Manager hat seinen eigenen Schlüsselbund. Obsidian-Konsumenten rufen dafür
+   *  `prepareLocalEndpoints` (migriert und hydriert) und lassen dieses Feld leer. */
+  secrets?: Pick<SecretStore, "get"> | null;
   localModel?: string;
   capability: Capability;
   choice?: EndpointChoice;
@@ -154,7 +160,7 @@ export async function resolveEndpointSource(
 ): Promise<EndpointSourceResult> {
   const { manager } = input;
   if (!manager) {
-    const config = await resolveActiveEndpointConfig(input.local, ping);
+    const config = await resolveActiveEndpointConfig(input.secrets ? hydrateEndpointSecrets(input.local, input.secrets) : input.local, ping);
     return finish({ kind: "local", config, model: config ? localModelOf(input.choice, config, input.localModel) : "" }, input, null);
   }
   const opts = input.caller ? { caller: input.caller } : undefined;

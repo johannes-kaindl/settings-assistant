@@ -1,7 +1,7 @@
 {
   "sources": {
-    "obsidian-kit": { "ref": "0.47.0" },
-    "code-kit": { "ref": "0.10.0" }
+    "obsidian-kit": { "ref": "0.48.1" },
+    "code-kit": { "ref": "0.11.0" }
   },
   "targets": [
     { "dir": "src/vendor/kit", "source": "code-kit", "from": "src/ts/web", "modules": ["clipboard"] },
@@ -14,13 +14,13 @@
       ]
     },
     {
-      "dir": "src/vendor/kit", "source": "obsidian-kit", "from": "src/pure", "modules": ["endpoint-source"],
+      "dir": "src/vendor/kit", "source": "obsidian-kit", "from": "src/pure", "modules": ["endpoint-source", "secrets"],
       "rewrite": [["../vendor/code-kit/pure/", "./"], ["../vendor/code-kit/web/", "./"], ["../pure/", "./"]]
     },
     {
       "dir": "src/vendor/kit-obsidian", "source": "obsidian-kit", "from": "src/obsidian",
       "modules": [
-        "clipboard", "confirm", "endpoint-list", "model-picker", "settings_walker", "folder-suggest",
+        "clipboard", "confirm", "endpoint-list", "endpoint-secrets", "secrets", "model-picker", "settings_walker", "folder-suggest",
         "stream-area", "stable-writer", "endpoint-source", "request-section", "request-session",
         "thinking-control", "collapsible", "chat-client", "chat-transport", "shortcuts-bridge", "clock", "lab-client", "help-setting", "version-list"
       ],

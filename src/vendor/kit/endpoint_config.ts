@@ -1,4 +1,4 @@
-// vendored from code-kit@0.10.0, src/ts/pure/endpoint_config.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
+// vendored from code-kit@0.11.0, src/ts/pure/endpoint_config.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
 /** Obsidian-freie Wahrheit für Endpunkt-Einträge: Struktur, Auth-Header, Modellwahl,
  *  Migration alter String-Listen und Listen-Bearbeitung.
  *
@@ -10,8 +10,15 @@ import { normalizeEndpoint } from "./endpoint";
 
 export interface EndpointConfig {
   url: string;
-  /** Leer/fehlend = kein Authorization-Header (lokaler Server). */
+  /** Leer/fehlend = kein Authorization-Header (lokaler Server).
+   *  Mit Schlüsselbund ist das ein reines In-Memory-Feld: `hydrateEndpointSecrets` füllt es zur
+   *  Laufzeit, persistiert wird `secretId`. */
   apiKey?: string;
+  /** Stabile Zeilen-Identität, einmal vergeben (`ensureEndpointIds`). Weder Index (wandert beim
+   *  Umsortieren) noch URL (kommt doppelt vor, mit verschiedenen Schlüsseln). */
+  id?: string;
+  /** Name des Schlüssels im Schlüsselbund; wird statt `apiKey` persistiert. */
+  secretId?: string;
   /** Leer/fehlend = das globale Modell gilt. */
   model?: string;
 }
@@ -62,7 +69,101 @@ function toConfig(entry: string | EndpointConfig): EndpointConfig | null {
   if (!url) return null;
   const key = entry.apiKey?.trim();
   const model = entry.model?.trim();
-  return { url, ...(key ? { apiKey: key } : {}), ...(model ? { model } : {}) };
+  return {
+    url,
+    ...(key ? { apiKey: key } : {}),
+    ...(model ? { model } : {}),
+    ...(entry.id ? { id: entry.id } : {}),
+    ...(entry.secretId ? { secretId: entry.secretId } : {}),
+  };
+}
+
+/** Das Stück des Schlüsselbunds, das die Helfer brauchen. Strukturell kompatibel zu
+ *  `SecretStore` aus obsidian-kit (`get`/`set`), damit code-kit kein Schlüsselbund-Modul braucht. */
+export interface EndpointSecretStore {
+  get(id: string): string | null;
+  set(id: string, value: string): void;
+}
+
+/** Zufallskennung ohne Hostzugriff (die pure Schicht kennt weder `crypto` noch `window`). Die Id
+ *  ist eine Zeilen-Identität, kein Geheimnis — wer kryptografischen Zufall will, übergibt `newId`. */
+function randomId(): string {
+  return Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 10);
+}
+
+/** Vergibt jedem Eintrag ohne (oder mit doppelter) `id` eine Zufallskennung. Neue Liste, die
+ *  Eingabe bleibt unberührt. `newId` ist für Tests injizierbar. */
+export function ensureEndpointIds(list: EndpointConfig[], newId: () => string = randomId): EndpointConfig[] {
+  const seen = new Set<string>();
+  return list.map((e) => {
+    let id = e.id;
+    if (!id || seen.has(id)) {
+      id = newId();
+      while (seen.has(id)) id = newId();
+    }
+    seen.add(id);
+    return id === e.id ? { ...e } : { ...e, id };
+  });
+}
+
+/** Schlüsselbund-taugliche Kennung (Kleinbuchstaben, Ziffern, Bindestrich) — dieselbe Regel wie
+ *  `secretIdFor` in obsidian-kit, hier ohne Abhängigkeit von dort. */
+function secretIdOf(prefix: string, id: string): string {
+  const out = `${prefix}-${id}`.toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/-{2,}/g, "-").replace(/^-+|-+$/g, "");
+  if (!out) throw new Error("secretIdOf: Ergebnis ist leer");
+  return out;
+}
+
+/** Verschiebt Klartext-`apiKey`s in den Schlüsselbund: je Eintrag mit Schlüssel eine `id` (falls
+ *  nötig), `secretId` (falls nötig), `store.set`, dann `apiKey` entfernen. Neue Liste, Eingabe
+ *  unberührt; `changed` sagt, ob sich etwas bewegt hat (dann muss der Aufrufer speichern).
+ *
+ *  **Ein Schlüssel wird nie verworfen, den man nicht gespeichert hat:** ohne Store, bei einem
+ *  werfenden `set` und wenn `get` den Wert danach nicht zurückgibt, bleibt der Klartext stehen.
+ *  Idempotent — ein zweiter Lauf findet keinen Klartext mehr. */
+export function migrateEndpointSecrets(
+  list: EndpointConfig[],
+  store: EndpointSecretStore | null | undefined,
+  prefix: string,
+  newId: () => string = randomId,
+): { list: EndpointConfig[]; changed: boolean } {
+  if (!store) return { list, changed: false };
+  const used = new Set(list.map((e) => e.id).filter((i): i is string => !!i));
+  let changed = false;
+  const out = list.map((e) => {
+    const key = e.apiKey?.trim();
+    if (!key) return e;
+    let id = e.id;
+    if (!id) {
+      id = newId();
+      while (used.has(id)) id = newId();
+      used.add(id);
+    }
+    const secretId = e.secretId ?? secretIdOf(prefix, id);
+    try {
+      store.set(secretId, key);
+      if (!store.get(secretId)) return e;
+    } catch {
+      return e;
+    }
+    changed = true;
+    const { apiKey: _drop, ...rest } = e;
+    return { ...rest, id, secretId };
+  });
+  return { list: changed ? out : list, changed };
+}
+
+/** Kopien der Liste mit `apiKey` aus dem Schlüsselbund (für `authHeaders` und alle, die den
+ *  Schlüssel brauchen). Das Original bleibt ohne Schlüssel — es wird gespeichert. Fehlt der
+ *  Store-Wert oder der Store, bleibt der Eintrag, wie er ist. */
+export function hydrateEndpointSecrets(
+  list: EndpointConfig[],
+  store: Pick<EndpointSecretStore, "get"> | null | undefined,
+): EndpointConfig[] {
+  return list.map((e) => {
+    const v = store && e.secretId ? store.get(e.secretId) : null;
+    return v ? { ...e, apiKey: v } : { ...e };
+  });
 }
 
 /** Migriert alte Einzel-/String-Listen-Settings auf EndpointConfig[]. Reiner Helfer. */
