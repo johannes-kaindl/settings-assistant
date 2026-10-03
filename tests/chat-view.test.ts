@@ -94,9 +94,9 @@ describe("chat-view", () => {
     await ask(view);
     await vi.waitFor(() => { expect((deps.renderMarkdown as any).mock.calls.length).toBeGreaterThan(0); });
     const md = (deps.renderMarkdown as any).mock.calls.at(-1)[1] as string;
-    expect(md).not.toContain("dataviewjs");
-    expect(md).toContain(`${F}text`);
-    expect(md).not.toContain("`$=");
+    // Kein Backtick mehr: weder Zaun noch Inline-Code kann entstehen; der Profilblock ist vorher aus dem Rohtext gezogen.
+    expect(md).not.toContain("`");
+    expect(md).toContain("\u02CB\u02CB\u02CBdataviewjs");
     expect(md).not.toContain("settings-profile");
   });
 
@@ -239,6 +239,14 @@ describe("chat-view", () => {
     await ask(view);
     await vi.waitFor(() => { expect(deps.renderMarkdown).toHaveBeenCalled(); });
     expect((deps.renderMarkdown as any).mock.calls.at(-1)[1]).not.toContain("settings-profile");
+  });
+
+  it("(I2) ein nicht erkannter Profilzaun (im Zitat) wird nie ein Block des eigenen Prozessors", async () => {
+    const { view, deps } = setup({ answer: "hi\n> ```settings-profile\n> {\"version\":1}\n> ```" });
+    await view.onOpen();
+    await ask(view);
+    await vi.waitFor(() => { expect(deps.renderMarkdown).toHaveBeenCalled(); });
+    expect((deps.renderMarkdown as any).mock.calls.at(-1)[1]).not.toContain("`");
   });
 
   it("stripActiveContent entfernt aktive Elemente und src/srcset", () => {
