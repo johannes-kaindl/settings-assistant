@@ -1,6 +1,6 @@
 {
   "name": "settings-assistant",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Change app and plugin settings through reviewed profiles or a local-LLM chat — with secrets left out, a diff before every write, and snapshots to roll back.",
   "type": "module",
   "scripts": {
