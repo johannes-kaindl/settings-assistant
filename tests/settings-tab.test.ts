@@ -64,6 +64,7 @@ describe("SettingsAssistantSettingTab", () => {
     const empty = el.querySelectorAll(".sa-empty");
     expect(empty).toHaveLength(1);
     expect(empty[0].textContent).toBe("No snapshots yet");
+    expect(el.querySelectorAll(".sa-snapshots")).toHaveLength(1);
     expect(el.querySelectorAll(".okit-vlist")).toHaveLength(0);
   });
 

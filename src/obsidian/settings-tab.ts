@@ -272,9 +272,10 @@ export class SettingsAssistantSettingTab extends PluginSettingTab {
     });
   }
 
-  private async renderSnapshotList(host: HTMLElement): Promise<void> {
+  private async renderSnapshotList(outer: HTMLElement): Promise<void> {
     const all = await listSnapshots(this.app).catch(() => []);
-    host.empty();
+    outer.empty();
+    const host = outer.createDiv({ cls: "sa-snapshots" });
     if (all.length === 0) {
       host.createDiv({ cls: "sa-empty", text: t("snap.empty") });
       return;
@@ -291,7 +292,7 @@ export class SettingsAssistantSettingTab extends PluginSettingTab {
       onSelect: (i) => {
         const dir = all[i]?.dir;
         if (dir === undefined) return;
-        void this.host.restore(dir).then(() => this.renderSnapshotList(host));
+        void this.host.restore(dir).then(() => this.renderSnapshotList(outer));
       },
     });
   }

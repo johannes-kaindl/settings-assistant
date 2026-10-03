@@ -187,7 +187,16 @@
 }
 
 /* Eigene Regeln der Schnappschuss-Liste */
-.sa-snapshots-hint { color: var(--text-muted); font-size: var(--font-ui-smaller); margin-bottom: var(--size-2-1); }
+.sa-snapshots {
+  width: 100%;
+  box-sizing: border-box;
+  padding: var(--size-4-3);
+  background: var(--background-secondary);
+  border-radius: var(--radius-m);
+}
+.sa-snapshots-hint { color: var(--text-muted); font-size: var(--font-ui-small); margin-bottom: var(--size-4-2); }
+.sa-snapshots .okit-vlist { margin-bottom: 0; }
+.sa-snapshots .okit-vlist-heading { font-size: var(--font-ui-small); font-weight: var(--font-semibold); color: var(--text-normal); }
 
 /* uebernommen aus src/vendor/kit-obsidian/stream-area.ts (STREAM_AREA_CSS), obsidian-kit 0.47.0 */
 .okit-stream { display: flex; flex-direction: column; min-height: 0; gap: var(--size-4-2); }
