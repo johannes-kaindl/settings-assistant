@@ -8,7 +8,7 @@ import { buildThinkingControl, type ThinkingControlOptions } from "../vendor/kit
 import type { PluginInfo } from "../core/chat-context";
 import { neutralizeModelMarkdown } from "../core/chat-markdown";
 import { stripProfileBlocks } from "../core/profile-fence";
-import { redactedProfileNote, profileNoteName } from "../core/profile-note";
+import { redactedProfileNote, redactedRawBlock, profileNoteName } from "../core/profile-note";
 import type { ChatSession, ChatTurn, SentContext } from "./chat-session";
 import { renderProfileResult, type ProfileResultDeps } from "./profile-block";
 
@@ -222,6 +222,10 @@ export class SettingsChatView extends ItemView {
     void renderProfileResult(result, b.result, b.raw, {
       service: this.deps.service, origin: `chat:${iso}/${model}`, openPluginSettings: (id) => { this.deps.openPluginSettings(id); },
     }).catch(() => { /* Fehler zeigt der Dialog; kein Detail in die Ansicht */ });
+    // Spec § 8: der Block ist immer sichtbar — geschwärzt, nie als Rohtext.
+    const raw = box.createEl("details", { cls: "sa-chat-raw" });
+    raw.createEl("summary", { text: t("chat.raw.title") });
+    raw.createEl("pre", { cls: "sa-chat-raw-text", text: redactedRawBlock(b.raw, b.result) ?? t("chat.raw.invalid") });
     if (!b.result.ok) return;
     const profile = b.result.profile;
     const note = box.createDiv({ cls: "sa-chat-block-note" });

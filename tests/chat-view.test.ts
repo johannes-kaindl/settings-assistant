@@ -113,6 +113,43 @@ describe("chat-view", () => {
     expect(text).not.toContain("sk-LLM-MADE");
   });
 
+  it("(I4) gültiger Block: roher Block geschwärzt im <details>, kein Geheimnis", async () => {
+    const leaky = "```settings-profile\n" + JSON.stringify({ version: 1, plugins: { "koda-agent": { apiKey: "sk-LLM-MADE", maxRounds: 20 } } }) + "\n```";
+    const { view } = setup({ answer: leaky });
+    await view.onOpen();
+    await ask(view);
+    await vi.waitFor(() => { expect((view.contentEl as any).querySelectorAll(".sa-chat-raw").length).toBe(1); });
+    const raw = (view.contentEl as any).querySelectorAll(".sa-chat-raw")[0];
+    expect(raw.tagName.toLowerCase()).toBe("details");
+    expect(raw.textContent).toContain("Raw block (secrets redacted)");
+    const pre = raw.querySelectorAll("pre")[0];
+    expect(pre.textContent).toContain("🔒");
+    expect(pre.textContent).toContain("maxRounds");
+    expect((view.contentEl as any).textContent).not.toContain("sk-LLM-MADE");
+  });
+
+  it("(I4) ungültiger Block: Hinweis statt Rohtext", async () => {
+    const { view } = setup({ answer: broken });
+    await view.onOpen();
+    await ask(view);
+    await vi.waitFor(() => { expect((view.contentEl as any).querySelectorAll(".sa-chat-raw").length).toBe(1); });
+    const pre = (view.contentEl as any).querySelectorAll(".sa-chat-raw")[0].querySelectorAll("pre")[0];
+    expect(pre.textContent).toBe("(block is not valid JSON — not shown)");
+    const text = (view.contentEl as any).textContent as string;
+    expect(text).not.toContain("oops");
+    expect(text).not.toContain("sk-DETAIL-LEAK");
+  });
+
+  it("(I4) gültiges JSON, aber kein gültiges Profil: geschwärzt gezeigt", async () => {
+    const { view } = setup({ answer: "```settings-profile\n" + JSON.stringify({ plugins: { x: { token: "sk-NOVERSION" } } }) + "\n```" });
+    await view.onOpen();
+    await ask(view);
+    await vi.waitFor(() => { expect((view.contentEl as any).querySelectorAll(".sa-chat-raw").length).toBe(1); });
+    const pre = (view.contentEl as any).querySelectorAll(".sa-chat-raw")[0].querySelectorAll("pre")[0];
+    expect(pre.textContent).toContain("🔒");
+    expect((view.contentEl as any).textContent).not.toContain("sk-NOVERSION");
+  });
+
   it("Chips sind entfernbar", async () => {
     const { view, session } = setup();
     await view.onOpen();
