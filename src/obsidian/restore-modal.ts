@@ -1,5 +1,6 @@
 import { ButtonComponent, Modal, Setting, type App } from "obsidian";
 import { t } from "../vendor/kit/i18n";
+import { tn } from "../i18n/plural";
 import type { RestoreRow } from "./apply-service";
 
 /** Dialog „Schnappschuss zurückholen“: eine Zeile je Datei. Unveränderte Dateien sind angehakt, geänderte
@@ -19,7 +20,7 @@ class RestoreModal extends Modal {
 
   private refresh(): void {
     const n = this.count();
-    this.applyBtn?.setButtonText(t("restore.apply", n)).setDisabled(n === 0);
+    this.applyBtn?.setButtonText(tn("restore.apply", n)).setDisabled(n === 0);
   }
 
   onOpen(): void {

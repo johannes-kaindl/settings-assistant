@@ -495,7 +495,7 @@ async function p2(c: Ctx): Promise<void> {
   await klickeAnwenden(c.cdp);
   const dlg = await warteAufDialog([c.cdp]);
   if (!dlg) { record(pn("P2"), false, "der Anwenden-Dialog oeffnet sich nicht"); return; }
-  const dialogOk = dlg.info.title === "Apply settings" && dlg.info.reload === "sa-probe will be reloaded — open views close." && dlg.info.ctaText === "Apply 1 changes";
+  const dialogOk = dlg.info.title === "Apply settings" && dlg.info.reload === "sa-probe will be reloaded — open views close." && dlg.info.ctaText === "Apply 1 change";
   await dialogKlick(c.cdp, "cta");
   const n = await warteAufNotice(c.cdp, "Settings applied");
   const daten = await leseProbe(c.cdp);

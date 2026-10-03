@@ -1,5 +1,6 @@
 import { ButtonComponent, Modal, type App } from "obsidian";
 import { t } from "../vendor/kit/i18n";
+import { tn } from "../i18n/plural";
 import type { CheckRow } from "../core/reconcile";
 import { sameTarget, targetKey } from "../core/types";
 import { renderCheckRows } from "./check-rows-view";
@@ -29,7 +30,7 @@ class ApplyModal extends Modal {
 
   private refresh(): void {
     const n = this.count();
-    this.applyBtn?.setButtonText(t("modal.apply", n)).setDisabled(n === 0);
+    this.applyBtn?.setButtonText(tn("modal.apply", n)).setDisabled(n === 0);
   }
 
   onOpen(): void {

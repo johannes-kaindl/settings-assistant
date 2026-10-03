@@ -1,5 +1,6 @@
 import { Notice } from "obsidian";
 import { t } from "../vendor/kit/i18n";
+import { tn } from "../i18n/plural";
 import { parseProfile, type ParseResult, type ProfileError } from "../core/profile";
 import type { SettingsProfile } from "../core/types";
 import type { ApplyService } from "./apply-service";
@@ -39,7 +40,7 @@ async function renderValid(el: HTMLElement, profile: SettingsProfile, deps: Prof
     box.createDiv({ cls: "sa-profile-unknown", text: t("profile.unknown", name) });
   }
   const n = rows.filter((r) => r.selectable).length;
-  const btn = box.createEl("button", { cls: "sa-apply mod-cta", text: t("modal.apply", n) });
+  const btn = box.createEl("button", { cls: "sa-apply mod-cta", text: tn("modal.apply", n) });
   btn.disabled = n === 0;
   btn.addEventListener("click", () => {
     btn.disabled = true;

@@ -42,7 +42,7 @@ describe("profile-block", () => {
     expect(el.querySelectorAll(".sa-row")).toHaveLength(1);
     expect(el.querySelectorAll("input")).toHaveLength(0);
     const btn = el.querySelectorAll("button.sa-apply, .sa-apply")[0];
-    expect(btn.textContent).toContain("Apply");
+    expect(btn.textContent).toBe("Apply 1 change");
     expect(btn.disabled).toBeFalsy();
   });
 

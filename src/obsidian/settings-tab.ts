@@ -1,6 +1,7 @@
 // Muster (nicht Aufbau): lingotuner/src/obsidian/settings-tab.ts — Endpunkt-Quelle, Modell, Abschnitt „Anfrage“.
 import { Notice, PluginSettingTab, Setting, type App, type Plugin, type SettingDefinitionItem } from "obsidian";
 import { getLang, t } from "../vendor/kit/i18n";
+import { tn } from "../i18n/plural";
 import { isValidRetentionValue, type SettingsAssistantSettings } from "../core/settings";
 import { deviationDetail } from "../core/request-text";
 import { PROBE_TIMEOUT_MS, clientFor } from "./http";
@@ -285,7 +286,7 @@ export class SettingsAssistantSettingTab extends PluginSettingTab {
       active: -1,
       items: all.map((s) => ({
         label: new Date(s.manifest.at).toLocaleString(getLang()),
-        meta: `${s.manifest.origin} · ${t("snap.files", String(s.manifest.files.length))}`,
+        meta: `${s.manifest.origin} · ${tn("snap.files", s.manifest.files.length)}`,
       })),
       onSelect: (i) => {
         const dir = all[i]?.dir;
