@@ -74,7 +74,7 @@ function toApiResult(report: ApplyReport): ApiApplyResult {
     results: report.results.map((r) => ({
       path: `${targetKey(r.row.target)}.${r.row.path.join(".")}`,
       outcome: r.outcome,
-      ...(r.actual !== undefined && r.row.status !== "secret" ? { actual: r.actual } : {}),
+      ...(r.actual !== undefined && r.row.status !== "secret" ? { actual: redact(r.actual).value } : {}),
     })),
   };
 }

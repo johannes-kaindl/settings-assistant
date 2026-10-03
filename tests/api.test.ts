@@ -70,6 +70,14 @@ describe("Anbieter-API v1", () => {
     expect(api.status().busy).toBe(true);
   });
 
+  it("(M10) applyProfile liefert ein korrigiertes actual nur geschwärzt", async () => {
+    const row: CheckRow = { target: { kind: "plugin", id: "p" }, path: ["conn"], status: "change", checked: true, selectable: true, current: 1, desired: 2 };
+    const { api } = setup({ applyInteractive: async () => ({ origin: "api:x", snapshotDir: "s", stopped: false, results: [{ row, outcome: "corrected", actual: { apiKey: "sk-API-CORR", n: 3 } }] }) });
+    const r = await api.applyProfile({ version: 1, plugins: { p: { conn: 2 } } }, { origin: "x" });
+    expect(JSON.stringify(r)).not.toContain("sk-API-CORR");
+    expect(r).toEqual({ snapshot: "s", results: [{ path: "plugins.p.conn", outcome: "corrected", actual: { apiKey: "🔒", n: 3 } }] });
+  });
+
   it("(d) tools() deklariert confirms provider für propose_settings, caller für read_settings", () => {
     const { api } = setup();
     const tools = api.tools();

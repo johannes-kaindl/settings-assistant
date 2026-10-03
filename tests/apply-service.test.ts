@@ -112,6 +112,13 @@ describe("formatReport", () => {
     expect(text).not.toContain("TOPSECRET");
     expect(text).toContain("apiKey");
   });
+  it("(M10) corrected zeigt einen zurückgeschriebenen geheimen Teilbaum nur geschwärzt", () => {
+    const row: CheckRow = { target: { kind: "plugin", id: "p" }, path: ["conn"], status: "change", checked: true, selectable: true, current: { url: "a" }, desired: { url: "b" } };
+    const text = formatReport({ origin: "o", snapshotDir: "s", stopped: false, results: [{ row, outcome: "corrected", actual: { url: "b", apiKey: "sk-CORRECTED" } }] });
+    expect(text).not.toContain("sk-CORRECTED");
+    expect(text).toContain("🔒");
+    expect(text).toContain('"url":"b"');
+  });
 });
 
 describe("renderCheckRows", () => {
