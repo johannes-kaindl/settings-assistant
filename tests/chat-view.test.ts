@@ -262,6 +262,35 @@ describe("chat-view", () => {
     expect(a.getAttribute("srcset")).toBeNull();
   });
 
+  describe("stripActiveContent: Links (N1)", () => {
+    const hrefAfter = (attr: Record<string, string>): string | null => {
+      const root = makeFakeEl();
+      const a = root.createEl("a", { text: "click", attr });
+      stripActiveContent(root);
+      expect(a.getText?.() ?? "click").toBe("click"); // Linktext bleibt sichtbar
+      return a.getAttribute("href");
+    };
+    it.each([
+      "javascript:alert(1)", "JavaScript:alert(1)", "JaVaScRiPt:alert(1)", "  javascript:alert(1)", "\tjava\nscript:alert(1)", "\u0001javascript:alert(1)",
+      "data:text/html,<b>x</b>", "vbscript:msgbox(1)", "obsidian://open?vault=x", "file:///etc/passwd", "app://obsidian.md/x", "OBSIDIAN://x", "ftp://x/y",
+    ])("%j verliert sein href", (href) => { expect(hrefAfter({ href })).toBeNull(); });
+    it.each(["https://example.org/x", "HTTP://example.org", "mailto:a@b.de", "#Überschrift", "Notiz.md", "folder/Notiz.md#h", "?q=1"])("%j bleibt", (href) => {
+      expect(hrefAfter({ href })).toBe(href);
+    });
+    it("interner Obsidian-Link (data-href) bleibt, auch bei Doppelpunkt im Namen", () => {
+      expect(hrefAfter({ href: "Titel: Untertitel", "data-href": "Titel: Untertitel" })).toBe("Titel: Untertitel");
+    });
+    it("data-href macht ein javascript:-Ziel nicht harmlos", () => {
+      expect(hrefAfter({ href: "javascript:alert(1)", "data-href": "x" })).toBeNull();
+    });
+    it("verschachtelte Links werden alle geprüft", () => {
+      const root = makeFakeEl();
+      const a = root.createDiv().createEl("p").createEl("a", { attr: { href: "data:x" } });
+      stripActiveContent(root);
+      expect(a.getAttribute("href")).toBeNull();
+    });
+  });
+
   it("der Renderer-Ausgang wird nach dem Rendern bereinigt", async () => {
     const { view, deps } = setup({ answer: "hello" });
     (deps.renderMarkdown as any).mockImplementation(async (el: any) => { el.createEl("img", { attr: { src: "https://evil/" } }); });
