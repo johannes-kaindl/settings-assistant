@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { neutralizeModelMarkdown, stripProfileBlocks } from "../src/core/chat-markdown";
+import { neutralizeModelMarkdown } from "../src/core/chat-markdown";
 
 describe("neutralizeModelMarkdown", () => {
   it("Bilder werden sichtbarer Text ohne Bildsyntax", () => {
@@ -39,26 +39,5 @@ describe("neutralizeModelMarkdown", () => {
     const out = neutralizeModelMarkdown(text);
     expect(out).not.toContain("![");
     expect(out).not.toContain("<");
-  });
-});
-
-describe("stripProfileBlocks", () => {
-  const body = '{"version":1}';
-  it("entfernt vollständige Zäune", () => {
-    expect(stripProfileBlocks(`a\n\`\`\`settings-profile\n${body}\n\`\`\`\nb`)).not.toContain("settings-profile");
-  });
-  it("entfernt einen unvollständigen Zaun bis Textende", () => {
-    const out = stripProfileBlocks(`a\n\`\`\`settings-profile\n${body}\nmore`);
-    expect(out).not.toContain("settings-profile");
-    expect(out).not.toContain("more");
-    expect(out).toContain("a");
-  });
-  it("entfernt ~~~-Zäune", () => {
-    const out = stripProfileBlocks(`a\n~~~settings-profile\n${body}\n~~~\nb`);
-    expect(out).not.toContain("settings-profile");
-    expect(out).toContain("b");
-  });
-  it("lässt andere Zäune stehen", () => {
-    expect(stripProfileBlocks("```json\n{}\n```")).toContain("```json");
   });
 });

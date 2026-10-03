@@ -1,4 +1,5 @@
 import { parseProfile, type ParseResult } from "./profile";
+import { findProfileFences } from "./profile-fence";
 import { redact } from "./secrets";
 import type { Json } from "./types";
 
@@ -42,8 +43,7 @@ export function buildContext(input: { installed: readonly PluginInfo[]; selected
   return { system: SYSTEM_PROMPT, context: parts.join("\n"), redacted, unreadable };
 }
 
-const BLOCK = new RegExp(`${FENCE}settings-profile[ \\t]*\\r?\\n([\\s\\S]*?)${FENCE}`, "g");
-
+/** Nur geschlossene Blöcke: ein abgebrochener Stream liefert keinen halben Vorschlag (Erkennung: `profile-fence.ts`). */
 export function extractProfileBlocks(answer: string): Array<{ raw: string; result: ParseResult }> {
-  return [...answer.matchAll(BLOCK)].map((m) => ({ raw: m[1].trim(), result: parseProfile(m[1].trim()) }));
+  return findProfileFences(answer).filter((f) => f.closed).map((f) => ({ raw: f.body.trim(), result: parseProfile(f.body.trim()) }));
 }
