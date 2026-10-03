@@ -4,6 +4,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Changed
+
+- The README now shows screenshots: a settings profile in a note, the apply dialog, the restore dialog, the chat sidebar and the snapshot settings.
+
 ## [0.1.0] — 2026-10-03
 
 ### Added
