@@ -9,6 +9,8 @@
 [![Release](https://img.shields.io/github/v/release/johannes-kaindl/settings-assistant?label=release)](https://github.com/johannes-kaindl/settings-assistant/releases)
 ![Platform](https://img.shields.io/badge/platform-Obsidian%201.11.4%2B%20·%20desktop%20%26%20mobile-7c3aed)
 
+<p align="center"><img src="https://raw.githubusercontent.com/johannes-kaindl/settings-assistant/main/docs/images/hero.png" width="820" alt="A note with a settings profile: each key as a row — will change, already set, key not found, and a locked secret — and an Apply button"></p>
+
 Settings live in JSON files inside your configuration folder, and changing them by hand is easy to get wrong and hard to undo. Settings Assistant puts a review step in between: you describe the change as a profile (or ask the chat to draft one), the plugin compares it with the current state, shows every difference, and writes only what you tick — after saving a snapshot you can restore later.
 
 ## What it does
@@ -66,6 +68,12 @@ npm run build   # produces main.js
 3. To ask instead of write: run **Open settings chat** (or use the ribbon icon), name a plugin in your question, and read the answer. A proposed profile appears with the same rows and the same apply button; **Save as profile note** keeps it for another vault.
 4. To undo: run **Undo last apply**, or pick a snapshot in the settings under **Snapshots**. A file that changed since the apply is shown as such and is not ticked.
 
+<img src="https://raw.githubusercontent.com/johannes-kaindl/settings-assistant/main/docs/images/apply-dialog.png" width="550" alt="The Apply settings dialog: rows grouped by plugin with checkboxes, a reload notice, a locked secret row and the Apply 3 changes button">
+
+<a href="https://raw.githubusercontent.com/johannes-kaindl/settings-assistant/main/docs/images/chat.png"><img src="https://raw.githubusercontent.com/johannes-kaindl/settings-assistant/main/docs/images/thumbs/chat.png" width="380" alt="The settings chat in the sidebar with a drafted profile, its check rows and an Apply button"></a><br><sub>Click the preview for the full-size chat</sub>
+
+<img src="https://raw.githubusercontent.com/johannes-kaindl/settings-assistant/main/docs/images/restore-dialog.png" width="550" alt="The Restore snapshot dialog with one file marked unchanged since the apply">
+
 The walk-through [First profile](https://github.com/johannes-kaindl/settings-assistant/blob/main/docs/tutorial-first-profile.md) does all of this once, step by step.
 
 ## Configuration
@@ -80,6 +88,8 @@ The walk-through [First profile](https://github.com/johannes-kaindl/settings-ass
 | Request | The sampling values, thinking level and token budget actually sent for the current model family, with the last request and any deviations of the session. |
 | Retention | How many snapshots stay: **Keep from today**, **Keep per day**, **Keep per week**, **Keep per month**. Defaults 6, 7, 4 and 6; 0 keeps none for that period. |
 | Saved snapshots | The list of snapshots, newest first. Selecting one opens the restore dialog. |
+
+<a href="https://raw.githubusercontent.com/johannes-kaindl/settings-assistant/main/docs/images/settings.png"><img src="https://raw.githubusercontent.com/johannes-kaindl/settings-assistant/main/docs/images/thumbs/settings.png" width="380" alt="The Snapshots section of the settings: retention fields and the list of saved snapshots"></a><br><sub>Click the preview for the full-size section</sub>
 
 ## How it works
 

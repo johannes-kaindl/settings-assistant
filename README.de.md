@@ -9,6 +9,8 @@
 [![Release](https://img.shields.io/github/v/release/johannes-kaindl/settings-assistant?label=release)](https://github.com/johannes-kaindl/settings-assistant/releases)
 ![Platform](https://img.shields.io/badge/platform-Obsidian%201.11.4%2B%20·%20desktop%20%26%20mobile-7c3aed)
 
+<p align="center"><img src="https://raw.githubusercontent.com/johannes-kaindl/settings-assistant/main/docs/images/hero.png" width="820" alt="Eine Notiz mit einem Settings-Profil: jeder Schlüssel als Zeile — wird geändert, bereits gesetzt, Schlüssel nicht gefunden und ein gesperrtes Geheimnis — und ein Anwenden-Knopf"></p>
+
 Einstellungen liegen als JSON-Dateien im Konfigurationsordner, und sie von Hand zu ändern geht leicht schief und lässt sich schlecht zurücknehmen. Settings Assistant schaltet einen Prüfschritt dazwischen: Du beschreibst die Änderung als Profil (oder lässt den Chat eines entwerfen), das Plugin vergleicht es mit dem aktuellen Stand, zeigt jeden Unterschied und schreibt nur, was du angehakt hast — nachdem es einen Schnappschuss gesichert hat, den du später zurückholen kannst.
 
 ## Funktionen
@@ -66,6 +68,12 @@ npm run build   # erzeugt main.js
 3. Fragen statt schreiben: Führe **Einstellungs-Chat öffnen** aus (oder nimm das Ribbon-Symbol), nenne in deiner Frage ein Plugin und lies die Antwort. Ein vorgeschlagenes Profil erscheint mit denselben Zeilen und demselben Anwenden-Knopf; **Als Profilnotiz speichern** hebt es für einen anderen Vault auf.
 4. Zurücknehmen: Führe **Letztes Anwenden zurücknehmen** aus oder wähle in den Einstellungen unter **Schnappschüsse** einen Schnappschuss. Eine Datei, die sich seit dem Anwenden geändert hat, wird so angezeigt und ist nicht angehakt.
 
+<img src="https://raw.githubusercontent.com/johannes-kaindl/settings-assistant/main/docs/images/apply-dialog.png" width="550" alt="Der Dialog Settings anwenden: Zeilen je Plugin gruppiert mit Häkchen, Neuladen-Hinweis, gesperrte Geheimnis-Zeile und der Knopf Apply 3 changes">
+
+<a href="https://raw.githubusercontent.com/johannes-kaindl/settings-assistant/main/docs/images/chat.png"><img src="https://raw.githubusercontent.com/johannes-kaindl/settings-assistant/main/docs/images/thumbs/chat.png" width="380" alt="Der Einstellungs-Chat in der Seitenleiste mit einem entworfenen Profil, seinen Prüfzeilen und einem Anwenden-Knopf"></a><br><sub>Auf die Vorschau klicken für den Chat in voller Größe</sub>
+
+<img src="https://raw.githubusercontent.com/johannes-kaindl/settings-assistant/main/docs/images/restore-dialog.png" width="550" alt="Der Dialog Schnappschuss zurückholen mit einer Datei, seit dem Anwenden unverändert">
+
 Die Anleitung [First profile](https://github.com/johannes-kaindl/settings-assistant/blob/main/docs/tutorial-first-profile.md) (Englisch) geht all das einmal Schritt für Schritt durch.
 
 ## Konfiguration
@@ -80,6 +88,8 @@ Die Anleitung [First profile](https://github.com/johannes-kaindl/settings-assist
 | Request | Die tatsächlich gesendeten Sampling-Werte, Denkstufe und das Token-Budget für die aktuelle Modellfamilie, dazu die letzte Anfrage und Abweichungen der Sitzung. |
 | Aufbewahrung | Wie viele Schnappschüsse bleiben: **Behalten von heute**, **Behalten je Tag**, **Behalten je Woche**, **Behalten je Monat**. Standard 6, 7, 4 und 6; 0 behält für den Zeitraum keinen. |
 | Gespeicherte Schnappschüsse | Die Liste der Schnappschüsse, neueste zuerst. Ein Klick öffnet den Zurückholen-Dialog. |
+
+<a href="https://raw.githubusercontent.com/johannes-kaindl/settings-assistant/main/docs/images/settings.png"><img src="https://raw.githubusercontent.com/johannes-kaindl/settings-assistant/main/docs/images/thumbs/settings.png" width="380" alt="Der Abschnitt Snapshots der Einstellungen: Aufbewahrungsfelder und die Liste der gespeicherten Schnappschüsse"></a><br><sub>Auf die Vorschau klicken für den Abschnitt in voller Größe</sub>
 
 ## Funktionsweise
 
