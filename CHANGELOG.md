@@ -14,7 +14,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - Secrets are left out of profiles, apply reports, the chat context, saved profile notes and the API: the name must match (`apikey`, `token`, `secret`, `password`, `credential`, `cookie`, `email`, `auth` except `author`) and the value must be non-empty text, an object or a list.
 - Snapshots with a two-phase manifest, grandfather-father-son retention (defaults 6 today, 7 days, 4 weeks, 6 months, editable in the settings) and a restore dialog that marks files changed since the apply or without a checksum and leaves them unselected.
 - Commands **Undo last apply** and **Open settings chat**, and the snapshot list in the settings tab.
-- A settings chat in the sidebar: plugins as chips suggested from the question, a fold-out **Sent context** with plugins, withheld key names, endpoint, model and the full prompt, proposals drawn with the same check rows, **Save as profile note**, and the model's Markdown neutralised before it is rendered.
+- A settings chat in the sidebar: plugins as chips suggested from the question, a fold-out **Sent context** with plugins, withheld key names, endpoint, model and the full prompt, proposals drawn with the same check rows, **Save as profile note**, a fold-out raw block with secrets redacted under every proposal, and the model's Markdown neutralised before it is rendered.
 - Endpoints through the LLM Endpoint Manager when installed, otherwise a local list with connection status; sampling and thinking level through the shared request section; a help row at the top of the settings tab.
 - Plugin API v1 (`app.plugins.plugins["settings-assistant"].api`): redacted reading, plan, apply with the plugin's own confirmation dialog, and the tool definitions `read_settings` and `propose_settings`; see `docs/API.md`.
 - English and German interface; README in both languages and user documentation after Diátaxis under `docs/`.
@@ -25,6 +25,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Known issues
 
-- Die Schnappschuss-Liste (Kit-`version-list`) setzt `aria-pressed="false"` auf Aktionsknöpfe, obwohl sie semantisch ein Toggle ist; Kit-Task angelegt (Modus select/action), bis dahin bleibt es so.
-- API-Schlüssel liegen im Schlüsselbund, auch in der lokalen Endpunkt-Liste ohne Endpoint Manager; vorhandene Klartext-Schlüssel werden beim ersten Start migriert und aus der data.json entfernt. Das Plugin verlangt dafür Obsidian 1.11.4 oder neuer; wo der Schlüsselbund fehlt, bliebe der Klartext bis zur Migration stehen.
-- Zahlenschlüssel wie `"10"` sortiert JavaScript in Objekten nach vorn (Profil-Einsetzen).
+- The snapshot list (kit `version-list`) sets `aria-pressed="false"` on its action buttons, although it is not a toggle; a kit task is open (select/action mode), until then it stays as is.
+- API keys live in Obsidian's secret storage, also in the local endpoint list without the Endpoint Manager; existing plain-text keys are migrated on first start and removed from `data.json`. This is why the plugin requires Obsidian 1.11.4 or newer; where secret storage is missing, the plain text would stay until the migration.
+- JavaScript sorts numeric keys such as `"10"` to the front of an object, so inserting them through a profile can change the key order.
+- Chat answers are shown without code formatting: backticks and runs of three or more tildes are replaced by look-alike characters before rendering, so no code block or inline query of another plugin can run on model output. Proposals are shown separately, with the raw block (secrets redacted) in a fold-out.
