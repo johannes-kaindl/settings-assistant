@@ -1,1 +1,19 @@
 /* Nur Theme-CSS-Variablen (UI-STANDARD). Praefix sa-. Kein !important. */
+
+.sa-group { margin-bottom: var(--size-4-3); }
+.sa-group-title { margin: 0 0 var(--size-4-1); font-size: var(--font-ui-medium); }
+.sa-group-reload { color: var(--text-warning); font-size: var(--font-ui-smaller); margin-bottom: var(--size-4-1); }
+.sa-rows { display: flex; flex-direction: column; gap: var(--size-4-2); }
+.sa-row { padding: var(--size-4-1) var(--size-4-2); border-radius: var(--radius-s); background: var(--background-secondary); }
+.sa-row-head { display: flex; align-items: center; gap: var(--size-4-2); }
+.sa-row-icon { color: var(--text-muted); }
+.sa-row.is-change .sa-row-icon { color: var(--text-accent); }
+.sa-row.is-same .sa-row-icon { color: var(--text-success); }
+.sa-row.is-not-installed .sa-row-icon,
+.sa-row.is-unreadable .sa-row-icon,
+.sa-row.is-shape-conflict .sa-row-icon { color: var(--text-warning); }
+.sa-row-path { font-family: var(--font-monospace); font-size: var(--font-ui-small); word-break: break-all; }
+.sa-row-status { color: var(--text-muted); font-size: var(--font-ui-smaller); }
+.sa-row-values { font-family: var(--font-monospace); font-size: var(--font-ui-smaller); word-break: break-all; }
+.sa-row-note { color: var(--text-muted); font-size: var(--font-ui-smaller); font-style: italic; }
+.sa-empty { color: var(--text-faint); font-size: var(--font-ui-small); }
