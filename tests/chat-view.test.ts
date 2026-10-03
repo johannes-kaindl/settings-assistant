@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import "../src/i18n/strings";
-import { WorkspaceLeaf } from "./vendor/kit/obsidian-mock";
+import { WorkspaceLeaf, makeFakeEl } from "./vendor/kit/obsidian-mock";
 import { ChatSession, type ChatSessionDeps } from "../src/obsidian/chat-session";
-import { SettingsChatView, VIEW_TYPE_SA_CHAT, refreshChatViews, type ChatViewDeps } from "../src/obsidian/chat-view";
+import { SettingsChatView, VIEW_TYPE_SA_CHAT, refreshChatViews, stripActiveContent, type ChatViewDeps } from "../src/obsidian/chat-view";
 
 const installed = [{ id: "koda-agent", name: "Koda" }, { id: "lingotuner", name: "Lingotuner" }];
 const profileAnswer = "Try this:\n```settings-profile\n" + JSON.stringify({ version: 1, plugins: { "koda-agent": { maxRounds: 20 } } }) + "\n```\nDone.";
@@ -164,5 +164,28 @@ describe("chat-view", () => {
     await ask(view);
     await vi.waitFor(() => { expect(deps.renderMarkdown).toHaveBeenCalled(); });
     expect((deps.renderMarkdown as any).mock.calls.at(-1)[1]).not.toContain("settings-profile");
+  });
+
+  it("stripActiveContent entfernt aktive Elemente und src/srcset", () => {
+    const root = makeFakeEl();
+    const img = root.createEl("img", { attr: { src: "https://evil/" } });
+    const wrap = root.createDiv();
+    wrap.createEl("iframe"); wrap.createEl("svg"); wrap.createEl("source");
+    const a = wrap.createEl("a", { attr: { src: "https://x", srcset: "y" } });
+    stripActiveContent(root);
+    expect(root.querySelectorAll("img, iframe, svg, source, script, video").length).toBe(0);
+    expect(root.children).not.toContain(img);
+    expect(a.getAttribute("src")).toBeNull();
+    expect(a.getAttribute("srcset")).toBeNull();
+  });
+
+  it("der Renderer-Ausgang wird nach dem Rendern bereinigt", async () => {
+    const { view, deps } = setup({ answer: "hello" });
+    (deps.renderMarkdown as any).mockImplementation(async (el: any) => { el.createEl("img", { attr: { src: "https://evil/" } }); });
+    await view.onOpen();
+    await ask(view);
+    await vi.waitFor(() => { expect(deps.renderMarkdown).toHaveBeenCalled(); });
+    await new Promise((r) => setTimeout(r, 0));
+    expect((view.contentEl as any).querySelectorAll("img").length).toBe(0);
   });
 });

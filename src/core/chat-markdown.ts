@@ -9,26 +9,15 @@ export function stripProfileBlocks(text: string): string {
   return text.replace(PROFILE_FENCE, "$1").trim();
 }
 
-const CODE_FENCE = /(^|\n)([ \t]*(`{3,}|~{3,})[^\n]*(?:\n[\s\S]*?(?:\n[ \t]*\3[ \t]*(?=\n|$)|$)|$))/g;
-
-function neutralizePlain(s: string): string {
-  return s
+/** Macht Modell-Markdown unschädlich für das automatische Laden: Bilder werden Text, Embeds Code, HTML wird escaped.
+ *  Bewusst OHNE Fence-Erkennung: jede Abweichung von der Erkennung des Renderers (Einrückung, Info-String, Schließer)
+ *  ließe ein Bild ungeprüft durch. Der Text wird einheitlich umgeschrieben, auch in Codeblöcken. Links bleiben
+ *  (ein Klick ist eine Nutzerhandlung). */
+export function neutralizeModelMarkdown(text: string): string {
+  return text
     .replace(/!\[\[([^\]\n]*)\]\]/g, (_m, inner: string) => `\`[[${inner}]]\``)
     .replace(/!\[([^\]]*)\]\(([^)\n]*)\)/g, (_m, alt: string, url: string) => `${alt} (${url})`)
     .replace(/!\[([^\]]*)\](?:\[[^\]]*\])?/g, "[$1]")
     .replace(/!\[/g, "[")
     .replace(/</g, "&lt;");
-}
-
-/** Macht Modell-Markdown unschädlich für das automatische Laden: Bilder werden Text, Embeds Code, HTML wird escaped.
- *  Links bleiben (ein Klick ist eine Nutzerhandlung); Codeblöcke bleiben unverändert. */
-export function neutralizeModelMarkdown(text: string): string {
-  let out = "";
-  let last = 0;
-  for (const m of text.matchAll(CODE_FENCE)) {
-    const start = (m.index ?? 0) + m[1].length;
-    out += neutralizePlain(text.slice(last, start)) + text.slice(start, (m.index ?? 0) + m[0].length);
-    last = (m.index ?? 0) + m[0].length;
-  }
-  return out + neutralizePlain(text.slice(last));
 }

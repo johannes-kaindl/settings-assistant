@@ -199,7 +199,10 @@ export class SettingsChatView extends ItemView {
     }
     if (turn.content !== "") {
       const text = neutralizeModelMarkdown(stripProfileBlocks(turn.content));
-      if (text !== "") void this.deps.renderMarkdown(area.bodyEl.createDiv({ cls: "okit-stream-block" }), text).catch(() => { area.setTail(text); });
+      if (text !== "") {
+        const block = area.bodyEl.createDiv({ cls: "okit-stream-block" });
+        void this.deps.renderMarkdown(block, text).then(() => { stripActiveContent(block); }, () => { area.setTail(text); });
+      }
     }
     if (turn.error !== undefined) {
       area.statusEl.setText(turn.error === "aborted" ? t("chat.aborted") : t("chat.error", turn.error));
@@ -256,4 +259,17 @@ export class SettingsChatView extends ItemView {
 /** Lädt alle offenen Chat-Ansichten neu (nach Endpunkt- oder Einstellungsänderung). */
 export async function refreshChatViews(leaves: readonly WorkspaceLeaf[]): Promise<void> {
   for (const leaf of leaves) if (leaf.view instanceof SettingsChatView) await leaf.view.reload();
+}
+
+const ACTIVE_TAGS = "img, iframe, embed, video, audio, object, link, style, svg, script, source";
+
+/** Zweite Verteidigungslinie nach dem Rendern: aktive Elemente entfernen, `src`/`srcset` überall löschen. */
+export function stripActiveContent(el: HTMLElement): void {
+  for (const n of Array.from(el.querySelectorAll(ACTIVE_TAGS))) n.remove();
+  const walk = (node: Element): void => {
+    node.removeAttribute("src");
+    node.removeAttribute("srcset");
+    for (const c of Array.from(node.children)) walk(c);
+  };
+  walk(el);
 }

@@ -23,10 +23,22 @@ describe("neutralizeModelMarkdown", () => {
       expect(out).toContain(`&lt;${tag}`);
     }
   });
-  it("Links bleiben Links, Codeblöcke bleiben unberührt", () => {
+  it("Links bleiben Links", () => {
     expect(neutralizeModelMarkdown("[t](https://ok.example)")).toBe("[t](https://ok.example)");
-    const code = "```html\n<img src=x> ![a](b)\n```";
-    expect(neutralizeModelMarkdown(code)).toBe(code);
+  });
+  const IMG = "![a](https://evil.example/?q=1)";
+  const cases: Array<[string, string]> = [
+    ["Backtick-Fence", "```\n" + IMG + "\n```"],
+    ["eingerückter Fence (2 Leerzeichen)", "  ```\n" + IMG + "\n  ```"],
+    ["~~~-Fence", "~~~\n" + IMG + "\n~~~"],
+    ["nach unvollständigem Fence", "```\nx\n" + IMG],
+    ["Backticks im Info-String", "``` a`b\n" + IMG + "\n```"],
+    ["Embed im Fence", "```\n![[x.png]] <img src=y>\n```"],
+  ];
+  it.each(cases)("%s: auch hier keine Bildsyntax und kein <", (_n, text) => {
+    const out = neutralizeModelMarkdown(text);
+    expect(out).not.toContain("![");
+    expect(out).not.toContain("<");
   });
 });
 
