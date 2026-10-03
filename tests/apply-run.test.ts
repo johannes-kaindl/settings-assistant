@@ -42,6 +42,15 @@ describe("runApply", () => {
     expect(f.files[P]).toBe('{"maxRounds":20}');
     expect(f.finished()).toEqual([{ path: P, existed: true, afterHash: hashText('{"maxRounds":20}') }]);
   });
+  it("(M6) prüft isWritable selbst: eine als auswählbar markierte Zeile auf die eigene Datei wird nie geschrieben", async () => {
+    const SELF = `${DIR}/plugins/settings-assistant/data.json`;
+    const f = fakePorts({ [P]: '{"a":1}', [SELF]: '{"x":1}' });
+    const forged = { target: { kind: "plugin" as const, id: "settings-assistant" }, path: ["x"], status: "change" as const, current: 1, desired: 2, checked: true, selectable: true };
+    const rep = await runApply([...rowsFor('{"a":1}', { a: 2 }), forged], f.ports, { configDir: DIR, origin: "o" });
+    expect(rep.results.map((r) => [r.row.target, r.outcome])).toEqual([[{ kind: "plugin", id: "koda-agent" }, "written"], [{ kind: "plugin", id: "settings-assistant" }, "skipped"]]);
+    expect(f.files[SELF]).toBe('{"x":1}');
+    expect(f.log.some((l) => l.includes("settings-assistant"))).toBe(false);
+  });
   it("does not toggle a disabled plugin", async () => {
     const f = fakePorts({ [P]: '{"a":1}' }, { enabled: false });
     await runApply(rowsFor('{"a":1}', { a: 2 }), f.ports, { configDir: DIR, origin: "o" });

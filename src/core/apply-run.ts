@@ -3,7 +3,7 @@ import { applyRows } from "./patch";
 import { parseTarget, type CheckRow } from "./reconcile";
 import { hashText, restoreDecision, type SnapshotFile } from "./snapshot";
 import { deepEqual, getAt, sameTarget, type Json, type Target } from "./types";
-import { targetPath } from "./write-policy";
+import { isWritable, targetPath } from "./write-policy";
 
 export interface SnapshotHandle { dir: string; finish(files: SnapshotFile[]): Promise<void> }
 export interface ApplyPorts {
@@ -38,7 +38,10 @@ function groupByTarget<T extends { target: Target }>(items: readonly T[]): Array
 }
 
 export async function runApply(rows: readonly CheckRow[], ports: ApplyPorts, opts: { configDir: string; origin: string }): Promise<ApplyReport> {
-  const selected = rows.filter((r) => r.checked && r.selectable);
+  const chosen = rows.filter((r) => r.checked && r.selectable);
+  // Zweite Prüfung neben `reconcile`: ein nicht schreibbares Ziel kommt weder in den Schnappschuss noch an `write`.
+  const selected = chosen.filter((r) => isWritable(r.target));
+  const blocked = chosen.filter((r) => !isWritable(r.target));
   const groups = groupByTarget(selected);
   const paths = groups.map((g) => targetPath(g.target, opts.configDir));
   const results: RowResult[] = [];
@@ -47,7 +50,7 @@ export async function runApply(rows: readonly CheckRow[], ports: ApplyPorts, opt
 
   let handle: SnapshotHandle;
   try { handle = await ports.beginSnapshot(paths, opts.origin); } catch (e) {
-    return { origin: opts.origin, snapshotDir: null, results: selected.map((row) => ({ row, outcome: "error", error: `snapshot: ${errText(e)}` })), stopped: true };
+    return { origin: opts.origin, snapshotDir: null, results: [...selected.map((row): RowResult => ({ row, outcome: "error", error: `snapshot: ${errText(e)}` })), ...blocked.map((row): RowResult => ({ row, outcome: "skipped" }))], stopped: true };
   }
 
   const finished: SnapshotFile[] = [];
@@ -84,6 +87,7 @@ export async function runApply(rows: readonly CheckRow[], ports: ApplyPorts, opt
     }
   }
   await handle.finish(finished);
+  for (const row of blocked) results.push({ row, outcome: "skipped" });
   return { origin: opts.origin, snapshotDir: handle.dir, results, stopped };
 }
 
