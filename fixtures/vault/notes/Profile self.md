@@ -1,5 +1,3 @@
-# Profile self
-
 Settings of Settings Assistant itself are read-only in this version.
 
 ```settings-profile

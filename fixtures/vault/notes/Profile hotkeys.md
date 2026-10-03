@@ -1,5 +1,3 @@
-# Profile hotkeys
-
 A free key binding for a core command.
 
 ```settings-profile

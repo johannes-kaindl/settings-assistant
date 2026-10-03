@@ -1,5 +1,3 @@
-# Profile authorization
-
 A key named authorization is a secret, too.
 
 ```settings-profile

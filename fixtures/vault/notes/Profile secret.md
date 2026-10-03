@@ -1,5 +1,3 @@
-# Profile secret
-
 Carries a secret key; the profile path must never apply it.
 
 ```settings-profile

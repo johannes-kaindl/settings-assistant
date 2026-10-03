@@ -1,5 +1,3 @@
-# Profile clamp
-
 Sets a value the probe plugin corrects on load (maximum 100).
 
 ```settings-profile

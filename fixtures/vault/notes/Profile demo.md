@@ -1,5 +1,3 @@
-# Profile demo
-
 Lowers the round limit of the probe plugin. Used by the GUI smoke.
 
 ```settings-profile
