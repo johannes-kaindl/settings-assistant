@@ -1,6 +1,6 @@
 import { getAt, isPlainObject, type Json } from "./types";
 
-const NAME_PATTERNS = ["apikey", "api_key", "token", "secret", "password", "credential", "cookie", "email"];
+const NAME_PATTERNS = ["apikey", "api_key", "api-key", "token", "secret", "password", "credential", "cookie", "email"];
 // "author" bleibt frei, "authorization"/"authorize" nicht: `auth` zählt, außer vor "or" ohne folgendes "iz" (Review 2026-10-03, authorization-Fall).
 const AUTH = /auth(?!or(?!iz))/;
 export const REDACTED = "🔒";

@@ -3,7 +3,7 @@ import { isSecretPath, isSecretValue, redact, REDACTED } from "../src/core/secre
 import type { Json } from "../src/core/types";
 
 // Gemessen 2026-10-03 über 75 data.json in Pallas und Arbeit (nur Namen): echte Treffer …
-const SECRET_STRINGS = ["apiKey", "apiToken", "apiAuthToken", "mcpToken", "syncToken", "email", "taskboneAPIkey", "secretId", "password", "dbPassword", "credentials", "sessionCookie"];
+const SECRET_STRINGS = ["apiKey", "apiToken", "apiAuthToken", "mcpToken", "syncToken", "email", "taskboneAPIkey", "secretId", "password", "dbPassword", "credentials", "sessionCookie", "x-api-key"];
 // … und harmlose Zahlenfelder, die ein reiner Teilstring-Abgleich trifft (Config Sync tut das).
 const HARMLESS_NUMBERS = ["contextWindowTokens", "maxTokens", "llmMaxTokens", "maxOutputTokens", "freezeTokens", "smartApplyMaxTokens", "aiDefaultMaxResponseTokens", "streakFreezeTokensPerMonth"];
 

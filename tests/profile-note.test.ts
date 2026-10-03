@@ -15,6 +15,12 @@ describe("profile-note", () => {
   it("ohne Geheimnis nichts geschwärzt", () => {
     expect(redactedProfileNote(prof({ plugins: { a: { n: 1 } } })).redacted).toEqual([]);
   });
+  it("ein Wert mit drei Backticks sprengt den Zaun nicht", () => {
+    const r = redactedProfileNote(prof({ plugins: { a: { tpl: "x ```` y ``` z" } } }));
+    const fence = r.text.split("\n")[0].replace("settings-profile", "");
+    expect(fence.length).toBeGreaterThan(4);
+    expect(r.text.trimEnd().endsWith(fence)).toBe(true);
+  });
   it("Dateiname mit Ortszeit", () => {
     expect(profileNoteName(new Date(2026, 9, 3, 7, 5))).toBe("Settings profile 2026-10-03 07-05");
   });

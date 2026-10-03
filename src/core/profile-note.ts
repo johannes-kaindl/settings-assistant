@@ -2,7 +2,11 @@ import { redact } from "./secrets";
 import { noteKey, serializeProfile } from "./profile";
 import { targetKey, type SettingsProfile } from "./types";
 
-const FENCE = "`".repeat(3);
+/** Zaun länger als jede Backtick-Folge im Inhalt, mindestens drei. */
+function fenceFor(body: string): string {
+  const longest = Math.max(0, ...(body.match(/`+/g) ?? []).map((r) => r.length));
+  return "`".repeat(Math.max(3, longest + 1));
+}
 
 /** Schwärzt geheime Werte im Profil, bevor es als Notiz gespeichert wird. Notizen zu betroffenen Zielen entfallen
  *  (Freitext könnte den Wert wiederholen). `redacted` nennt nur Pfade, nie Werte. */
@@ -23,7 +27,8 @@ export function redactedProfileNote(profile: SettingsProfile): { text: string; r
     if (!dropped) notes[k] = v;
   }
   const body = serializeProfile({ ...profile, entries, notes });
-  return { text: [FENCE + "settings-profile", body, FENCE, ""].join("\n"), redacted };
+  const fence = fenceFor(body);
+  return { text: [`${fence}settings-profile`, body, fence, ""].join("\n"), redacted };
 }
 
 const pad = (n: number): string => String(n).padStart(2, "0");
