@@ -23,4 +23,12 @@ describe("write-policy", () => {
     expect(targetPath({ kind: "plugin", id: "koda-agent" }, ".obs")).toBe(".obs/plugins/koda-agent/data.json");
     expect(targetPath({ kind: "obsidian", file: "hotkeys" }, ".obs")).toBe(".obs/hotkeys.json");
   });
+  it.each(["../../x", "a/b", "", ".hidden", ".."])("invalid plugin id %j is neither writable nor addressable", (id) => {
+    expect(isWritable({ kind: "plugin", id }, 3)).toBe(false);
+    expect(() => targetPath({ kind: "plugin", id }, ".obs")).toThrow("invalid plugin id");
+  });
+  it.each(["koda-agent", "a.b_c-1"])("valid plugin id %j unchanged", (id) => {
+    expect(isWritable({ kind: "plugin", id })).toBe(true);
+    expect(targetPath({ kind: "plugin", id }, ".obs")).toBe(`.obs/plugins/${id}/data.json`);
+  });
 });
