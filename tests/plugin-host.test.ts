@@ -13,6 +13,12 @@ describe("plugin-host", () => {
   it("never cycles itself", async () => {
     await expect(disablePlugin(appWith({}, []), "settings-assistant")).rejects.toThrow("self");
     await expect(enablePlugin(appWith({}, []), "settings-assistant")).rejects.toThrow("self");
+    await expect(disablePlugin(appWith({}, []), "Settings-Assistant")).rejects.toThrow("self");
+    await expect(enablePlugin(appWith({}, []), "SETTINGS-ASSISTANT")).rejects.toThrow("self");
+  });
+  it("(M7) lists installed plugins without itself in any case", () => {
+    const app = appWith({}, [], { a: { id: "a", name: "A" }, X: { id: "Settings-Assistant", name: "S" } });
+    expect(installedPlugins(app)).toEqual([{ id: "a", name: "A" }]);
   });
   it("delegates to the manager for other plugins", async () => {
     const app = appWith({}, []);

@@ -46,6 +46,11 @@ describe("Anbieter-API v1", () => {
     expect(JSON.stringify(r)).not.toContain("SECRET-VALUE");
   });
 
+  it("(M7) die eigene Datei ist in jeder Schreibweise own-settings", async () => {
+    const { api } = setup();
+    expect(await api.readSettings({ plugin: "Settings-Assistant" })).toEqual({ error: "own-settings" });
+  });
+
   it("(I1) Prototyp-Namen als Plugin-ID gelten als nicht installiert", async () => {
     const { api } = setup();
     expect(await api.readSettings({ plugin: "toString" })).toEqual({ error: "not-installed" });

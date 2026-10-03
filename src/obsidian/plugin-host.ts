@@ -2,7 +2,7 @@
 // Angepasst: „aktiv“ = geladen ODER gespeichert (Spec § 12), Selbstschutz, kein loadManifests.
 import type { App } from "obsidian";
 import type { PluginInfo } from "../core/chat-context";
-import { SELF_PLUGIN_ID } from "../core/write-policy";
+import { isSelfPluginId } from "../core/write-policy";
 
 // `app.plugins` ist nicht in `obsidian.d.ts` deklariert — schmales lokales Interface
 // (undokumentierte, BRAT-erprobte API); vor jedem Aufruf ein Formcheck.
@@ -37,7 +37,7 @@ export function installedPlugins(app: App): PluginInfo[] {
   const m = manager(app);
   if (!m || typeof m.manifests !== "object" || m.manifests === null) return [];
   return Object.values(m.manifests)
-    .filter((x) => x.id !== SELF_PLUGIN_ID)
+    .filter((x) => !isSelfPluginId(x.id))
     .map((x) => ({ id: x.id, name: x.name }));
 }
 
@@ -47,13 +47,13 @@ export function isInstalled(app: App, id: string): boolean {
 }
 
 export async function disablePlugin(app: App, id: string): Promise<void> {
-  if (id === SELF_PLUGIN_ID) throw new Error("self");
+  if (isSelfPluginId(id)) throw new Error("self");
   const m = manager(app);
   if (m && typeof m.disablePlugin === "function") await m.disablePlugin(id);
 }
 
 export async function enablePlugin(app: App, id: string): Promise<void> {
-  if (id === SELF_PLUGIN_ID) throw new Error("self");
+  if (isSelfPluginId(id)) throw new Error("self");
   const m = manager(app);
   if (m && typeof m.enablePlugin === "function") await m.enablePlugin(id);
 }

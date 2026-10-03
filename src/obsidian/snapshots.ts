@@ -5,7 +5,7 @@ import type { App } from "obsidian";
 import type { ApplyPorts, RestoreItem, SnapshotHandle } from "../core/apply-run";
 import { snapshotDirName, type SnapshotFile, type SnapshotManifest } from "../core/snapshot";
 import { isValidPluginId } from "../core/profile";
-import { isWritable, SELF_PLUGIN_ID, targetPath } from "../core/write-policy";
+import { isSelfPluginId, isWritable, targetPath } from "../core/write-policy";
 import { OBSIDIAN_FILES, type ObsidianFile, type Target } from "../core/types";
 import { selectGfsRetention, type GfsPolicy } from "../vendor/kit/rotation";
 import { ensureDir, readConfig, removeConfig, writeConfig } from "./config-io";
@@ -94,7 +94,7 @@ export function pickUndoTarget<T extends { manifest: { origin: string } }>(list:
 
 function targetFromPath(configDir: string, path: string): Target | null {
   const plugin = new RegExp(`^${configDir.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}/plugins/([^/]+)/data\\.json$`).exec(path);
-  if (plugin?.[1]) return isValidPluginId(plugin[1]) && plugin[1] !== SELF_PLUGIN_ID ? { kind: "plugin", id: plugin[1] } : null;
+  if (plugin?.[1]) return isValidPluginId(plugin[1]) && !isSelfPluginId(plugin[1]) ? { kind: "plugin", id: plugin[1] } : null;
   const file = path.startsWith(`${configDir}/`) ? path.slice(configDir.length + 1).replace(/\.json$/, "") : "";
   return (OBSIDIAN_FILES as readonly string[]).includes(file) ? { kind: "obsidian", file: file as ObsidianFile } : null;
 }

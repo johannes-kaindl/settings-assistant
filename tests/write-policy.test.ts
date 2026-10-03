@@ -1,6 +1,6 @@
 // tests/write-policy.test.ts
 import { describe, expect, it } from "vitest";
-import { isWritable, targetPath } from "../src/core/write-policy";
+import { isSelfPluginId, isWritable, targetPath } from "../src/core/write-policy";
 
 describe("write-policy", () => {
   it("v1 writes plugin data and hotkeys only", () => {
@@ -18,6 +18,13 @@ describe("write-policy", () => {
   });
   it("own data.json is never writable", () => {
     expect(isWritable({ kind: "plugin", id: "settings-assistant" }, 3)).toBe(false);
+  });
+  it("(M7) own data.json is protected regardless of case (APFS/NTFS are case-insensitive)", () => {
+    for (const id of ["Settings-Assistant", "SETTINGS-ASSISTANT", "settings-Assistant"]) {
+      expect(isWritable({ kind: "plugin", id }, 3)).toBe(false);
+      expect(isSelfPluginId(id)).toBe(true);
+    }
+    expect(isSelfPluginId("settings-assistant-x")).toBe(false);
   });
   it("paths derive from configDir", () => {
     expect(targetPath({ kind: "plugin", id: "koda-agent" }, ".obs")).toBe(".obs/plugins/koda-agent/data.json");

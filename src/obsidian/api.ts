@@ -5,7 +5,7 @@ import type { CheckRow, RowStatus } from "../core/reconcile";
 import { parseTarget } from "../core/reconcile";
 import { redact } from "../core/secrets";
 import { OBSIDIAN_FILES, isPlainObject, targetKey, type Json, type ObsidianFile, type SettingsProfile } from "../core/types";
-import { CURRENT_STAGE, SELF_PLUGIN_ID, isWritable, targetPath } from "../core/write-policy";
+import { CURRENT_STAGE, isSelfPluginId, isWritable, targetPath } from "../core/write-policy";
 import { readConfig } from "./config-io";
 import { isInstalled } from "./plugin-host";
 
@@ -100,7 +100,7 @@ export function createSettingsAssistantApi(deps: { app: App; service: ApplyApiSe
       let path: string;
       if (hasPlugin) {
         if (typeof rec.plugin !== "string" || !isValidPluginId(rec.plugin)) return BAD_ARGS;
-        if (rec.plugin === SELF_PLUGIN_ID) return { error: "own-settings" };
+        if (isSelfPluginId(rec.plugin)) return { error: "own-settings" };
         if (!isInstalled(app, rec.plugin)) return { error: "not-installed" };
         path = targetPath({ kind: "plugin", id: rec.plugin }, app.vault.configDir);
       } else {
