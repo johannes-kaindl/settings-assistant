@@ -1,5 +1,5 @@
 /**
- * GUI-Smoke — faehrt die Pruefpunkte P1-P15 gegen ein LAUFENDES Obsidian (CORE-TEST-02 b).
+ * GUI-Smoke — faehrt die Pruefpunkte P1-P17 gegen ein LAUFENDES Obsidian (CORE-TEST-02 b).
  *
  * Gemessen wird die SACHE: Dateiinhalt auf Platte (`sa-probe/data.json`, `hotkeys.json`, Schnappschuss-
  * Manifest), Dialogtext, Notice — nicht die Existenz eines Elements. Das Testplugin `sa-probe`
@@ -79,6 +79,8 @@ const PUNKTE = [
   "P13 Hilfe-Zeile ist die erste Zeile, Schnappschuss-Liste zeigt genau einen Eintrag",
   "P14 Befehl „Undo last apply“ stellt den Stand davor wieder her",
   "P15 Schluesselbund: Klartext-Schluessel der lokalen Endpunkt-Liste wandert aus der data.json, Header bleibt, Zeile zeigt „saved“",
+  "P16 Roh-Block im Chat: unter dem Block ein „Raw block (secrets redacted)“ mit 🔒, nirgends der Schluessel; ungueltiges JSON wird nicht angezeigt",
+  "P17 Neutralisierung: dataviewjs-Zaun, Inline-Code, img und javascript:-Link erzeugen im Chat kein code/pre/img und keinen Request",
 ] as const;
 type PunktName = (typeof PUNKTE)[number];
 const pn = (prefix: string): PunktName => {
@@ -128,6 +130,48 @@ const CHAT_ANSWER = [
   "```",
 ].join("\n");
 
+// Zusaetzliche Antworten (P16/P17): gewaehlt wird nach einem Stichwort in der LETZTEN Nutzer-Nachricht, damit P8/P12 mit
+// CHAT_ANSWER unveraendert messen.
+const RAW_LEAK = "sk-FAKE-LEAK";
+const RAW_PROFILE = { version: 1, plugins: { [PROBE_ID]: { apiKey: RAW_LEAK, maxRounds: 44 } } };
+const RAW_ANSWER = [
+  "Here is a profile that carries a secret.",
+  "",
+  "```settings-profile",
+  JSON.stringify(RAW_PROFILE, null, 2),
+  "```",
+  "",
+  "And a broken one:",
+  "",
+  "```settings-profile",
+  `{"version":1,"plugins":{"${PROBE_ID}":{"apiKey":"${RAW_LEAK}-BAD"}}`,
+  "```",
+].join("\n");
+const NEUTRAL_ANSWER = [
+  "Ideas follow.",
+  "",
+  "```dataviewjs",
+  "dv.paragraph(app.vault.getName())",
+  "```",
+  "",
+  "Inline: `$= dv.current()`",
+  "",
+  "<img src=https://example.invalid/x.png>",
+  "",
+  "[click](javascript:alert(1))",
+].join("\n");
+function antwortFuer(body: string): string {
+  let last = "";
+  try {
+    const msgs = (JSON.parse(body) as { messages?: Array<{ role: string; content: unknown }> }).messages ?? [];
+    const u = [...msgs].reverse().find((m) => m.role === "user");
+    last = typeof u?.content === "string" ? u.content : JSON.stringify(u?.content ?? "");
+  } catch { last = ""; }
+  if (last.includes("SMOKE-RAW")) return RAW_ANSWER;
+  if (last.includes("SMOKE-NEUTRAL")) return NEUTRAL_ANSWER;
+  return CHAT_ANSWER;
+}
+
 interface FakeEndpoint { url: string; close: () => Promise<void>; bodies: string[]; auth: string[] }
 async function startFakeEndpoint(): Promise<FakeEndpoint> {
   const bodies: string[] = [];
@@ -150,8 +194,9 @@ async function startFakeEndpoint(): Promise<FakeEndpoint> {
         bodies.push(body);
         auth.push(String(req.headers.authorization ?? ""));
         res.writeHead(200, { "Content-Type": "text/event-stream" });
-        const half = Math.floor(CHAT_ANSWER.length / 2);
-        for (const part of [CHAT_ANSWER.slice(0, half), CHAT_ANSWER.slice(half)]) {
+        const answer = antwortFuer(body);
+        const half = Math.floor(answer.length / 2);
+        for (const part of [answer.slice(0, half), answer.slice(half)]) {
           res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: part }, finish_reason: null }], model: FAKE_MODEL })}\n\n`);
         }
         res.write(`data: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: "stop" }], model: FAKE_MODEL })}\n\n`);
@@ -835,6 +880,107 @@ async function p8p12(c: Ctx): Promise<void> {
 
 // ---------------------------------------------------------------------------------------------
 
+/** Endpunkt auf den Fake setzen, Chat oeffnen, NEUEN Chat beginnen, Frage senden, auf das Ende der Antwort warten. */
+async function chatRunde(c: Ctx, frage: string): Promise<void> {
+  const pre = await c.cdp.evaluate<{ url: string | null }>(`
+    const p = app.plugins.plugins[${q(PLUGIN_ID)}];
+    p.settings.endpoints = [{ url: ${q(c.fake.url)}, apiKey: ${q(FAKE_ENDPOINT_KEY)}, model: ${q(FAKE_MODEL)} }];
+    p.settings.endpointChoice = {}; p.settings.localModel = "";
+    p.cachedLocal = null;
+    await p.saveSettings();
+    const ep = await p.resolveEndpoint();
+    return { url: ep ? ep.url : null };
+  `);
+  if (pre.url !== c.fake.url) throw new Vorbedingung(`Chat-Endpunkt laesst sich nicht aufloesen (${String(pre.url)})`);
+  await c.cdp.evaluate(`app.workspace.detachLeavesOfType("settings-assistant-chat"); await new Promise((r) => setTimeout(r, 300)); app.commands.executeCommandById(${q(`${PLUGIN_ID}:open-chat`)}); return { ok: true };`);
+  const da = await pollUntil<{ ok: boolean }>(c.cdp, `return document.querySelector(".sa-chat-input") ? { ok: true } : null;`, 10_000, 250);
+  if (!da) throw new Vorbedingung("Chat-Ansicht oeffnet sich nicht (kein .sa-chat-input)");
+  await c.cdp.evaluate(`
+    const nb = Array.from(document.querySelectorAll(".sa-chat-head button")).find((b) => b.textContent === "New chat");
+    if (nb) nb.click();
+    await new Promise((r) => setTimeout(r, 300));
+    return { ok: true };
+  `);
+  await clearNotices(c.cdp);
+  await c.cdp.evaluate(`
+    const i = document.querySelector(".sa-chat-input");
+    i.value = ${q(frage)};
+    i.dispatchEvent(new Event("input", { bubbles: true }));
+    document.querySelector(".sa-chat-send").click();
+    return { ok: true };
+  `);
+  const fertig = await pollUntil<{ ok: boolean }>(c.cdp, `
+    const send = document.querySelector(".sa-chat-send");
+    const turns = document.querySelectorAll(".sa-chat-turn.is-assistant").length;
+    return send && send.textContent === "Send" && turns === 1 && document.querySelector(".sa-chat-turn.is-assistant .okit-stream-block, .sa-chat-turn.is-assistant .sa-chat-block") ? { ok: true } : null;
+  `, 30_000, 300);
+  if (!fertig) throw new Vorbedingung("die Chat-Antwort kommt nicht zu Ende (kein Block/Text nach 30 s)");
+  await sleep(2000); // Markdown-Rendering und Nachbearbeitung laufen asynchron
+}
+
+async function p16(c: Ctx): Promise<void> {
+  await chatRunde(c, "SMOKE-RAW please propose a profile");
+  const d = await c.cdp.evaluate<{ blocks: number; details: number; summary: string; below: boolean; pre1: string; pre2: string; all: string; root: string; sentTxt: string }>(`
+    const msgs = document.querySelector(".sa-chat-messages");
+    const blocks = Array.from(msgs.querySelectorAll(".sa-chat-block"));
+    const dets = blocks.map((b) => b.querySelector(":scope > details.sa-chat-raw"));
+    return {
+      blocks: blocks.length,
+      details: dets.filter(Boolean).length,
+      summary: dets[0] ? dets[0].querySelector("summary").textContent : "",
+      below: !!(blocks[0] && dets[0] && blocks[0].querySelector(":scope > .sa-chat-block-result") && (blocks[0].querySelector(":scope > .sa-chat-block-result").compareDocumentPosition(dets[0]) & Node.DOCUMENT_POSITION_FOLLOWING)),
+      pre1: dets[0] ? dets[0].querySelector("pre").textContent : "",
+      pre2: dets[1] ? dets[1].querySelector("pre").textContent : "",
+      all: msgs.textContent,
+      root: document.querySelector(".sa-chat").textContent + " " + document.querySelector(".sa-chat").innerHTML,
+      sentTxt: Array.from(document.querySelectorAll(".notice")).map((n) => n.textContent).join(" | "),
+    };
+  `);
+  const kein = (t: string): boolean => !t.includes(RAW_LEAK);
+  const ok = d.blocks === 2 && d.details === 2 && d.summary === "Raw block (secrets redacted)" && d.below
+    && d.pre1.includes("🔒") && kein(d.pre1) && d.pre2 === "(block is not valid JSON — not shown)"
+    && kein(d.all) && kein(d.root) && kein(d.sentTxt);
+  record(pn("P16"), ok,
+    `Bloecke ${d.blocks}, <details> ${d.details}, Titel „${d.summary}“, unter dem Ergebnis ${String(d.below)} · Block 1 im <pre>: „${d.pre1.replace(/\n/g, " ").slice(0, 120)}“ (🔒 ${String(d.pre1.includes("🔒"))}, Schluessel ${String(!kein(d.pre1))}) · Block 2 (ungueltiges JSON mit Schluessel): „${d.pre2}“ · „${RAW_LEAK}“ im Text des Chat-Containers ${String(!kein(d.all))}, im gesamten Chat-DOM inkl. innerHTML ${String(!kein(d.root))}, in Notices ${String(!kein(d.sentTxt))}`);
+}
+
+async function p17(c: Ctx): Promise<void> {
+  const requests: string[] = [];
+  await c.cdp.send("Network.enable");
+  c.cdp.on("Network.requestWillBeSent", (p) => { const u = (p as { request?: { url?: string } }).request?.url; if (u) requests.push(u); });
+  // Messprobe wie P12: sieht der Mitschnitt einen Request auf example.invalid ueberhaupt?
+  await c.cdp.evaluate(`
+    const probe = document.body.createEl("img", { attr: { src: "https://example.invalid/mess-probe-p17.png" } });
+    await new Promise((r) => setTimeout(r, 800));
+    probe.remove();
+    return { ok: true };
+  `);
+  const mitschnittSieht = requests.some((u) => u.includes("mess-probe-p17.png"));
+  await chatRunde(c, "SMOKE-NEUTRAL please explain");
+  const d = await c.cdp.evaluate<{ code: number; preLang: number; active: number; links: string[]; text: string; dataview: boolean; turn: number }>(`
+    const msgs = document.querySelector(".sa-chat-messages");
+    const turn = msgs.querySelector(".sa-chat-turn.is-assistant");
+    return {
+      turn: turn ? 1 : 0,
+      code: msgs.querySelectorAll("code").length,
+      preLang: msgs.querySelectorAll("pre[class*='language-'], code[class*='language-'], [class*='block-language-']").length,
+      active: msgs.querySelectorAll("img, script, iframe, embed, object, video, audio, [src], [srcset]").length,
+      links: Array.from(msgs.querySelectorAll(".okit-stream-block a")).map((a) => (a.textContent || "") + " -> " + String(a.getAttribute("href"))),
+      text: turn ? turn.querySelector(".okit-stream-block")?.textContent ?? "" : "",
+      dataview: !!(app.plugins.plugins && app.plugins.plugins.dataview),
+    };
+  `);
+  const invalid = requests.filter((u) => u.includes("example.invalid") && !u.includes("mess-probe-p17"));
+  if (d.turn === 0) { unmeasured(pn("P17"), "die Chat-Antwort wurde nicht gerendert"); return; }
+  if (!mitschnittSieht) { unmeasured(pn("P17"), "der Netz-Mitschnitt sah nicht einmal den eigenen Mess-Request — „kein Request“ waere nichts wert"); return; }
+  const linkOk = d.links.every((l) => !/javascript:/i.test(l));
+  const sichtbar = d.text.includes("ˋ") && d.text.includes("dataviewjs") && d.text.includes("$= dv.current()") && d.text.includes("<img src=https://example.invalid/x.png>") && d.text.includes("click");
+  record(pn("P17"), d.code === 0 && d.preLang === 0 && d.active === 0 && linkOk && sichtbar && invalid.length === 0,
+    `code-Elemente ${d.code}, pre/code mit language-Klasse ${d.preLang}, img/script/iframe/[src] ${d.active}, Links im Antworttext [${d.links.join("; ")}] (kein javascript: ${String(linkOk)}), Requests auf example.invalid ${invalid.length} (Messprobe sah ${String(mitschnittSieht)}; mitgeschnitten ${requests.length}) · Antwort als Text sichtbar (ˋ-Zeichen, Inline-Text, escaped <img>, Linktext): ${String(sichtbar)} · Dataview in der Zweitinstanz installiert: ${String(d.dataview)}${d.dataview ? "" : " — die Aussage ist daher nur „es entsteht kein code-/pre-Element, an dem ein Prozessor haengen koennte“, NICHT „Dataview fuehrt nichts aus“"}`);
+}
+
+// ---------------------------------------------------------------------------------------------
+
 /** Klartext-Schluessel (Altbestand vor der Migration) → kalter Start → Schluesselbund. Nur messbar mit `app.secretStorage`. */
 async function p15(c: Ctx): Promise<void> {
   const avail = await c.cdp.evaluate<{ ok: boolean; ver: string }>(`return { ok: typeof app.secretStorage?.getSecret === "function" && typeof app.secretStorage?.setSecret === "function", ver: (document.title.match(/Obsidian ([\\d.]+)/) || [])[1] || "?" };`);
@@ -935,7 +1081,7 @@ async function main(): Promise<void> {
       const reihe: Array<[PunktName, (c: Ctx) => Promise<void>]> = [
         [pn("P1"), p1], [pn("P2"), p2], [pn("P13"), p13], [pn("P7"), p7], [pn("P14"), p14],
         [pn("P3"), p3], [pn("P4"), p4], [pn("P5"), p5], [pn("P11"), p11], [pn("P6"), p6],
-        [pn("P9"), p9], [pn("P10"), p10], [pn("P8"), p8p12], [pn("P15"), p15],
+        [pn("P9"), p9], [pn("P10"), p10], [pn("P8"), p8p12], [pn("P15"), p15], [pn("P16"), p16], [pn("P17"), p17],
       ];
       for (const [name, fn] of reihe) {
         await schliesseDialoge(cdp);
