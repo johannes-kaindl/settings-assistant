@@ -26,6 +26,12 @@ describe("reconcile", () => {
     const rows = reconcile(prof({ plugins: { "koda-agent": { apiKey: "sk-new" } } }), [st('{"apiKey":"sk-old"}')]);
     expect(rows[0]).toEqual({ target: koda, path: ["apiKey"], status: "secret", checked: false, selectable: false });
   });
+  it("secret rows carry no note, other rows keep theirs", () => {
+    const rows = reconcile(prof({ plugins: { "koda-agent": { apiKey: "sk-new", maxRounds: 20 } }, notes: { "plugins.koda-agent.apiKey": "sk-new again", "plugins.koda-agent.maxRounds": "why" } }), [st('{"apiKey":"sk-old","maxRounds":50}')]);
+    expect(rows[0]!.status).toBe("secret");
+    expect("note" in rows[0]!).toBe(false);
+    expect(rows[1]!.note).toBe("why");
+  });
   it("a secret object ancestor in the file makes nested profile keys secret", () => {
     const rows = reconcile(prof({ plugins: { "koda-agent": { hostSecrets: { h: "x" } } } }), [st('{"hostSecrets":{}}')]);
     expect(rows[0]!.status).toBe("secret");

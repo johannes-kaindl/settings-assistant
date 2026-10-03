@@ -42,7 +42,7 @@ export function reconcile(profile: SettingsProfile, states: readonly TargetState
       const base = { target, path, ...(note !== undefined ? { note } : {}) };
       const no = { checked: false, selectable: false };
       const currentRaw = getAt(content, path);
-      if (isSecretPath(content, path) || isSecretPath(entry.values, path) || hidesSecret(currentRaw) || hidesSecret(value)) { rows.push({ ...base, status: "secret", ...no }); continue; }
+      if (isSecretPath(content, path) || isSecretPath(entry.values, path) || hidesSecret(currentRaw) || hidesSecret(value)) { rows.push({ target, path, status: "secret", ...no }); continue; }
       if (!state.installed) { rows.push({ ...base, status: "not-installed", desired: value, ...no }); continue; }
       if (!parsed.ok) { rows.push({ ...base, status: "unreadable", desired: value, ...no }); continue; }
       const current = currentRaw;

@@ -10,6 +10,11 @@ export function isValidPluginId(id: string): boolean {
   return PLUGIN_ID_RE.test(id) && !id.includes("..");
 }
 
+/**
+ * ACHTUNG `detail`: rohe JSON.parse-Meldung. V8 hängt bei "Unexpected token" den Quelltext an,
+ * der ein Geheimnis enthalten kann. Sie darf NIE in UI, Notice, Log, Chat-Kontext oder API
+ * ausgegeben werden; Konsumenten zeigen nur `code`.
+ */
 export type ProfileError =
   | { code: "invalid-json"; detail: string }
   | { code: "not-object" }
