@@ -210,6 +210,7 @@ export const STRINGS = {
     "restore.outcome.changed-since": "changed since — left as is",
     "restore.outcome.unverified": "unverified — left as is",
     "restore.outcome.error": "error: {0}",
+    "restore.outcome.skipped": "skipped after an error",
   },
   de: {
     "plugin.name": "Settings Assistant",
@@ -420,6 +421,7 @@ export const STRINGS = {
     "restore.outcome.changed-since": "seither geändert — bleibt wie es ist",
     "restore.outcome.unverified": "ungeprüft — bleibt wie es ist",
     "restore.outcome.error": "Fehler: {0}",
+    "restore.outcome.skipped": "nach einem Fehler übersprungen",
   },
 };
 defineStrings(STRINGS);

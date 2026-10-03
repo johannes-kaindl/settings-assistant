@@ -9,7 +9,7 @@ import { DEFAULT_GFS_POLICY } from "../src/vendor/kit/rotation";
 const prune = vi.fn(async () => [] as string[]);
 vi.mock("../src/obsidian/snapshots", async (orig) => ({ ...(await orig<typeof import("../src/obsidian/snapshots")>()), pruneSnapshots: (...a: unknown[]) => (prune as (...x: unknown[]) => Promise<string[]>)(...a) }));
 
-import { ApplyService, formatReport } from "../src/obsidian/apply-service";
+import { ApplyService, formatReport, formatRestoreReport } from "../src/obsidian/apply-service";
 import { renderCheckRows } from "../src/obsidian/check-rows-view";
 
 const profile: SettingsProfile = {
@@ -102,6 +102,13 @@ describe("ApplyService", () => {
     const svc = new ApplyService(fakeApp({ ".cfg/plugins/p/data.json": '{"a":1}' }), settings);
     const rows = await svc.plan(profile);
     expect(rows.map((r) => r.status)).toEqual(["change"]);
+  });
+});
+
+describe("formatRestoreReport", () => {
+  it("(T8-a) nennt übersprungene Dateien", () => {
+    const text = formatRestoreReport({ origin: "restore:d", snapshotDir: "s", results: [{ path: "a.json", outcome: "error", error: "boom" }, { path: "b.json", outcome: "skipped" }] });
+    expect(text).toContain("b.json — skipped after an error");
   });
 });
 

@@ -152,7 +152,7 @@ describe("runRestore", () => {
     await runRestore([{ target: { kind: "plugin", id: "koda-agent" }, file: { path: P, existed: false, afterHash: hashText('{"a":1}') }, savedText: null }], new Set(), f.ports, { origin: "o" });
     expect(f.files[P]).toBeUndefined();
   });
-  it("stops after the first write error; remaining items get no result (deliberate until the UI needs it)", async () => {
+  it("(T8-a) stops after the first write error; remaining items are reported as skipped", async () => {
     const Q = `${DIR}/plugins/b/data.json`;
     const f = fakePorts({ [P]: '{"a":2}', [Q]: '{"a":2}' });
     const orig = f.ports.write;
@@ -162,7 +162,7 @@ describe("runRestore", () => {
       { target: { kind: "plugin", id: "b" } as const, file: { path: Q, existed: true, afterHash: hashText('{"a":2}') }, savedText: '{"a":1}' },
     ];
     const res = await runRestore(items, new Set(), f.ports, { origin: "o" });
-    expect(res.results.map((x) => x.outcome)).toEqual(["error"]);
+    expect(res.results.map((x) => [x.path, x.outcome])).toEqual([[P, "error"], [Q, "skipped"]]);
     expect(f.files[Q]).toBe('{"a":2}');
   });
 });

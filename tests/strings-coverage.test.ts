@@ -31,7 +31,7 @@ function usedKeys(): Set<string> {
 const TEMPLATE_KEYS: string[] = [
   ...["change", "same", "missing-key", "not-installed", "unreadable", "shape-conflict", "secret", "read-only"].map((s) => `status.${s}`),
   ...["written", "corrected", "skipped", "changed-meanwhile", "error"].map((s) => `outcome.${s}`),
-  ...["restored", "changed-since", "unverified", "error"].map((s) => `restore.outcome.${s}`),
+  ...["restored", "changed-since", "unverified", "error", "skipped"].map((s) => `restore.outcome.${s}`),
   ...["restore", "changed", "unverified"].map((s) => `restore.state.${s}`),
   ...["invalid-json", "not-object", "missing-version", "bad-version", "future-version", "bad-section"].map((s) => `profile.err.${s}`),
   ...THINKING_LEVELS.map((l) => `request.level.${l}`),

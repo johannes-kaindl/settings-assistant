@@ -92,7 +92,8 @@ export async function runApply(rows: readonly CheckRow[], ports: ApplyPorts, opt
 }
 
 export interface RestoreItem { target: Target; file: SnapshotFile; savedText: string | null }
-export interface RestoreResult { path: string; outcome: "restored" | "changed-since" | "unverified" | "error"; error?: string }
+/** `skipped`: nach einem Fehler nicht mehr angefasst (der Lauf stoppt, kein automatisches Zurückrollen). */
+export interface RestoreResult { path: string; outcome: "restored" | "changed-since" | "unverified" | "error" | "skipped"; error?: string }
 
 /** Spec § 7 „Zurückholen“: derselbe Weg, Schnappschuss als Quelle; ein seither geänderter Stand bleibt, außer er ist in `force`. */
 export async function runRestore(items: readonly RestoreItem[], force: ReadonlySet<string>, ports: ApplyPorts, opts: { origin: string }): Promise<{ snapshotDir: string | null; results: RestoreResult[] }> {
@@ -109,7 +110,7 @@ export async function runRestore(items: readonly RestoreItem[], force: ReadonlyS
     return { snapshotDir: null, results: [...results, ...todo.map((t) => ({ path: t.file.path, outcome: "error" as const, error: `snapshot: ${errText(e)}` }))] };
   }
   const finished: SnapshotFile[] = [];
-  for (const it of todo) {
+  for (const [i, it] of todo.entries()) {
     try {
       const existed = (await ports.read(it.file.path)) !== null;
       await withCycle(it.target, ports, async () => {
@@ -121,6 +122,8 @@ export async function runRestore(items: readonly RestoreItem[], force: ReadonlyS
       results.push({ path: it.file.path, outcome: "restored" });
     } catch (e) {
       results.push({ path: it.file.path, outcome: "error", error: errText(e) });
+      // Die übrigen Dateien erscheinen im Bericht, statt stillschweigend zu fehlen.
+      for (const rest of todo.slice(i + 1)) results.push({ path: rest.file.path, outcome: "skipped" });
       break;
     }
   }
