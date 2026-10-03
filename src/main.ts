@@ -11,6 +11,7 @@ import { findEndpointManager, onEndpointManagerChanged } from "./vendor/kit-obsi
 import { loadSettings, type SettingsAssistantSettings } from "./core/settings";
 import { deviationNotice } from "./core/request-text";
 import { ApplyService } from "./obsidian/apply-service";
+import { createSettingsAssistantApi, type SettingsAssistantApi } from "./obsidian/api";
 import { openPluginSettings } from "./obsidian/apply-modal";
 import { renderProfileBlock } from "./obsidian/profile-block";
 import { PROBE_TIMEOUT_MS, probeEndpoint } from "./obsidian/http";
@@ -30,6 +31,8 @@ function safeGetLanguage(): string | null {
 export default class SettingsAssistantPlugin extends Plugin {
   settings: SettingsAssistantSettings = loadSettings(undefined);
   applyService!: ApplyService;
+  /** Anbieter-API v1 (docs/API.md): `app.plugins.plugins["settings-assistant"].api`. */
+  api!: SettingsAssistantApi;
   requestSession: RequestSession = createRequestSession({ message: (d) => deviationNotice(d) });
   /** Letzte Auflösung der Chat-Quelle — trägt Familie/Backend für den Abschnitt „Anfrage“ (Task 14 nutzt sie für den Chat). */
   private activeSource: EndpointSourceResult | null = null;
@@ -44,6 +47,7 @@ export default class SettingsAssistantPlugin extends Plugin {
     setLang(pickLang(safeGetLanguage()));
     this.settings = loadSettings(await this.loadData());
     this.applyService = new ApplyService(this.app, () => this.settings);
+    this.api = createSettingsAssistantApi({ app: this.app, service: this.applyService });
     this.registerMarkdownCodeBlockProcessor("settings-profile", (src, el, ctx) =>
       renderProfileBlock(el, src, { service: this.applyService, sourcePath: ctx.sourcePath, openPluginSettings: (id) => { openPluginSettings(this.app, id); } }));
 
