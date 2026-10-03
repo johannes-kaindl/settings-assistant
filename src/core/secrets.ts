@@ -33,8 +33,9 @@ export function redact(value: Json): { value: Json; redacted: string[] } {
     if (!isPlainObject(v)) return v;
     const out: { [k: string]: Json } = {};
     for (const [k, x] of Object.entries(v)) {
-      if (isSecretValue(k, x)) { out[k] = REDACTED; redacted.push([...path, k].join(".")); }
-      else out[k] = walk(x, [...path, k]);
+      // defineProperty statt Zuweisung: ein geparster Schlüssel "__proto__" bleibt Datum und setzt keinen Prototyp.
+      if (isSecretValue(k, x)) { Object.defineProperty(out, k, { value: REDACTED, enumerable: true, writable: true, configurable: true }); redacted.push([...path, k].join(".")); }
+      else Object.defineProperty(out, k, { value: walk(x, [...path, k]), enumerable: true, writable: true, configurable: true });
     }
     return out;
   };

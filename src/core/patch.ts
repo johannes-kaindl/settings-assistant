@@ -2,6 +2,8 @@ import { isPlainObject, type Json } from "./types";
 
 export class PatchError extends Error {}
 
+const FORBIDDEN_SEGMENTS: ReadonlySet<string> = new Set(["__proto__", "constructor", "prototype"]);
+
 /** Einrückung der Datei: "" = kompakt (einzeilig), sonst die erste Einrückung vor einem Schlüssel. */
 function indentOf(text: string): string {
   if (!text.trimEnd().includes("\n")) return "";
@@ -16,11 +18,12 @@ export function applyRows(originalText: string | null, rows: ReadonlyArray<{ pat
   if (!isPlainObject(root)) throw new PatchError("root-not-object");
   for (const row of rows) {
     if (row.path.length === 0) throw new PatchError("empty-path");
+    for (const seg of row.path) if (FORBIDDEN_SEGMENTS.has(seg)) throw new PatchError(`forbidden-segment:${seg}`);
     let obj: { [k: string]: Json } = root;
     for (let i = 0; i < row.path.length - 1; i++) {
       const seg = row.path[i];
       const next = obj[seg];
-      if (next === undefined) { const created: { [k: string]: Json } = {}; obj[seg] = created; obj = created; continue; }
+      if (!Object.prototype.hasOwnProperty.call(obj, seg)) { const created: { [k: string]: Json } = {}; obj[seg] = created; obj = created; continue; }
       if (!isPlainObject(next)) throw new PatchError(`not-object:${row.path.slice(0, i + 1).join(".")}`);
       obj = next;
     }

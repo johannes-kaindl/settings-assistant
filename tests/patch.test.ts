@@ -30,4 +30,14 @@ describe("patch", () => {
     desired.k = 2;
     expect(out).toBe('{"o":{"k":1}}');
   });
+  it("rejects __proto__ paths and never pollutes Object.prototype", () => {
+    expect(() => applyRows('{"a":1}', [{ path: ["__proto__", "polluted"], desired: "x" }])).toThrow(PatchError);
+    expect(() => applyRows('{"a":1}', [{ path: ["__proto__"], desired: { p: 1 } }])).toThrow(PatchError);
+    expect(({} as Record<string, unknown>).polluted).toBeUndefined();
+  });
+  it("rejects constructor/prototype segments, keeps similar names working", () => {
+    expect(() => applyRows("{}", [{ path: ["constructor", "prototype", "x"], desired: 1 }])).toThrow(PatchError);
+    expect(() => applyRows("{}", [{ path: ["a", "prototype"], desired: 1 }])).toThrow(PatchError);
+    expect(applyRows("{}", [{ path: ["constructorName"], desired: 1 }])).toBe('{"constructorName":1}');
+  });
 });

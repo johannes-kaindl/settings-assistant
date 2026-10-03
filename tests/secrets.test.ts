@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { isSecretPath, isSecretValue, redact, REDACTED } from "../src/core/secrets";
+import type { Json } from "../src/core/types";
 
 // Gemessen 2026-10-03 über 75 data.json in Pallas und Arbeit (nur Namen): echte Treffer …
 const SECRET_STRINGS = ["apiKey", "apiToken", "apiAuthToken", "mcpToken", "syncToken", "email", "taskboneAPIkey", "secretId", "password", "dbPassword", "credentials", "sessionCookie"];
@@ -54,5 +55,14 @@ describe("secrets", () => {
     const input = { apiKey: "sk-1" };
     redact(input);
     expect(input.apiKey).toBe("sk-1");
+  });
+});
+
+describe("redact with own __proto__ key", () => {
+  it("keeps a parsed __proto__ key as data", () => {
+    const v = JSON.parse('{"__proto__":{"token":"t"},"a":1}') as Json;
+    const r = redact(v);
+    expect(Object.keys(r.value as object)).toContain("__proto__");
+    expect(Object.getPrototypeOf(r.value)).toBe(Object.prototype);
   });
 });
