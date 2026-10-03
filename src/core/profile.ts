@@ -5,6 +5,11 @@ export const PROFILE_VERSION = 1;
 /** Obsidian-Plugin-IDs: Buchstaben, Ziffern, `-`, `_`, `.`; kein führender Punkt, kein `..`, kein `/`. */
 export const PLUGIN_ID_RE = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 
+/** Einzige Stelle für die Plugin-ID-Prüfung (Muster plus kein `..`). */
+export function isValidPluginId(id: string): boolean {
+  return PLUGIN_ID_RE.test(id) && !id.includes("..");
+}
+
 export type ProfileError =
   | { code: "invalid-json"; detail: string }
   | { code: "not-object" }
@@ -41,7 +46,7 @@ export function parseProfile(text: string): ParseResult {
     if (key === "plugins") {
       if (!isPlainObject(val)) return fail({ code: "bad-section", section: "plugins", reason: "not-object" });
       for (const [id, values] of Object.entries(val)) {
-        if (!PLUGIN_ID_RE.test(id) || id.includes("..")) return fail({ code: "bad-section", section: `plugins.${id}`, reason: "bad-id" });
+        if (!isValidPluginId(id)) return fail({ code: "bad-section", section: `plugins.${id}`, reason: "bad-id" });
         if (!isPlainObject(values)) return fail({ code: "bad-section", section: `plugins.${id}`, reason: "not-object" });
         entries.push({ target: { kind: "plugin", id }, values });
       }
