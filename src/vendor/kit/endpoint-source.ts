@@ -1,4 +1,4 @@
-// vendored from obsidian-kit@0.46.0, src/pure/endpoint-source.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
+// vendored from obsidian-kit@0.47.0, src/pure/endpoint-source.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
 import { resolveActiveEndpointConfig, type EndpointConfig } from "./endpoint_config";
 import { familyFromName, type BackendId, type FamilyId, type ModelFamilyId } from "./sampling-profiles";
 

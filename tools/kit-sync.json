@@ -1,6 +1,6 @@
 {
   "sources": {
-    "obsidian-kit": { "ref": "0.46.0" },
+    "obsidian-kit": { "ref": "0.47.0" },
     "code-kit": { "ref": "0.10.0" }
   },
   "targets": [
@@ -22,7 +22,7 @@
       "modules": [
         "clipboard", "confirm", "endpoint-list", "model-picker", "settings_walker", "folder-suggest",
         "stream-area", "stable-writer", "endpoint-source", "request-section", "request-session",
-        "thinking-control", "collapsible", "chat-client", "chat-transport", "shortcuts-bridge", "clock", "lab-client", "help-setting"
+        "thinking-control", "collapsible", "chat-client", "chat-transport", "shortcuts-bridge", "clock", "lab-client", "help-setting", "version-list"
       ],
       "rewrite": [["../pure/", "../kit/"], ["../vendor/code-kit/pure/", "../kit/"], ["../vendor/code-kit/web/", "../kit/"]]
     },

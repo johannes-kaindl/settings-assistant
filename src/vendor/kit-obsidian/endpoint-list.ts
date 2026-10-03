@@ -1,4 +1,4 @@
-// vendored from obsidian-kit@0.46.0, src/obsidian/endpoint-list.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
+// vendored from obsidian-kit@0.47.0, src/obsidian/endpoint-list.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
 /* Geordneter Endpunkt-Fallback-Listen-Editor: eine Setting-Zeile je Endpunkt (URL ·
  * Schlüssel · Modell-Override · „zuerst verwenden" · entfernen) plus Adder-Zeile,
  * Status-Icon, Rollenzeile, Drittanbieter-Hinweis und Preset-Knöpfe.
@@ -220,13 +220,14 @@ export function buildEndpointList<T extends EndpointConfig = EndpointConfig>(opt
       // apiKey ändert die Listen-FORM nicht (kein Re-Render) — das Drittanbieter-Icon muss sich
       // deshalb hier selbst aktualisieren, statt auf den (bewusst ausbleibenden) Neuaufbau zu warten.
       if (field === "apiKey") {
-        syncThirdPartyIcon(carriesApiKey(updated[i]));
+        const edited = updated[i];
+        if (edited) syncThirdPartyIcon(carriesApiKey(edited));
         // Ohne Schlüssel lieferte der Endpunkt vermutlich 401 → leere Liste → Notausgang.
         // Mit Schlüssel hat er eine Liste; der alte Eintrag wäre eine Lüge. Anders als das
         // Drittanbieter-Icon oben korrigiert sich die Modell-Zeile dadurch NICHT selbst —
         // sichtbar wird die neue Liste erst beim nächsten Zeilen-Neuaufbau (URL-Commit,
         // „Modelle abrufen", Tab-Reload), da dieser Commit bewusst kein rerender() auslöst.
-        opts.cache.invalidate(normalizeEndpoint(updated[i].url));
+        if (edited) opts.cache.invalidate(normalizeEndpoint(edited.url));
       }
       // Ein URL-Commit setzt oder entfernt den Bezug zu (mindestens) einer URL — die alte UND
       // die neue, denn beide koennen bereits eine (moeglicherweise laengst veraltete) Liste im
@@ -259,7 +260,7 @@ export function buildEndpointList<T extends EndpointConfig = EndpointConfig>(opt
     // Felder in einer Zeile sind für Screenreader nicht auseinanderzuhalten.
     if (!isAdder && opts.secret) {
       const hook = opts.secret;
-      const current = opts.get()[i] ?? cfg;
+      const current = opts.get()[i] ?? (cfg as T);   // nicht-Adder-Zeile: cfg stammt aus `eps` (T), nur die Adder-Zeile ist kein T
       const st = opts.strings;
       const afterSecret = (): void => {
         lockRows();
@@ -330,7 +331,7 @@ export function buildEndpointList<T extends EndpointConfig = EndpointConfig>(opt
       const modelSlot = s.controlEl.createSpan({ cls: "okit-model-slot" });
       const listKey = normalizeEndpoint(cfg.url);
       const gen = opts.cache.generation();
-      void opts.cache.load(listKey, opts.clientFor(opts.get()[i] ?? cfg)).then(({ models, reachable }) => {
+      void opts.cache.load(listKey, opts.clientFor(opts.get()[i] ?? (cfg as T))).then(({ models, reachable }) => {
         if (gen !== opts.cache.generation()) return;   // Liste hat sich verschoben
         // `allowEmpty: true` wie in der Vorlage — die Leer-Option muss auch dann im Dropdown
         // stehen, wenn die Zeile bereits ein Override trägt, sonst ließe sich das Override
@@ -412,7 +413,7 @@ export function buildEndpointList<T extends EndpointConfig = EndpointConfig>(opt
         const isActive = normalizeEndpoint(ep) === (opts.active() ?? "");
         // Den Eintrag frisch aus der Liste lesen, nicht das `cfg` vom Render-Zeitpunkt:
         // nach einem Modell-Commit trägt nur die Liste den neuen Wert.
-        const current = opts.get()[i] ?? cfg;
+        const current = opts.get()[i] ?? (cfg as T);   // nicht-Adder-Zeile: cfg stammt aus `eps` (T), nur die Adder-Zeile ist kein T
         const role = endpointRole({
           isActive,
           reachable: probed.reachable,
@@ -424,7 +425,7 @@ export function buildEndpointList<T extends EndpointConfig = EndpointConfig>(opt
         stateEl.toggleClass("is-active", role.kind === "active");
       };
       syncRoleLine = applyRole;
-      void opts.clientFor(opts.get()[i] ?? cfg).probe().then(status => {
+      void opts.clientFor(opts.get()[i] ?? (cfg as T)).probe().then(status => {
         statusIcon.empty();
         setIcon(statusIcon, status.reachable ? "circle-check" : "circle-x");
         statusIcon.toggleClass("is-ok", status.reachable);
@@ -447,11 +448,11 @@ export function buildEndpointList<T extends EndpointConfig = EndpointConfig>(opt
       // Sachlicher Hinweis, keine Warnung vor einem Fehler — Form/Icon + Text, nie Farbe allein
       // (WCAG 1.4.1); NIE den Schlüssel selbst im Text/Tooltip. syncThirdPartyIcon() hält das
       // danach auch beim apiKey-Commit aktuell (siehe dort), ohne den Tab neu zu bauen.
-      syncThirdPartyIcon(opts.secret ? opts.secret.has(opts.get()[i] ?? cfg, i) : carriesApiKey(cfg));
+      syncThirdPartyIcon(opts.secret ? opts.secret.has(opts.get()[i] ?? (cfg as T), i) : carriesApiKey(cfg));
     }
     if (!isAdder && opts.extraRow) {
       const host = s.controlEl.createDiv({ cls: "okit-ep-extra" });
-      opts.extraRow(host, opts.get()[i] ?? cfg, i);
+      opts.extraRow(host, opts.get()[i] ?? (cfg as T), i);
     }
   });
   const actions = new Setting(opts.containerEl);
