@@ -17,3 +17,8 @@
 .sa-row-values { font-family: var(--font-monospace); font-size: var(--font-ui-smaller); word-break: break-all; }
 .sa-row-note { color: var(--text-muted); font-size: var(--font-ui-smaller); font-style: italic; }
 .sa-empty { color: var(--text-faint); font-size: var(--font-ui-small); }
+.sa-profile { display: flex; flex-direction: column; gap: var(--size-4-2); padding: var(--size-4-2); border: 1px solid var(--background-modifier-border); border-radius: var(--radius-m); }
+.sa-profile-title { margin: 0; font-size: var(--font-ui-medium); }
+.sa-profile-error { color: var(--text-error); font-size: var(--font-ui-small); }
+.sa-profile-unknown { color: var(--text-warning); font-size: var(--font-ui-smaller); }
+.sa-apply { align-self: flex-start; }
