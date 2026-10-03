@@ -46,6 +46,13 @@ describe("Anbieter-API v1", () => {
     expect(JSON.stringify(r)).not.toContain("SECRET-VALUE");
   });
 
+  it("(I1) Prototyp-Namen als Plugin-ID gelten als nicht installiert", async () => {
+    const { api } = setup();
+    expect(await api.readSettings({ plugin: "toString" })).toEqual({ error: "not-installed" });
+    const r = await api.planProfile({ version: 1, plugins: { constructor: { x: 1 } } });
+    expect(r).toEqual({ rows: [{ target: "plugins.constructor", path: "x", status: "not-installed", desired: 1 }] });
+  });
+
   it("(b) planProfile mit ungültigem Profil liefert das Diagnosewort", async () => {
     const { api } = setup();
     expect(await api.planProfile({ version: 9 })).toEqual({ error: "future-version" });

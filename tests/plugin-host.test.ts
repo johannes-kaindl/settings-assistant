@@ -28,6 +28,13 @@ describe("plugin-host", () => {
     expect(isInstalled(app, "a")).toBe(true);
     expect(isInstalled(app, "b")).toBe(false);
   });
+  it("treats prototype names as neither installed nor enabled (I1)", () => {
+    const app = appWith({}, [], { a: { id: "a", name: "A" } });
+    for (const id of ["constructor", "toString", "hasOwnProperty", "valueOf", "__proto__"]) {
+      expect(isInstalled(app, id)).toBe(false);
+      expect(isPluginEnabled(app, id)).toBe(false);
+    }
+  });
   it("is defensive when app.plugins is missing", async () => {
     const app = {} as never;
     expect(isPluginEnabled(app, "a")).toBe(false);

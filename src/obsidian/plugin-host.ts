@@ -14,6 +14,11 @@ interface PluginManager {
   enablePlugin(id: string): Promise<void>;
 }
 
+/** Nur eigene Schlüssel: `constructor`, `toString` & Co. sind gültige Plugin-IDs, aber nie installiert. */
+function hasOwn(o: object, key: string): boolean {
+  return Object.prototype.hasOwnProperty.call(o, key);
+}
+
 function manager(app: App): PluginManager | null {
   const m = (app as unknown as { plugins?: PluginManager }).plugins;
   return m && typeof m === "object" ? m : null;
@@ -23,7 +28,7 @@ function manager(app: App): PluginManager | null {
 export function isPluginEnabled(app: App, id: string): boolean {
   const m = manager(app);
   if (!m) return false;
-  const loaded = typeof m.plugins === "object" && m.plugins !== null && m.plugins[id] !== undefined;
+  const loaded = typeof m.plugins === "object" && m.plugins !== null && hasOwn(m.plugins, id) && m.plugins[id] !== undefined;
   const persisted = m.enabledPlugins instanceof Set && m.enabledPlugins.has(id);
   return loaded || persisted;
 }
@@ -38,7 +43,7 @@ export function installedPlugins(app: App): PluginInfo[] {
 
 export function isInstalled(app: App, id: string): boolean {
   const m = manager(app);
-  return !!m && typeof m.manifests === "object" && m.manifests !== null && m.manifests[id] !== undefined;
+  return !!m && typeof m.manifests === "object" && m.manifests !== null && hasOwn(m.manifests, id) && m.manifests[id] !== undefined;
 }
 
 export async function disablePlugin(app: App, id: string): Promise<void> {
