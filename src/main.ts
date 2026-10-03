@@ -18,7 +18,7 @@ import { cachedProbe, createChatSend, makeChatClient, type ChatSend } from "./ob
 import { CHAT_MODE, SettingsAssistantSettingTab } from "./obsidian/settings-tab";
 import { listSnapshots } from "./obsidian/snapshots";
 import { ChatSession } from "./obsidian/chat-session";
-import { SettingsChatView, VIEW_TYPE_SA_CHAT } from "./obsidian/chat-view";
+import { SettingsChatView, VIEW_TYPE_SA_CHAT, refreshChatViews } from "./obsidian/chat-view";
 import { readConfig } from "./obsidian/config-io";
 import { installedPlugins } from "./obsidian/plugin-host";
 import { targetPath } from "./core/write-policy";
@@ -53,7 +53,7 @@ export default class SettingsAssistantPlugin extends Plugin {
       saveRequestSettings: (next) => this.saveRequestSettings(next),
       requestSession: this.requestSession,
       requestSectionState: () => this.requestSectionState(),
-      resolveEndpoint: () => this.resolveEndpoint(),
+      resolveEndpoint: async () => { const r = await this.resolveEndpoint(); void this.refreshChatViews(); return r; },
       invalidateEndpointCache: () => { this.cachedLocal = null; },
       activeEndpointUrl: () => this.activeSource?.config?.url ?? null,
       restore: (dir) => this.applyService.restoreInteractive(dir),
@@ -99,7 +99,13 @@ export default class SettingsAssistantPlugin extends Plugin {
     this.addRibbonIcon("sliders-horizontal", t("cmd.chat"), () => { void this.openChat(); });
 
     void this.resolveEndpoint();
-    this.unsubscribeManager = onEndpointManagerChanged(this.app, () => { this.cachedLocal = null; void this.resolveEndpoint(); });
+    this.unsubscribeManager = onEndpointManagerChanged(this.app, () => { this.cachedLocal = null; void this.resolveEndpoint().then(() => this.refreshChatViews()); });
+    this.registerEvent(this.app.workspace.on("active-leaf-change", (leaf) => { if (leaf?.view instanceof SettingsChatView) void leaf.view.reload(); }));
+  }
+
+  /** Alle offenen Chat-Ansichten neu auflösen (Endpunkt oder Denkstufe geändert). */
+  async refreshChatViews(): Promise<void> {
+    await refreshChatViews(this.app.workspace.getLeavesOfType(VIEW_TYPE_SA_CHAT));
   }
 
   private async openChat(): Promise<void> {
@@ -134,6 +140,7 @@ export default class SettingsAssistantPlugin extends Plugin {
   async saveRequestSettings(next: RequestSettings): Promise<void> {
     this.settings.request = next;
     await this.saveSettings();
+    await this.refreshChatViews();
   }
 
   /** Neuester Schnappschuss, der nicht selbst ein Zurückholen ist (Herkunft ≠ `restore:`). */

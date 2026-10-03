@@ -6,6 +6,7 @@ import { t } from "../vendor/kit/i18n";
 import { buildStreamArea, type StreamArea } from "../vendor/kit-obsidian/stream-area";
 import { buildThinkingControl, type ThinkingControlOptions } from "../vendor/kit-obsidian/thinking-control";
 import type { PluginInfo } from "../core/chat-context";
+import { neutralizeModelMarkdown, stripProfileBlocks } from "../core/chat-markdown";
 import { redactedProfileNote, profileNoteName } from "../core/profile-note";
 import type { ChatSession, ChatTurn, SentContext } from "./chat-session";
 import { renderProfileResult, type ProfileResultDeps } from "./profile-block";
@@ -28,8 +29,6 @@ export interface ChatViewDeps {
   now(): Date;
 }
 
-const BLOCK_RE = /`{3}settings-profile[ \t]*\r?\n[\s\S]*?`{3}/g;
-
 export class SettingsChatView extends ItemView {
   private endpointOk = false;
   private messagesEl: HTMLElement | null = null;
@@ -49,8 +48,19 @@ export class SettingsChatView extends ItemView {
   getIcon(): string { return "sliders-horizontal"; }
 
   async onOpen(): Promise<void> {
-    try { this.endpointOk = await this.deps.resolveEndpoint(); } catch { this.endpointOk = false; }
+    await this.resolve();
     this.refresh();
+  }
+
+  private async resolve(): Promise<boolean> {
+    try { this.endpointOk = await this.deps.resolveEndpoint(); } catch { this.endpointOk = false; }
+    return this.endpointOk;
+  }
+
+  /** Nach Änderungen an Endpunkt oder Einstellungen: nur neu aufbauen, wenn sich der Endpunkt-Zustand ändert (Entwurf bleibt). */
+  async reload(): Promise<void> {
+    const before = this.endpointOk;
+    if ((await this.resolve()) !== before) this.refresh(); else this.refreshThinking();
   }
 
   onClose(): Promise<void> {
@@ -105,7 +115,7 @@ export class SettingsChatView extends ItemView {
     for (const id of this.deps.session.selected) {
       const chip = el.createSpan({ cls: "sa-chip" });
       chip.createSpan({ cls: "sa-chip-label", text: names.get(id) ?? id });
-      const rm = chip.createEl("button", { cls: "sa-chip-remove clickable-icon", attr: { "aria-label": t("chat.remove", id) } });
+      const rm = chip.createEl("button", { cls: "sa-chip-remove clickable-icon", attr: { "aria-label": t("chat.remove", names.get(id) ?? id) } });
       setIcon(rm, "x");
       rm.addEventListener("click", () => {
         this.deps.session.selected = this.deps.session.selected.filter((x) => x !== id);
@@ -188,7 +198,7 @@ export class SettingsChatView extends ItemView {
       return;
     }
     if (turn.content !== "") {
-      const text = turn.content.replace(BLOCK_RE, "").trim();
+      const text = neutralizeModelMarkdown(stripProfileBlocks(turn.content));
       if (text !== "") void this.deps.renderMarkdown(area.bodyEl.createDiv({ cls: "okit-stream-block" }), text).catch(() => { area.setTail(text); });
     }
     if (turn.error !== undefined) {
@@ -241,4 +251,9 @@ export class SettingsChatView extends ItemView {
 
   /** Nach Änderungen an der Denkstufe in den Einstellungen. */
   refreshThinking(): void { this.thinkCtl?.refresh(); }
+}
+
+/** Lädt alle offenen Chat-Ansichten neu (nach Endpunkt- oder Einstellungsänderung). */
+export async function refreshChatViews(leaves: readonly WorkspaceLeaf[]): Promise<void> {
+  for (const leaf of leaves) if (leaf.view instanceof SettingsChatView) await leaf.view.reload();
 }
