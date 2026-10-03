@@ -22,7 +22,7 @@ function fakeApp(files: Record<string, string>) {
     exists: async (p: string) => p in files,
     read: async (p: string) => files[p] as string,
   };
-  return { vault: { configDir: ".cfg", adapter }, plugins: { plugins: {}, enabledPlugins: new Set(["p"]), manifests: { p: { id: "p", name: "P" } } } } as never;
+  return { vault: { configDir: ".cfg", adapter }, plugins: { plugins: {}, enabledPlugins: new Set(["p"]), manifests: { p: { id: "p", name: "P" }, q: { id: "q", name: "Q" } } } } as never;
 }
 
 function fakePorts() {
@@ -75,6 +75,26 @@ describe("ApplyService", () => {
     expect((prune.mock.calls[0] as unknown[])[2]).toEqual(DEFAULT_GFS_POLICY);
     expect("origin" in report && report.origin).toBe("Codeblock note.md");
     expect(Notice.instances[0]?.message).toContain("Codeblock note.md");
+  });
+
+  it("willReload nennt nur aktive Plugins, nicht installierte inaktive", async () => {
+    const two: SettingsProfile = { ...profile, entries: [...profile.entries, { target: { kind: "plugin", id: "q" }, values: { a: 2 } }] };
+    const app = fakeApp({ ".cfg/plugins/p/data.json": '{"a":1}', ".cfg/plugins/q/data.json": '{"a":1}' });
+    const confirm = vi.fn(async (_rows: CheckRow[], _reload: string[]) => null);
+    await new ApplyService(app, settings, { ports: fakePorts().ports, confirm }).applyInteractive(two, "x");
+    expect(confirm.mock.calls[0]?.[1]).toEqual(["p"]);
+  });
+
+  it.each(["read", "confirm"])("Wurf in %s liefert { error }, Notice, Riegel gelöst", async (where) => {
+    const files = { ".cfg/plugins/p/data.json": '{"a":1}' };
+    const app = fakeApp(files) as { vault: { adapter: { read: (p: string) => Promise<string> } } };
+    if (where === "read") app.vault.adapter.read = async () => { throw new Error("boom"); };
+    const confirm = where === "confirm" ? async () => { throw new Error("boom"); } : async () => null;
+    const svc = new ApplyService(app as never, settings, { ports: fakePorts().ports, confirm });
+    expect(await svc.applyInteractive(profile, "x")).toEqual({ error: "boom" });
+    expect(Notice.instances[0]?.message).toContain("boom");
+    expect(svc.busy).toBe(false);
+    expect(await svc.applyInteractive(profile, "y")).toEqual({ error: "boom" });
   });
 
   it("plan liefert die Prüfzeilen", async () => {

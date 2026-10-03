@@ -51,7 +51,7 @@ export class ApplyService {
     return reconcile(profile, await readTargetStates(this.app, targets));
   }
 
-  async applyInteractive(profile: SettingsProfile, origin: string): Promise<ApplyReport | { cancelled: true } | { busy: true }> {
+  async applyInteractive(profile: SettingsProfile, origin: string): Promise<ApplyReport | { cancelled: true } | { busy: true } | { error: string }> {
     if (this.running) return { busy: true };
     this.running = true;
     try {
@@ -67,6 +67,11 @@ export class ApplyService {
       if (report.snapshotDir !== null) await pruneSnapshots(this.app, Date.now(), this.settings().retention).catch(() => []);
       new Notice(formatReport(report));
       return report;
+    } catch (e) {
+      // Nur Error.message — nie Dateiinhalt in die Meldung.
+      const error = e instanceof Error ? e.message : String(e);
+      new Notice(t("apply.failed", error));
+      return { error };
     } finally {
       this.running = false;
     }

@@ -58,6 +58,7 @@ class ApplyModal extends Modal {
     // Kanon (UI-STANDARD §8 Confirm-Modal): Abbrechen links, Bestätigen rechts, nativer Container.
     const btns = this.contentEl.createDiv({ cls: "modal-button-container" });
     new ButtonComponent(btns).setButtonText(t("modal.cancel")).onClick(() => { this.finish(null); });
+    // Der Dialog gibt ALLE Zeilen zurück; runApply filtert nach checked && selectable.
     this.applyBtn = new ButtonComponent(btns).setCta().onClick(() => { this.finish(this.rows); });
     this.refresh();
   }
