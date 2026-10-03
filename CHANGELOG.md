@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.1.0] — 2026-10-03
+
 ### Added
 
 - Profiles as notes: a fenced `settings-profile` block (JSON, `version: 1`) shows a live comparison with the current files in reading view and an apply button.
