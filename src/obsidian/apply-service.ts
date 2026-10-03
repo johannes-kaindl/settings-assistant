@@ -71,7 +71,8 @@ export class ApplyService {
   }
 
   async applyInteractive(profile: SettingsProfile, origin: string): Promise<ApplyReport | { cancelled: true } | { busy: true } | { error: string }> {
-    if (this.running) return { busy: true };
+    // Wie bei Restore/Undo: jeder Aufrufer ist ein Klick; Schweigen sähe aus wie „nichts passiert“.
+    if (this.running) { new Notice(t("restore.busy")); return { busy: true }; }
     this.running = true;
     try {
       const rows = await this.plan(profile);

@@ -46,8 +46,7 @@ async function renderValid(el: HTMLElement, profile: SettingsProfile, deps: Prof
     btn.disabled = true;
     void (async () => {
       try {
-        const r = await deps.service.applyInteractive(profile, deps.origin);
-        if ("busy" in r) new Notice(t("service.busy"));
+        await deps.service.applyInteractive(profile, deps.origin); // Busy/Fehler meldet der Dienst selbst per Notice
       } catch (e) {
         new Notice(t("apply.failed", e instanceof Error ? e.message : String(e)));
       } finally {

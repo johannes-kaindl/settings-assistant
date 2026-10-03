@@ -51,6 +51,7 @@ describe("ApplyService", () => {
     await vi.waitFor(() => expect(svc.busy).toBe(true));
     await vi.waitFor(() => expect(entered).toBe(true));
     expect(await svc.applyInteractive(profile, "y")).toEqual({ busy: true });
+    expect(Notice.instances.map((n) => n.message)).toEqual(["Another change is running — try again in a moment."]);
     release(null);
     expect(await first).toEqual({ cancelled: true });
     expect(svc.busy).toBe(false);
