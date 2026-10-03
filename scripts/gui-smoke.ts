@@ -518,7 +518,7 @@ async function p13(c: Ctx): Promise<void> {
       if (!erste) return null;
       return { name: erste.querySelector(".setting-item-name")?.textContent?.trim() ?? "", knoepfe: erste.querySelectorAll("button").length, icon: erste.querySelector(".extra-setting-button")?.getAttribute("aria-label") ?? null };
     `);
-    await pollUntil<{ ok: boolean }>(stelle.cdp, `return document.querySelector(".okit-vlist-row") ? { ok: true } : null;`, 5000, 250);
+    if ((await pollUntil<{ ok: boolean }>(stelle.cdp, `return document.querySelector(".okit-vlist-row") ? { ok: true } : null;`, 5000, 250)) === null) throw new Vorbedingung("die Schnappschuss-Liste hat nach 5 s keine Zeile");
     await sleep(700);
     const zeilen = await stelle.cdp.evaluate<{ n: number; meta: string[] }>(`
       const rows = Array.from(document.querySelectorAll(".okit-vlist-row"));
@@ -546,7 +546,7 @@ async function p7(c: Ctx): Promise<void> {
   const d1 = await warteAufDialog([c.cdp]);
   if (!d1) throw new Vorbedingung("Anwenden-Dialog oeffnet sich nicht (Vorlauf von P7)");
   await dialogKlick(c.cdp, "cta");
-  await dialogWeg(c.cdp);
+  if (!(await dialogWeg(c.cdp))) throw new Vorbedingung("der Anwenden-Dialog schliesst sich im Vorlauf nicht");
   await warteAufNotice(c.cdp, "Settings applied");
   await sleep(500);
   if ((await leseProbe(c.cdp))?.maxRounds !== 20) throw new Vorbedingung("der Vorlauf hat maxRounds nicht auf 20 gesetzt");
@@ -554,16 +554,16 @@ async function p7(c: Ctx): Promise<void> {
   let stelle: SettingsStelle | null = null;
   try {
     stelle = await openSettings(c.cdp, c.port);
-    await pollUntil<{ ok: boolean }>(stelle.cdp, `return document.querySelector(".okit-vlist-row") ? { ok: true } : null;`, 5000, 250);
+    if ((await pollUntil<{ ok: boolean }>(stelle.cdp, `return document.querySelector(".okit-vlist-row") ? { ok: true } : null;`, 5000, 250)) === null) throw new Vorbedingung("die Schnappschuss-Liste hat nach 5 s keine Zeile");
     const dlg = await oeffneRestore(c, stelle);
     if (!dlg) { record(pn("P7"), false, "Klick auf den Schnappschuss oeffnet keinen Zurueckholen-Dialog"); return; }
     const i1 = dlg.info;
-    const teil1Dialog = i1.title === "Restore snapshot" && i1.desc.some((d) => d === "unchanged since the apply — will be restored") && i1.boxes.length === 1 && i1.boxes[0]?.checked === true && i1.ctaText === "Restore 1 files";
+    const teil1Dialog = i1.title === "Restore snapshot" && i1.desc.some((d) => d === "unchanged since the apply — will be restored") && i1.boxes.length === 1 && i1.boxes[0]?.checked === true && i1.ctaText === "Restore 1 file";
     await dialogKlick(dlg.cdp, "cta");
     const n1 = await warteAufNotice(c.cdp, "Snapshot restored") ?? await warteAufNotice(dlg.cdp, "Snapshot restored", 500);
-    await dialogWeg(dlg.cdp);
+    const zu1 = await dialogWeg(dlg.cdp);
     const nach1 = await leseProbeText(c.cdp);
-    const teil1Datei = nach1 === vorherText;
+    const teil1Datei = nach1 === vorherText && zu1;
 
     // Teil 2: nach einer Handaenderung → „changed since“, nicht angehakt, nichts wird ueberschrieben.
     closeSettings(c.cdp, stelle);
@@ -574,7 +574,7 @@ async function p7(c: Ctx): Promise<void> {
     const d2 = await warteAufDialog([c.cdp]);
     if (!d2) throw new Vorbedingung("Anwenden-Dialog (Teil 2) oeffnet sich nicht");
     await dialogKlick(c.cdp, "cta");
-    await dialogWeg(c.cdp);
+    if (!(await dialogWeg(c.cdp))) throw new Vorbedingung("der Anwenden-Dialog schliesst sich im Vorlauf (Teil 2) nicht");
     await sleep(800);
     await c.cdp.evaluate(`
       const path = app.vault.configDir + ${q(PROBE_DATA)};
@@ -583,15 +583,16 @@ async function p7(c: Ctx): Promise<void> {
       return { ok: true };
     `);
     const handText = await leseProbeText(c.cdp);
+    if (!handText.includes('"maxRounds": 77')) throw new Vorbedingung("die Handaenderung (77) ist nicht in der Datei angekommen");
     stelle = await openSettings(c.cdp, c.port);
-    await pollUntil<{ ok: boolean }>(stelle.cdp, `return document.querySelector(".okit-vlist-row") ? { ok: true } : null;`, 5000, 250);
+    if ((await pollUntil<{ ok: boolean }>(stelle.cdp, `return document.querySelector(".okit-vlist-row") ? { ok: true } : null;`, 5000, 250)) === null) throw new Vorbedingung("die Schnappschuss-Liste hat nach 5 s keine Zeile");
     const dlg2 = await oeffneRestore(c, stelle);
     if (!dlg2) { record(pn("P7"), false, `Teil 1 ${teil1Dialog && teil1Datei ? "ok" : "rot"}; Teil 2: Zurueckholen-Dialog oeffnet sich nicht`); return; }
     const i2 = dlg2.info;
     const teil2Dialog = i2.desc.some((d) => d.startsWith("changed since — not selected")) && i2.boxes.length === 1 && i2.boxes[0]?.checked === false && i2.ctaDisabled === true;
     await dialogKlick(dlg2.cdp, "cancel");
-    await dialogWeg(dlg2.cdp);
-    const teil2Datei = (await leseProbeText(c.cdp)) === handText;
+    const zu2 = await dialogWeg(dlg2.cdp);
+    const teil2Datei = (await leseProbeText(c.cdp)) === handText && zu2;
     record(pn("P7"), teil1Dialog && teil1Datei && teil2Dialog && teil2Datei,
       `Teil 1: Dialog „${i1.title}“ / „${i1.desc.join(" | ")}“ / angehakt ${String(i1.boxes[0]?.checked)} / „${i1.ctaText}“, Notice ${n1 === null ? "FEHLT" : "da"}, Datei byte-gleich zum Stand davor: ${String(teil1Datei)} · Teil 2: „${i2.desc.join(" | ")}“, angehakt ${String(i2.boxes[0]?.checked)}, Knopf gesperrt ${String(i2.ctaDisabled)}, Datei (77) unveraendert: ${String(teil2Datei)}`);
   } finally { closeSettings(c.cdp, stelle); }
@@ -662,7 +663,7 @@ async function p14(c: Ctx): Promise<void> {
   const d1 = await warteAufDialog([c.cdp]);
   if (!d1) throw new Vorbedingung("Anwenden-Dialog oeffnet sich nicht (Vorlauf von P14)");
   await dialogKlick(c.cdp, "cta");
-  await dialogWeg(c.cdp);
+  if (!(await dialogWeg(c.cdp))) throw new Vorbedingung("der Anwenden-Dialog schliesst sich im Vorlauf nicht");
   await warteAufNotice(c.cdp, "Settings applied");
   await sleep(500);
   if ((await leseProbe(c.cdp))?.maxRounds !== 20) throw new Vorbedingung("der Vorlauf hat maxRounds nicht auf 20 gesetzt");
@@ -673,9 +674,9 @@ async function p14(c: Ctx): Promise<void> {
   if (!dlg) { record(pn("P14"), false, `Befehl „${cmd.name}“ oeffnet keinen Zurueckholen-Dialog`); return; }
   await dialogKlick(c.cdp, "cta");
   const n = await warteAufNotice(c.cdp, "Snapshot restored");
-  await dialogWeg(c.cdp);
+  const zu = await dialogWeg(c.cdp);
   const nach = await leseProbeText(c.cdp);
-  record(pn("P14"), dlg.info.title === "Restore snapshot" && dlg.info.boxes[0]?.checked === true && n !== null && nach === vorherText,
+  record(pn("P14"), zu && /Undo last apply/.test(cmd.name) && dlg.info.title === "Restore snapshot" && dlg.info.boxes[0]?.checked === true && n !== null && nach === vorherText,
     `Befehl „${cmd.name}“ · Dialog „${dlg.info.title}“, angehakt ${String(dlg.info.boxes[0]?.checked)} · Notice ${n === null ? "FEHLT" : "da"} · Datei byte-gleich zum Stand vor dem Anwenden: ${String(nach === vorherText)}`);
 }
 
@@ -805,7 +806,17 @@ async function p8p12(c: Ctx): Promise<void> {
 
   const bodies = c.fake.bodies.join("\n");
   const keyLeak = bodies.includes("sk-FAKE") || dom.sent.includes("sk-FAKE") || dom.sent.includes("sk-");
-  const sentOk = dom.sent.includes("Plugins: sa-probe") && dom.sent.includes("plugins.sa-probe.apiKey") && dom.sent.includes(`Model: ${FAKE_MODEL}`);
+  // POSITIV am Body des Servers: was wirklich gesendet wurde, nicht nur, was die Ansicht behauptet.
+  let msgs: Array<{ role: string; content: string }> = [];
+  try { msgs = ((JSON.parse(c.fake.bodies[0] ?? "{}") as { messages?: Array<{ role: string; content: string }> }).messages ?? []); } catch { msgs = []; }
+  const sys = msgs.find((m) => m.role === "system")?.content ?? "";
+  const usr = [...msgs].reverse().find((m) => m.role === "user")?.content ?? "";
+  const bodyOk = usr.includes("### plugins.sa-probe") && usr.includes('"maxRounds": 50') && usr.includes('"apiKey": "🔒"') && !usr.includes(PROBE_API_KEY) && usr.includes("Please set sa-probe maxRounds to 33");
+  // Anzeige und Body muessen uebereinstimmen: der volle Prompt im Sent context ist System + Nutzernachricht des Bodys.
+  const sameOk = sys !== "" && usr !== "" && dom.sent.includes(sys) && dom.sent.includes(usr);
+  const authSeen = c.fake.auth[0] ?? "";
+  const authOk = (authSeen === "" || authSeen === `Bearer ${FAKE_ENDPOINT_KEY}`) && !authSeen.includes(PROBE_API_KEY);
+  const sentOk = dom.sent.includes("Plugins: sa-probe") && dom.sent.includes("plugins.sa-probe.apiKey") && dom.sent.includes(`Model: ${FAKE_MODEL}`) && bodyOk && sameOk && authOk;
   if (!block) { record(pn("P8"), false, `kein Anwenden-Knopf im Chat nach 30 s; Chat-Text: „${dom.text.slice(0, 120)}“; Server sah ${c.fake.bodies.length} Anfrage(n)`); return; }
   await klickeAnwenden(c.cdp, `.sa-chat-block .sa-apply`);
   const dlg = await warteAufDialog([c.cdp]);
@@ -818,7 +829,7 @@ async function p8p12(c: Ctx): Promise<void> {
   const snap = await neuesterSchnappschuss(c.cdp);
   const herkunftOk = (n ?? "").includes("Settings applied (chat:") && (snap?.origin ?? "").startsWith("chat:") && (snap?.origin ?? "").endsWith(`/${FAKE_MODEL}`);
   record(pn("P8"), !keyLeak && sentOk && dialogOk && daten?.maxRounds === 33 && herkunftOk,
-    `Server sah ${c.fake.bodies.length} Anfrage(n), Authorization-Header „${(c.fake.auth[0] ?? "").replace(FAKE_ENDPOINT_KEY, "<Endpunkt-Schluessel>")}“ · Sent context: ${dom.ctx.slice(0, 200)} · Schluessel (sk-…) in Body oder Sent context: ${String(keyLeak)} · Dialog gleich: ${String(dialogOk)} · data.json maxRounds=${String(daten?.maxRounds)} · Herkunft Notice ${n === null ? "FEHLT" : "da"} / Manifest „${snap?.origin ?? "keiner"}“`);
+    `Server sah ${c.fake.bodies.length} Anfrage(n), Authorization-Header „${authSeen.replace(FAKE_ENDPOINT_KEY, "<Endpunkt-Schluessel>")}“ (ok ${String(authOk)}) · Body traegt Kontext sa-probe/maxRounds 50/apiKey nur als 🔒: ${String(bodyOk)} · Anzeige = Body: ${String(sameOk)} · Sent context: ${dom.ctx.slice(0, 200)} · Schluessel (sk-…) in Body oder Sent context: ${String(keyLeak)} · Dialog gleich: ${String(dialogOk)} · data.json maxRounds=${String(daten?.maxRounds)} · Herkunft Notice ${n === null ? "FEHLT" : "da"} / Manifest „${snap?.origin ?? "keiner"}“`);
 }
 
 // ---------------------------------------------------------------------------------------------
