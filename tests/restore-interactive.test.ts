@@ -48,6 +48,20 @@ describe("ApplyService.restoreInteractive", () => {
     expect(rows.map((r) => [r.path, r.decision, r.checked])).toEqual([[A, "restore", true], [B, "changed", false], [".cfg/appearance.json", "unverified", false]]);
   });
 
+  it("(M4) während ein anderer Lauf offen ist: { busy: true } und eine Notice", async () => {
+    load.mockResolvedValue([itemA]);
+    const { ports, writes } = setup({ [A]: "[1]" });
+    let release: (v: Set<string> | null) => void = () => {};
+    const svc = new ApplyService(app, settings, { ports, confirmRestore: () => new Promise((r) => { release = r; }) });
+    const first = svc.restoreInteractive("d");
+    await vi.waitFor(() => { expect(svc.busy).toBe(true); });
+    expect(await svc.restoreInteractive("d")).toEqual({ busy: true });
+    expect(Notice.instances.map((n) => n.message)).toContain("Another change is running — try again in a moment.");
+    release(null);
+    await first;
+    expect(writes).toEqual([]);
+  });
+
   it("Abbruch schreibt nichts", async () => {
     load.mockResolvedValue([itemA]);
     const { ports, writes } = setup({ [A]: "[1]" });

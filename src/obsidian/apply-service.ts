@@ -96,7 +96,8 @@ export class ApplyService {
 
   /** Spec § 7 „Zurückholen“: Dialog je Datei, dann derselbe Weg mit dem Schnappschuss als Quelle. */
   async restoreInteractive(dir: string): Promise<RestoreReport | { cancelled: true } | { busy: true } | { error: string }> {
-    if (this.running) return { busy: true };
+    // Alle Aufrufer (Befehl, Einstellungs-Tab) sind Klicks des Nutzers: Schweigen sähe aus wie „nichts passiert“.
+    if (this.running) { new Notice(t("restore.busy")); return { busy: true }; }
     this.running = true;
     try {
       const ports = this.deps.ports ?? makePorts(this.app);
