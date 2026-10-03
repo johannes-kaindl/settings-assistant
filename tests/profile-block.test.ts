@@ -81,4 +81,32 @@ describe("profile-block", () => {
     expect(el.querySelectorAll("button.sa-row-open, .sa-row-open")).toHaveLength(1);
     expect(el.querySelectorAll(".sa-apply")[0].disabled).toBe(true);
   });
+
+  it.each(["sk-LEAK-SECRET-1234", "apiKey: sk-LEAK-SECRET-1234", '{"apiKey": sk-LEAK-SECRET-1234}'])("JSON-Fehler zeigt nie Quelltext: %s", async (src) => {
+    const el = makeFakeEl();
+    const { d } = deps([]);
+    await renderProfileBlock(el, src, d);
+    expect(el.textContent).toContain("not valid JSON");
+    expect(el.textContent).not.toContain("sk-LEAK");
+  });
+
+  it("bad-version und bad-section zeigen keinen Wert", async () => {
+    for (const src of [JSON.stringify({ version: "sk-LEAK-1" }), JSON.stringify({ version: 1, plugins: "sk-LEAK-2" }), JSON.stringify({ version: 1, plugins: { "bad/id": { a: "sk-LEAK-3" } } })]) {
+      const el = makeFakeEl();
+      const { d } = deps([]);
+      await renderProfileBlock(el, src, d);
+      expect(el.textContent).not.toContain("sk-LEAK");
+    }
+  });
+
+  it("Klick-Fehler: Notice, Knopf wieder aktiv, kein Crash", async () => {
+    const el = makeFakeEl();
+    const { d, service } = deps([mk({})]);
+    service.applyInteractive.mockRejectedValueOnce(new Error("boom"));
+    await renderProfileBlock(el, good, d);
+    el.querySelectorAll(".sa-apply")[0]._listeners["click"][0]();
+    await vi.waitFor(() => expect(service.plan).toHaveBeenCalledTimes(2));
+    expect(Notice.instances.some((n: { message?: string }) => String(n.message).includes("boom"))).toBe(true);
+    expect(el.querySelectorAll(".sa-apply")[0].disabled).toBeFalsy();
+  });
 });

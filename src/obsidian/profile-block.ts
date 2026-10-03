@@ -20,7 +20,7 @@ export interface ProfileBlockDeps {
 
 function errorText(e: ProfileError): string {
   switch (e.code) {
-    case "invalid-json": return t("profile.err.invalid-json", e.detail);
+    case "invalid-json": return t("profile.err.invalid-json");
     case "future-version": return t("profile.err.future-version", e.version);
     case "bad-version": return t("profile.err.bad-version");
     case "bad-section": return t("profile.err.bad-section", e.section);
@@ -47,6 +47,8 @@ async function renderValid(el: HTMLElement, profile: SettingsProfile, deps: Prof
       try {
         const r = await deps.service.applyInteractive(profile, deps.origin);
         if ("busy" in r) new Notice(t("service.busy"));
+      } catch (e) {
+        new Notice(t("apply.failed", e instanceof Error ? e.message : String(e)));
       } finally {
         await renderValid(el, profile, deps);
       }
