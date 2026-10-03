@@ -1,5 +1,5 @@
 /**
- * GUI-Smoke — faehrt die Pruefpunkte P1-P14 gegen ein LAUFENDES Obsidian (CORE-TEST-02 b).
+ * GUI-Smoke — faehrt die Pruefpunkte P1-P15 gegen ein LAUFENDES Obsidian (CORE-TEST-02 b).
  *
  * Gemessen wird die SACHE: Dateiinhalt auf Platte (`sa-probe/data.json`, `hotkeys.json`, Schnappschuss-
  * Manifest), Dialogtext, Notice — nicht die Existenz eines Elements. Das Testplugin `sa-probe`
@@ -78,6 +78,7 @@ const PUNKTE = [
   "P12 Chat-Antwort mit Markdown-Bild erzeugt kein img und keinen Request",
   "P13 Hilfe-Zeile ist die erste Zeile, Schnappschuss-Liste zeigt genau einen Eintrag",
   "P14 Befehl „Undo last apply“ stellt den Stand davor wieder her",
+  "P15 Schluesselbund: Klartext-Schluessel der lokalen Endpunkt-Liste wandert aus der data.json, Header bleibt, Zeile zeigt „saved“",
 ] as const;
 type PunktName = (typeof PUNKTE)[number];
 const pn = (prefix: string): PunktName => {
@@ -834,6 +835,70 @@ async function p8p12(c: Ctx): Promise<void> {
 
 // ---------------------------------------------------------------------------------------------
 
+/** Klartext-Schluessel (Altbestand vor der Migration) → kalter Start → Schluesselbund. Nur messbar mit `app.secretStorage`. */
+async function p15(c: Ctx): Promise<void> {
+  const avail = await c.cdp.evaluate<{ ok: boolean; ver: string }>(`return { ok: typeof app.secretStorage?.getSecret === "function" && typeof app.secretStorage?.setSecret === "function", ver: (document.title.match(/Obsidian ([\\d.]+)/) || [])[1] || "?" };`);
+  if (!avail.ok) { skipped(pn("P15"), `app.secretStorage fehlt in dieser Obsidian-Version (${avail.ver}, noetig ab 1.11.4)`); return; }
+  // Kalter Start mit Altbestand: ausschalten → data.json mit Klartext-apiKey schreiben → einschalten.
+  const pre = await c.cdp.evaluate<{ ok: boolean; vorher: boolean }>(`
+    const id = ${q(PLUGIN_ID)};
+    const path = app.vault.configDir + "/plugins/" + id + "/data.json";
+    if (app.plugins.plugins[id]) await app.plugins.disablePlugin(id);
+    const alt = (await app.vault.adapter.exists(path)) ? JSON.parse(await app.vault.adapter.read(path)) : {};
+    alt.endpoints = [{ url: ${q(c.fake.url)}, apiKey: ${q(FAKE_ENDPOINT_KEY)}, model: ${q(FAKE_MODEL)} }];
+    alt.endpointChoice = {}; alt.localModel = "";
+    await app.vault.adapter.write(path, JSON.stringify(alt, null, 2));
+    // Gegenprobe der Vorbedingung: der Klartext steht VOR dem Einschalten auf Platte (das Plugin kann ihn beim Start sofort bereinigen).
+    const vorher = (await app.vault.adapter.read(path)).includes(${q(FAKE_ENDPOINT_KEY)});
+    await app.plugins.enablePlugin(id);
+    await new Promise((r) => setTimeout(r, 600));
+    return { ok: !!app.plugins.plugins[id], vorher };
+  `);
+  if (!pre.ok) throw new Vorbedingung("settings-assistant laesst sich nicht neu laden");
+  if (!pre.vorher) throw new Vorbedingung("die Vorbereitung hat den Klartext nicht in die data.json gebracht");
+  const mem = await c.cdp.evaluate<{ url: string | null; key: string | null }>(`
+    const ep = await app.plugins.plugins[${q(PLUGIN_ID)}].resolveEndpoint();
+    return { url: ep ? ep.url : null, key: ep ? (ep.apiKey ?? null) : null };
+  `);
+  await sleep(800); // persist() laeuft ohne Warten im Hintergrund
+  const nach = await c.cdp.evaluate<{ t: string }>(`return { t: await app.vault.adapter.read(app.vault.configDir + "/plugins/" + ${q(PLUGIN_ID)} + "/data.json") };`);
+  let ep0: { secretId?: unknown; id?: unknown; apiKey?: unknown } | undefined;
+  try { ep0 = ((JSON.parse(nach.t) as { endpoints?: Array<{ secretId?: unknown; id?: unknown; apiKey?: unknown }> }).endpoints ?? [])[0]; } catch { ep0 = undefined; }
+  const platteOk = !nach.t.includes(FAKE_ENDPOINT_KEY) && typeof ep0?.secretId === "string" && ep0.secretId !== "" && typeof ep0.id === "string" && ep0.id !== "" && ep0.apiKey === undefined;
+  const speicherOk = mem.url === c.fake.url && mem.key === FAKE_ENDPOINT_KEY;
+  // (b) Chat senden: der Server muss weiter genau den hydrierten Schluessel sehen.
+  const vorher = c.fake.auth.length;
+  await c.cdp.evaluate(`app.workspace.detachLeavesOfType("settings-assistant-chat"); await new Promise((r) => setTimeout(r, 300)); app.commands.executeCommandById(${q(`${PLUGIN_ID}:open-chat`)}); return { ok: true };`);
+  const da = await pollUntil<{ ok: boolean }>(c.cdp, `return document.querySelector(".sa-chat-input") ? { ok: true } : null;`, 10_000, 250);
+  if (!da) throw new Vorbedingung("Chat-Ansicht oeffnet sich nicht (kein .sa-chat-input)");
+  await c.cdp.evaluate(`
+    const i = document.querySelector(".sa-chat-input");
+    i.value = "Hello for the keychain check";
+    i.dispatchEvent(new Event("input", { bubbles: true }));
+    document.querySelector(".sa-chat-send").click();
+    return { ok: true };
+  `);
+  const bis = Date.now() + 30_000;
+  while (c.fake.auth.length <= vorher && Date.now() < bis) await sleep(300);
+  const gesehen = c.fake.auth.length > vorher ? (c.fake.auth[c.fake.auth.length - 1] ?? "") : null;
+  const headerOk = gesehen === `Bearer ${FAKE_ENDPOINT_KEY}`;
+  // (c) Einstellungen: die Zeile zeigt den Zustand, kein Klartextfeld mit dem Schluessel.
+  let stelle: SettingsStelle | null = null;
+  let zeile: { saved: string | null; klartext: boolean } = { saved: null, klartext: true };
+  try {
+    stelle = await openSettings(c.cdp, c.port);
+    await pollUntil<{ ok: boolean }>(stelle.cdp, `return document.querySelector(".okit-ep-secret") ? { ok: true } : null;`, 6000, 250);
+    zeile = await stelle.cdp.evaluate<{ saved: string | null; klartext: boolean }>(`
+      const s = document.querySelector(".okit-ep-secret");
+      const vals = Array.from(document.querySelectorAll("input")).map((i) => i.value);
+      return { saved: s ? s.textContent : null, klartext: vals.some((v) => v.includes(${q(FAKE_ENDPOINT_KEY)})) || document.body.textContent.includes(${q(FAKE_ENDPOINT_KEY)}) };
+    `);
+  } finally { closeSettings(c.cdp, stelle); }
+  const zeileOk = zeile.saved === "saved" && !zeile.klartext;
+  record(pn("P15"), platteOk && speicherOk && headerOk && zeileOk,
+    `data.json ohne Klartext, mit secretId/id, ohne apiKey: ${String(platteOk)} · hydrierter Schluessel im Speicher: ${String(speicherOk)} · Authorization-Header am Server „${gesehen === null ? "keine Anfrage" : gesehen.replace(FAKE_ENDPOINT_KEY, "<Endpunkt-Schluessel>")}“ (ok ${String(headerOk)}) · Zeile „${String(zeile.saved)}“, Klartext sichtbar: ${String(zeile.klartext)}`);
+}
+
 async function main(): Promise<void> {
   const argv = process.argv.slice(2);
   const portArg = argv.indexOf("--port");
@@ -870,7 +935,7 @@ async function main(): Promise<void> {
       const reihe: Array<[PunktName, (c: Ctx) => Promise<void>]> = [
         [pn("P1"), p1], [pn("P2"), p2], [pn("P13"), p13], [pn("P7"), p7], [pn("P14"), p14],
         [pn("P3"), p3], [pn("P4"), p4], [pn("P5"), p5], [pn("P11"), p11], [pn("P6"), p6],
-        [pn("P9"), p9], [pn("P10"), p10], [pn("P8"), p8p12],
+        [pn("P9"), p9], [pn("P10"), p10], [pn("P8"), p8p12], [pn("P15"), p15],
       ];
       for (const [name, fn] of reihe) {
         await schliesseDialoge(cdp);
