@@ -3,7 +3,8 @@ import "./i18n/strings";
 import { pickLang, setLang, t } from "./vendor/kit/i18n";
 import { resolveEndpointSource, type EndpointSourceResult } from "./vendor/kit/endpoint-source";
 import type { EndpointConfig } from "./vendor/kit/endpoint_config";
-import type { RequestSettings } from "./vendor/kit/sampling-profiles";
+import { resolveRequestParams, thinkingFor, type RequestSettings } from "./vendor/kit/sampling-profiles";
+import type { ChatClient } from "./vendor/kit-obsidian/chat-client";
 import { createRequestSession, type RequestSession } from "./vendor/kit-obsidian/request-session";
 import type { RequestSectionState } from "./vendor/kit-obsidian/request-section";
 import { findEndpointManager, onEndpointManagerChanged } from "./vendor/kit-obsidian/endpoint-source";
@@ -13,7 +14,8 @@ import { ApplyService } from "./obsidian/apply-service";
 import { openPluginSettings } from "./obsidian/apply-modal";
 import { renderProfileBlock } from "./obsidian/profile-block";
 import { PROBE_TIMEOUT_MS, probeEndpoint } from "./obsidian/http";
-import { SettingsAssistantSettingTab } from "./obsidian/settings-tab";
+import { cachedProbe, createChatSend, makeChatClient, type ChatSend } from "./obsidian/llm";
+import { CHAT_MODE, SettingsAssistantSettingTab } from "./obsidian/settings-tab";
 import { listSnapshots } from "./obsidian/snapshots";
 
 function safeGetLanguage(): string | null {
@@ -28,6 +30,7 @@ export default class SettingsAssistantPlugin extends Plugin {
   private activeSource: EndpointSourceResult | null = null;
   private cachedLocal: EndpointConfig | null = null;
   private pendingResolve: Promise<EndpointConfig | null> | null = null;
+  private chatClient: { key: string; client: ChatClient } | null = null;
   private unsubscribeManager: () => void = () => {};
 
   async onload(): Promise<void> {
@@ -102,6 +105,7 @@ export default class SettingsAssistantPlugin extends Plugin {
       capability: "chat",
       choice: this.settings.endpointChoice,
       caller: "settings-assistant",
+      backendOf: (cfg) => cachedProbe(cfg.url, cfg.model || this.settings.localModel),
     }, (ep) => probeEndpoint(ep, PROBE_TIMEOUT_MS).then((s) => s.kind === "ok"))
       .then((r) => {
         this.activeSource = r;
@@ -110,5 +114,34 @@ export default class SettingsAssistantPlugin extends Plugin {
       })
       .finally(() => { this.pendingResolve = null; });
     return this.pendingResolve;
+  }
+
+  /** Anzeige für „Sent context“: Endpunkt-URL und das Modell, wie es gesendet wird (nie Schlüssel). */
+  describeEndpoint(): { endpoint: string; model: string } {
+    const s = this.activeSource;
+    return { endpoint: s?.config?.url ?? "", model: s?.sentModel ?? s?.model ?? "" };
+  }
+
+  /** `send` für die Chat-Sitzung (Task 15 reicht sie an `ChatSession` weiter). Löst den Endpunkt bei jedem Aufruf frisch auf. */
+  chatSend(): ChatSend {
+    return createChatSend({
+      resolve: async () => {
+        const endpoint = await this.resolveEndpoint();
+        const src = this.activeSource;
+        if (endpoint === null || src === null) return null;
+        const family = src.family ?? null;
+        const thinking = thinkingFor(this.settings.request, CHAT_MODE);
+        const overrides = this.settings.request.overrides[CHAT_MODE]?.[family ?? "unknown"] ?? {};
+        const { params } = resolveRequestParams({ family, mode: CHAT_MODE, backend: src.backend ?? "unknown", thinking, overrides });
+        return { endpoint, sentModel: src.sentModel || src.model, params, family, thinking };
+      },
+      client: (target) => {
+        const key = `${target.endpoint.url}|${this.activeSource?.transport ?? "http"}`;
+        if (this.chatClient?.key !== key) this.chatClient = { key, client: makeChatClient(this.activeSource) };
+        return this.chatClient.client;
+      },
+      recordRequest: (params) => { this.requestSession.recordRequest(params); },
+      report: (ds) => { this.requestSession.report(ds); },
+    });
   }
 }
