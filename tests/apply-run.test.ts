@@ -92,6 +92,37 @@ describe("runApply", () => {
   });
 });
 
+describe("runApply fix round 1", () => {
+  it("records the written file in the manifest when enable throws after a successful write", async () => {
+    const Q = `${DIR}/plugins/b/data.json`;
+    const files: Record<string, string> = { [P]: '{"k":0}', [Q]: '{"a":1}' };
+    const f = fakePorts(files, { onEnable: () => { throw new Error("enable failed"); } });
+    const r = parseProfile(JSON.stringify({ version: 1, plugins: { "koda-agent": { k: 1 }, b: { a: 2 } } }));
+    if (!r.ok) throw new Error();
+    const rows = reconcile(r.profile, [
+      { target: { kind: "plugin", id: "koda-agent" }, installed: true, text: '{"k":0}' },
+      { target: { kind: "plugin", id: "b" }, installed: true, text: '{"a":1}' },
+    ]);
+    const rep = await runApply(rows, f.ports, { configDir: DIR, origin: "o" });
+    expect(rep.results.map((x) => x.outcome)).toEqual(["error", "skipped"]);
+    expect(f.files[P]).toBe('{"k":1}');
+    expect(f.finished()).toEqual([{ path: P, existed: true, afterHash: hashText('{"k":1}') }]);
+  });
+  it("applies only rows that are checked and selectable", async () => {
+    const f = fakePorts({ [P]: '{"a":1,"b":1,"c":1}' });
+    const base = rowsFor('{"a":1,"b":1,"c":1}', { a: 2, b: 2, c: 2 });
+    expect(base.length).toBe(3);
+    const rows = [
+      { ...base[0]!, checked: true, selectable: true },
+      { ...base[1]!, checked: false, selectable: true },
+      { ...base[2]!, checked: true, selectable: false },
+    ];
+    const rep = await runApply(rows, f.ports, { configDir: DIR, origin: "o" });
+    expect(rep.results.length).toBe(1);
+    expect(JSON.parse(f.files[P]!)).toEqual({ a: 2, b: 1, c: 1 });
+  });
+});
+
 describe("runRestore", () => {
   it("restores an untouched file through the same plugin cycle", async () => {
     const f = fakePorts({ [P]: '{"a":2}' });
@@ -111,5 +142,18 @@ describe("runRestore", () => {
     const f = fakePorts({ [P]: '{"a":1}' });
     await runRestore([{ target: { kind: "plugin", id: "koda-agent" }, file: { path: P, existed: false, afterHash: hashText('{"a":1}') }, savedText: null }], new Set(), f.ports, { origin: "o" });
     expect(f.files[P]).toBeUndefined();
+  });
+  it("stops after the first write error; remaining items get no result (deliberate until the UI needs it)", async () => {
+    const Q = `${DIR}/plugins/b/data.json`;
+    const f = fakePorts({ [P]: '{"a":2}', [Q]: '{"a":2}' });
+    const orig = f.ports.write;
+    f.ports.write = async (p, t) => { if (p === P) throw new Error("boom"); await orig(p, t); };
+    const items = [
+      { target: { kind: "plugin", id: "koda-agent" } as const, file: { path: P, existed: true, afterHash: hashText('{"a":2}') }, savedText: '{"a":1}' },
+      { target: { kind: "plugin", id: "b" } as const, file: { path: Q, existed: true, afterHash: hashText('{"a":2}') }, savedText: '{"a":1}' },
+    ];
+    const res = await runRestore(items, new Set(), f.ports, { origin: "o" });
+    expect(res.results.map((x) => x.outcome)).toEqual(["error"]);
+    expect(f.files[Q]).toBe('{"a":2}');
   });
 });

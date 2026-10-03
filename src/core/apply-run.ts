@@ -77,6 +77,9 @@ export async function runApply(rows: readonly CheckRow[], ports: ApplyPorts, opt
       }
     } catch (e) {
       for (const row of g.items) results.push({ row, outcome: "error", error: errText(e) });
+      let afterHash: string | null = null;
+      try { const after = await ports.read(path); afterHash = after === null ? null : hashText(after); } catch { afterHash = null; }
+      finished.push({ path, existed: existedBefore.get(path) ?? false, afterHash });
       stopped = true;
     }
   }
