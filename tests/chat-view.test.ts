@@ -1,0 +1,135 @@
+import { describe, expect, it, vi } from "vitest";
+import "../src/i18n/strings";
+import { WorkspaceLeaf } from "./vendor/kit/obsidian-mock";
+import { ChatSession, type ChatSessionDeps } from "../src/obsidian/chat-session";
+import { SettingsChatView, VIEW_TYPE_SA_CHAT, type ChatViewDeps } from "../src/obsidian/chat-view";
+
+const installed = [{ id: "koda-agent", name: "Koda" }, { id: "lingotuner", name: "Lingotuner" }];
+const profileAnswer = "Try this:\n```settings-profile\n" + JSON.stringify({ version: 1, plugins: { "koda-agent": { maxRounds: 20 } } }) + "\n```\nDone.";
+const broken = "```settings-profile\n{oops sk-DETAIL-LEAK\n```";
+
+function setup(opts: { endpoint?: boolean; answer?: string; send?: ChatSessionDeps["send"]; readSettings?: ChatSessionDeps["readSettings"] } = {}) {
+  const send: ChatSessionDeps["send"] = opts.send ?? (async (_m, _s, onDelta) => { onDelta({ content: "hi" }); return { ok: true, content: opts.answer ?? "plain answer" }; });
+  const session = new ChatSession({
+    send, installed: () => installed, describeEndpoint: () => ({ endpoint: "http://x", model: "m1" }),
+    readSettings: opts.readSettings ?? (async () => JSON.stringify({ apiKey: "sk-SECRET-VALUE", maxRounds: 5 })),
+  });
+  const service = { plan: vi.fn(async () => []), applyInteractive: vi.fn(async () => ({ cancelled: true as const })) };
+  const deps: ChatViewDeps = {
+    session, service, installed: () => installed,
+    resolveEndpoint: async () => opts.endpoint ?? true,
+    openOwnSettings: vi.fn(), openPluginSettings: vi.fn(),
+    renderMarkdown: vi.fn(async (el: HTMLElement, md: string) => { el.setText(md); }),
+    saveNote: vi.fn(async () => "Settings profile.md"),
+    thinking: { family: () => null, current: () => "off", onLevel: () => "low", setLevel: async () => {}, levelPicker: () => false,
+      strings: { button: () => "Thinking: off", level: (l) => l, pickerLabel: "Thinking level" } },
+    now: () => new Date(2026, 9, 3, 12, 0),
+  };
+  const view = new SettingsChatView(new WorkspaceLeaf() as never, deps);
+  return { view, deps, session, service };
+}
+const buttons = (v: SettingsChatView) => (v.contentEl as any).querySelectorAll("button") as any[];
+const ask = async (v: SettingsChatView, text = "koda-agent rounds") => {
+  const input = (v.contentEl as any).querySelectorAll("textarea")[0];
+  input.value = text;
+  await v.submit();
+};
+
+describe("chat-view", () => {
+  it("Typ-Konstante", () => { expect(VIEW_TYPE_SA_CHAT).toBe("settings-assistant-chat"); });
+
+  it("Empty-State ohne Endpunkt: genau ein mod-cta, der die Einstellungen öffnet", async () => {
+    const { view, deps } = setup({ endpoint: false });
+    await view.onOpen();
+    const el = view.contentEl as any;
+    expect(el.querySelectorAll(".sa-empty").length).toBe(1);
+    const cta = el.querySelectorAll(".mod-cta");
+    expect(cta.length).toBe(1);
+    expect(cta[0].textContent).toBe("Set up a chat model");
+    cta[0].click();
+    expect(deps.openOwnSettings).toHaveBeenCalled();
+  });
+
+  it("Sent context enthält Namen, aber keinen geheimen Wert", async () => {
+    const { view } = setup();
+    await view.onOpen();
+    await ask(view);
+    const text = (view.contentEl as any).textContent as string;
+    expect(text).toContain("Sent context");
+    expect(text).toContain("plugins.koda-agent.apiKey");
+    expect(text).not.toContain("sk-SECRET-VALUE");
+    expect(text).toContain("http://x");
+  });
+
+  it("ein Vorschlagsblock rendert den Apply-Knopf und die Speichern-Aktion", async () => {
+    const { view, deps } = setup({ answer: profileAnswer });
+    await view.onOpen();
+    await ask(view);
+    await vi.waitFor(() => { expect((view.contentEl as any).querySelectorAll(".sa-apply").length).toBe(1); });
+    const el = view.contentEl as any;
+    expect(el.querySelectorAll(".sa-apply")[0].textContent).toContain("Apply");
+    const save = buttons(view).find((b) => b.textContent === "Save as profile note");
+    expect(save).toBeTruthy();
+    // Der Block steht nicht noch einmal als Rohtext im Markdown.
+    expect((deps.renderMarkdown as any).mock.calls.at(-1)[1]).not.toContain("settings-profile");
+    save.click();
+    await vi.waitFor(() => { expect(deps.saveNote).toHaveBeenCalled(); });
+  });
+
+  it("Speichern schwärzt Geheimnisse im Block", async () => {
+    const leaky = "```settings-profile\n" + JSON.stringify({ version: 1, plugins: { "koda-agent": { apiKey: "sk-LLM-MADE" } } }) + "\n```";
+    const { view, deps } = setup({ answer: leaky });
+    await view.onOpen();
+    await ask(view);
+    await vi.waitFor(() => { expect(buttons(view).some((b) => b.textContent === "Save as profile note")).toBe(true); });
+    buttons(view).find((b) => b.textContent === "Save as profile note").click();
+    await vi.waitFor(() => { expect(deps.saveNote).toHaveBeenCalled(); });
+    const [name, text] = (deps.saveNote as any).mock.calls[0];
+    expect(name).toBe("Settings profile 2026-10-03 12-00");
+    expect(text).not.toContain("sk-LLM-MADE");
+  });
+
+  it("Chips sind entfernbar", async () => {
+    const { view, session } = setup();
+    await view.onOpen();
+    session.selected = ["koda-agent", "lingotuner"];
+    view.refresh();
+    const rm = buttons(view).filter((b) => b.getAttribute("aria-label") === "Remove koda-agent");
+    expect(rm.length).toBe(1);
+    rm[0].click();
+    expect(session.selected).toEqual(["lingotuner"]);
+  });
+
+  it("Abbrechen ruft den AbortController", async () => {
+    let captured: AbortSignal | null = null;
+    const send: ChatSessionDeps["send"] = (_m, signal) => new Promise((resolve) => { captured = signal; signal.addEventListener("abort", () => { resolve({ ok: false, error: "aborted" }); }); });
+    const { view } = setup({ send });
+    await view.onOpen();
+    const pending = ask(view);
+    await vi.waitFor(() => { expect(captured).not.toBeNull(); });
+    const stop = buttons(view).find((b) => b.textContent === "Stop");
+    expect(stop).toBeTruthy();
+    stop.click();
+    await pending;
+    expect(captured!.aborted).toBe(true);
+    expect((view.contentEl as any).textContent).toContain("Stopped.");
+  });
+
+  it("ein ungültiger Block zeigt nur den Code-Text, nie das Detail", async () => {
+    const { view } = setup({ answer: broken });
+    await view.onOpen();
+    await ask(view);
+    await vi.waitFor(() => { expect((view.contentEl as any).querySelectorAll(".sa-profile-error").length).toBe(1); });
+    const text = (view.contentEl as any).textContent as string;
+    expect(text).toContain("not valid JSON");
+    expect(text).not.toContain("sk-DETAIL-LEAK");
+  });
+
+  it("ein Sendefehler zeigt den Fehlertext, wendet nichts an", async () => {
+    const { view, service } = setup({ send: async () => ({ ok: false, error: "http 500" }) });
+    await view.onOpen();
+    await ask(view);
+    expect((view.contentEl as any).textContent).toContain("Error: http 500");
+    expect(service.applyInteractive).not.toHaveBeenCalled();
+  });
+});

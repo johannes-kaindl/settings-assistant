@@ -188,3 +188,56 @@
 
 /* Eigene Regeln der Schnappschuss-Liste */
 .sa-snapshots-hint { color: var(--text-muted); font-size: var(--font-ui-smaller); margin-bottom: var(--size-2-1); }
+
+/* uebernommen aus src/vendor/kit-obsidian/stream-area.ts (STREAM_AREA_CSS), obsidian-kit 0.47.0 */
+.okit-stream { display: flex; flex-direction: column; min-height: 0; gap: var(--size-4-2); }
+.okit-stream-body {
+  flex: 1 1 auto; min-height: 0; overflow-y: auto;
+  font-size: var(--font-ui-small); line-height: var(--line-height-normal);
+}
+/* Rollt der Wirt selbst, ist der Body KEIN eigener Scroll-Container — sonst entstuende
+   ein zweiter Rollbereich im ersten. Wird per Wurzelklasse geschaltet, nicht vom Consumer. */
+.okit-stream--host-scroll .okit-stream-body { flex: 0 0 auto; min-height: auto; overflow-y: visible; }
+.okit-stream-block > :first-child { margin-top: 0; }
+.okit-stream-block > :last-child { margin-bottom: 0; }
+.okit-stream-tail { white-space: pre-wrap; color: var(--text-muted); }
+.okit-stream-status {
+  flex: 0 0 auto;
+  display: flex; align-items: center; gap: var(--size-4-1);
+  font-size: var(--font-ui-smaller); color: var(--text-muted);
+}
+.okit-stream-reasoning {
+  flex: 0 0 auto;
+  font-size: var(--font-ui-smaller); color: var(--text-muted);
+}
+.okit-stream-reasoning > summary { cursor: var(--cursor); color: var(--text-faint); }
+.okit-stream-reasoning > pre {
+  max-height: 12em; overflow-y: auto; white-space: pre-wrap;
+  background: var(--background-secondary); padding: var(--size-4-2);
+}
+/* Ein leerer Slot bleibt Flex-Item und kostet einen gap — spürbar bei einem Wirt, der die
+   Statuszeile nicht nutzt (Befund aus der ersten Adoption, 2026-09-11). */
+.okit-stream-status:empty, .okit-stream-reasoning-slot:empty { display: none; }
+
+/* Chat-Ansicht */
+.sa-chat { display: flex; flex-direction: column; gap: var(--size-4-2); height: 100%; }
+.sa-chat .sa-empty { display: flex; flex-direction: column; align-items: flex-start; gap: var(--size-4-2); padding: var(--size-4-3); }
+.sa-chat-head { display: flex; align-items: center; justify-content: space-between; gap: var(--size-4-2); flex: 0 0 auto; }
+.sa-chat-messages { flex: 1 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: var(--size-4-3); }
+.sa-chat-turn.is-user .sa-chat-msg { background: var(--background-secondary); border-radius: var(--radius-m); padding: var(--size-4-2); white-space: pre-wrap; font-size: var(--font-ui-small); }
+.sa-chat-block { display: flex; flex-direction: column; gap: var(--size-4-1); margin-top: var(--size-4-2); }
+.sa-chat-block-note { display: flex; flex-direction: column; align-items: flex-start; gap: var(--size-4-1); }
+.sa-chat-block-info { color: var(--text-muted); font-size: var(--font-ui-smaller); }
+.sa-chat-block-info.is-error { color: var(--text-error); }
+.sa-chat-sent { margin-top: var(--size-4-2); font-size: var(--font-ui-smaller); color: var(--text-muted); }
+.sa-chat-sent > summary { cursor: var(--cursor); color: var(--text-faint); }
+.sa-chat-sent-label { margin-top: var(--size-4-1); color: var(--text-faint); }
+.sa-chat-prompt { max-height: 16em; overflow: auto; white-space: pre-wrap; background: var(--background-secondary); padding: var(--size-4-2); }
+.sa-chat-composer { flex: 0 0 auto; display: flex; flex-direction: column; gap: var(--size-4-2); }
+.sa-chat-chips { display: flex; flex-wrap: wrap; align-items: center; gap: var(--size-4-1); }
+.sa-chat-chips:empty { display: none; }
+.sa-chip { display: inline-flex; align-items: center; gap: var(--size-4-1); padding: 0 var(--size-4-1) 0 var(--size-4-2); border-radius: var(--radius-m); background: var(--background-modifier-hover); font-size: var(--font-ui-smaller); }
+.sa-chip-remove { padding: 0; }
+.sa-chat-input-row { display: flex; gap: var(--size-4-2); align-items: flex-end; }
+.sa-chat-input { flex: 1 1 auto; resize: vertical; max-height: 12em; }
+.sa-chat-send { flex: 0 0 auto; }

@@ -1,9 +1,9 @@
-import { Notice, Plugin, getLanguage } from "obsidian";
+import { Component, MarkdownRenderer, Notice, Plugin, getLanguage, normalizePath, type WorkspaceLeaf } from "obsidian";
 import "./i18n/strings";
 import { pickLang, setLang, t } from "./vendor/kit/i18n";
 import { resolveEndpointSource, type EndpointSourceResult } from "./vendor/kit/endpoint-source";
 import type { EndpointConfig } from "./vendor/kit/endpoint_config";
-import { resolveRequestParams, thinkingFor, type RequestSettings } from "./vendor/kit/sampling-profiles";
+import { onLevelFor, resolveRequestParams, thinkingFor, type RequestSettings, type ThinkingLevel } from "./vendor/kit/sampling-profiles";
 import type { ChatClient } from "./vendor/kit-obsidian/chat-client";
 import { createRequestSession, type RequestSession } from "./vendor/kit-obsidian/request-session";
 import type { RequestSectionState } from "./vendor/kit-obsidian/request-section";
@@ -17,6 +17,11 @@ import { PROBE_TIMEOUT_MS, probeEndpoint } from "./obsidian/http";
 import { cachedProbe, createChatSend, makeChatClient, type ChatSend } from "./obsidian/llm";
 import { CHAT_MODE, SettingsAssistantSettingTab } from "./obsidian/settings-tab";
 import { listSnapshots } from "./obsidian/snapshots";
+import { ChatSession } from "./obsidian/chat-session";
+import { SettingsChatView, VIEW_TYPE_SA_CHAT } from "./obsidian/chat-view";
+import { readConfig } from "./obsidian/config-io";
+import { installedPlugins } from "./obsidian/plugin-host";
+import { targetPath } from "./core/write-policy";
 
 function safeGetLanguage(): string | null {
   try { return getLanguage(); } catch { return null; }
@@ -32,6 +37,8 @@ export default class SettingsAssistantPlugin extends Plugin {
   private pendingResolve: Promise<EndpointConfig | null> | null = null;
   private chatClient: { key: string; client: ChatClient } | null = null;
   private unsubscribeManager: () => void = () => {};
+  private chatSession!: ChatSession;
+  private readonly markdownHost = new Component();
 
   async onload(): Promise<void> {
     setLang(pickLang(safeGetLanguage()));
@@ -58,8 +65,66 @@ export default class SettingsAssistantPlugin extends Plugin {
       callback: () => { void this.undoLastApply(); },
     });
 
+    this.addChild(this.markdownHost);
+    this.chatSession = new ChatSession({
+      send: this.chatSend(),
+      describeEndpoint: () => this.describeEndpoint(),
+      installed: () => installedPlugins(this.app),
+      readSettings: (id) => readConfig(this.app, targetPath({ kind: "plugin", id }, this.app.vault.configDir)),
+    });
+    this.registerView(VIEW_TYPE_SA_CHAT, (leaf: WorkspaceLeaf) => new SettingsChatView(leaf, {
+      session: this.chatSession,
+      service: this.applyService,
+      installed: () => installedPlugins(this.app),
+      resolveEndpoint: async () => (await this.resolveEndpoint()) !== null,
+      openOwnSettings: () => { openPluginSettings(this.app, this.manifest.id); },
+      openPluginSettings: (id) => { openPluginSettings(this.app, id); },
+      renderMarkdown: (el, md) => MarkdownRenderer.render(this.app, md, el, "", this.markdownHost),
+      saveNote: (name, text) => this.saveProfileNote(name, text),
+      thinking: {
+        family: () => this.activeSource?.family ?? null,
+        current: () => thinkingFor(this.settings.request, CHAT_MODE),
+        onLevel: () => onLevelFor(this.settings.request, CHAT_MODE),
+        setLevel: (l) => this.setChatThinking(l),
+        levelPicker: () => this.settings.request.levelPickerInChat,
+        strings: {
+          button: (level, offNotPossible) => level !== "off" ? t("chat.think.on", t(`request.level.${level}`)) : offNotPossible ? t("chat.think.min") : t("chat.think.off"),
+          level: (l) => t(`request.level.${l}`),
+          pickerLabel: t("request.thinkingLevel"),
+        },
+      },
+      now: () => new Date(),
+    }));
+    this.addCommand({ id: "open-chat", name: t("cmd.chat"), callback: () => { void this.openChat(); } });
+    this.addRibbonIcon("sliders-horizontal", t("cmd.chat"), () => { void this.openChat(); });
+
     void this.resolveEndpoint();
     this.unsubscribeManager = onEndpointManagerChanged(this.app, () => { this.cachedLocal = null; void this.resolveEndpoint(); });
+  }
+
+  private async openChat(): Promise<void> {
+    const { workspace } = this.app;
+    const existing = workspace.getLeavesOfType(VIEW_TYPE_SA_CHAT)[0];
+    const leaf = existing ?? workspace.getRightLeaf(false);
+    if (!leaf) return;
+    if (!existing) await leaf.setViewState({ type: VIEW_TYPE_SA_CHAT, active: true });
+    await workspace.revealLeaf(leaf);
+  }
+
+  private async setChatThinking(level: ThinkingLevel): Promise<void> {
+    const next: RequestSettings = { ...this.settings.request, thinking: { ...this.settings.request.thinking, [CHAT_MODE]: level } };
+    if (level !== "off") next.lastOnLevel = { ...next.lastOnLevel, [CHAT_MODE]: level };
+    await this.saveRequestSettings(next);
+  }
+
+  /** Neue Notiz im Ordner der aktiven Notiz (sonst Vault-Wurzel); ein vorhandener Name bekommt ein Suffix. */
+  private async saveProfileNote(name: string, text: string): Promise<string> {
+    const dir = this.app.workspace.getActiveFile()?.parent?.path ?? "";
+    const prefix = dir === "" || dir === "/" ? "" : `${dir}/`;
+    let path = normalizePath(`${prefix}${name}.md`);
+    for (let i = 2; this.app.vault.getAbstractFileByPath(path) !== null; i++) path = normalizePath(`${prefix}${name} ${i}.md`);
+    await this.app.vault.create(path, text);
+    return path;
   }
 
   onunload(): void { this.unsubscribeManager(); }
