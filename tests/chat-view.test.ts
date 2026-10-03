@@ -62,6 +62,15 @@ describe("chat-view", () => {
     expect(text).toContain("http://x");
   });
 
+  it("jede Runde traegt einen Rollenkopf als Text: You und Assistant", async () => {
+    const { view } = setup({ answer: "plain answer" });
+    await view.onOpen();
+    await ask(view);
+    await vi.waitFor(() => { expect((view.contentEl as any).querySelectorAll(".sa-chat-role").length).toBe(2); });
+    const roles = (view.contentEl as any).querySelectorAll(".sa-chat-role").map((r: any) => r.textContent);
+    expect(roles).toEqual(["You", "Assistant"]);
+  });
+
   it("ein Vorschlagsblock rendert den Apply-Knopf und die Speichern-Aktion", async () => {
     const { view, deps } = setup({ answer: profileAnswer });
     await view.onOpen();

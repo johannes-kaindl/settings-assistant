@@ -233,6 +233,7 @@
 .sa-chat .sa-empty { display: flex; flex-direction: column; align-items: flex-start; gap: var(--size-4-2); padding: var(--size-4-3); }
 .sa-chat-head { display: flex; align-items: center; justify-content: space-between; gap: var(--size-4-2); flex: 0 0 auto; }
 .sa-chat-messages { flex: 1 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: var(--size-4-3); }
+.sa-chat-role { color: var(--text-muted); font-size: var(--font-ui-smaller); margin-bottom: var(--size-2-1); }
 .sa-chat-turn.is-user .sa-chat-msg { background: var(--background-secondary); border-radius: var(--radius-m); padding: var(--size-4-2); white-space: pre-wrap; font-size: var(--font-ui-small); }
 .sa-chat-block { display: flex; flex-direction: column; gap: var(--size-4-1); margin-top: var(--size-4-2); }
 .sa-chat-block-note { display: flex; flex-direction: column; align-items: flex-start; gap: var(--size-4-1); }

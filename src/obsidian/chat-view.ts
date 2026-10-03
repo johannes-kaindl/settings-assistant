@@ -172,11 +172,15 @@ export class SettingsChatView extends ItemView {
       let el = this.turnEls.get(turn);
       const fresh = el === undefined;
       if (el === undefined) { el = box.createDiv({ cls: `sa-chat-turn is-${turn.role}` }); this.turnEls.set(turn, el); }
-      if (turn.role === "user") { if (fresh) el.createDiv({ cls: "sa-chat-msg", text: turn.content }); return; }
+      if (turn.role === "user") {
+        if (fresh) { el.createDiv({ cls: "sa-chat-role", text: t("chat.role.user") }); el.createDiv({ cls: "sa-chat-msg", text: turn.content }); }
+        return;
+      }
       const live = this.running && i === turns.length - 1;
       if (live || !this.finalRendered.has(turn)) {
         if (!live) this.finalRendered.add(turn);
         el.empty();
+        el.createDiv({ cls: "sa-chat-role", text: t("chat.role.assistant") });
         this.renderAnswer(el, turn, live, turns[i - 1]?.sent);
       }
     });
