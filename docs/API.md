@@ -1,10 +1,10 @@
-# Plugin-API v1
+# Plugin API v1
 
-`settings-assistant` (Einstellungen per Profil oder Chat ändern, mit Diff, Schnappschuss und ohne Geheimnisse) bietet anderen Obsidian-Plugins eine schmale, versionierte API an: geschwärztes Lesen von Einstellungen, einen Plan (schreibt nie), einen Schreibweg mit eigenem Bestätigungsdialog und zwei Werkzeug-Definitionen für fremde Agenten-Loops.
+`settings-assistant` (change settings by profile or chat, with a diff, a snapshot and without secrets) offers other Obsidian plugins a narrow, versioned API: redacted reading of settings, a plan (never writes), a write path with its own confirmation dialog, and two tool definitions for foreign agent loops.
 
-Implementierung: `src/obsidian/api.ts` (`createSettingsAssistantApi`). Muster ist `calendar-notes/docs/API.md`; der Unterschied steht in Regel 5.
+Implementation: `src/obsidian/api.ts` (`createSettingsAssistantApi`). The pattern is `calendar-notes/docs/API.md`; the difference is in rule 5.
 
-## Zugriff
+## Access
 
 ```ts
 const sa = app.plugins.plugins["settings-assistant"]?.api;
@@ -13,15 +13,15 @@ if (sa?.apiVersion === 1) {
 }
 ```
 
-## Konsumenten-Regeln (verbindlich für jeden Aufrufer)
+## Consumer rules (binding for every caller)
 
-1. **Bei jedem Aufruf frisch lesen, nie beim Laden cachen.** `settings-assistant` kann zur Laufzeit deaktiviert werden, der Zugriff über `app.plugins.plugins[...]` ist nur ein Objekt-Lookup.
-2. **`apiVersion` prüfen, bevor du dich auf die Form verlässt.** Die Zahl erhöht sich bei jeder brechenden Änderung; ein Konsument, der eine andere Version sieht, behandelt die API als nicht vorhanden statt zu raten.
-3. **Typen kopieren statt importieren, mit Herkunftsstempel.** Beide Plugins sind eigenständige Store-Repos ohne Build-Kopplung; die Versionsnummer ersetzt den Compiler.
-4. **`{ error }` prüfen, nie auf einen Wurf hoffen.** Jede Methode fängt intern und liefert `{ error: string }`; `error` ist ein rohes, unübersetztes Diagnosewort, nie ein Text mit Dateiinhalt.
-5. **Die API öffnet beim Schreiben IMMER den eigenen Dialog — `confirms: "provider"`.** Das ist die bewusste Umkehrung des `calendar-notes`-Musters: Eine öffentliche `.api` auf `.obsidian` darf kein stiller Schreibzugang sein. Ein Wirt überspringt dafür seine eigene Bestätigung, zeigt den Plan aber weiterhin an. Es gibt keinen Parameter, der die Bestätigung umgeht.
+1. **Look it up fresh on every call, never cache it at load time.** `settings-assistant` can be disabled at runtime, and access through `app.plugins.plugins[...]` is only an object lookup.
+2. **Check `apiVersion` before relying on the shape.** The number increases with every breaking change; a consumer that sees a different version treats the API as absent instead of guessing.
+3. **Copy the types instead of importing them, with a provenance stamp.** Both plugins are independent store repos without a build coupling; the version number replaces the compiler.
+4. **Check for `{ error }`, never hope for a throw.** Every method except the synchronous `status()` and `tools()` catches internally and returns `{ error: string }`; `error` is a raw, untranslated diagnostic word, never a text containing file content.
+5. **When writing, the API ALWAYS opens its own dialog — `confirms: "provider"`.** This is the deliberate reversal of the `calendar-notes` pattern: a public `.api` onto `.obsidian` must not be a silent write access. A host skips its own confirmation for such tools but still shows the plan. There is no parameter that bypasses the confirmation.
 
-## Methoden
+## Methods
 
 ```ts
 apiVersion: 1
@@ -33,41 +33,41 @@ tools(): ApiToolDefinition[]
 execute(name: string, args: unknown): Promise<unknown>
 ```
 
-- `status()` ist synchron und netzfrei. `writable` nennt die beschreibbaren Ziele als Text: `plugins/*/data.json` und die freigegebenen Obsidian-Dateien (in Stufe 1 nur `hotkeys`). `busy` ist `true`, solange ein Schreib- oder Zurückhol-Vorgang läuft.
-- `readSettings` liest ein installiertes Plugin (`{ plugin }`) oder eine Obsidian-Datei (`{ file }`: `app`, `appearance`, `hotkeys`, `core-plugins`, `community-plugins`). Das Ergebnis ist IMMER geschwärzt: geheime Werte erscheinen als `🔒`, `redacted` nennt deren Pfade. Fehlt die Datei, ist `settings` `null`. Die eigenen Einstellungen von `settings-assistant` werden nicht ausgegeben.
-- `planProfile` schreibt nichts. `profile` ist ein Objekt oder JSON-Text im Profil-Format (`version: 1`, `plugins`, Obsidian-Dateien, `notes`). `ApiCheckRow` trägt `target` (z. B. `plugins.foo`), `path` (Punktpfad), `status` und, falls vorhanden, `current`, `desired`, `note`. Eine Zeile mit Status `secret` trägt nur `target`, `path` und `status`.
-- `applyProfile` zeigt Diff und Auswahl im eigenen Dialog und schreibt erst nach Bestätigung des Menschen, mit Schnappschuss vor dem Schreiben. `origin` benennt den Aufrufer und wird als `api:<origin>` im Schnappschuss-Manifest gespeichert (höchstens 80 Zeichen, keine Steuer- oder Zeilenumbruchzeichen, sonst `api:unknown`). `snapshot` ist der Schnappschuss-Ordner oder `null`.
-- `{ cancelled: true }` heißt: der Mensch hat den Dialog verworfen, es wurde nichts geschrieben. `{ busy: true }` heißt: ein anderer Vorgang läuft, später erneut versuchen.
+- `status()` is synchronous and network-free. `writable` names the writable targets as text: `plugins/*/data.json` and the released Obsidian files (in stage 1 only `hotkeys`). `busy` is `true` while a write or restore operation is running.
+- `readSettings` reads an installed plugin (`{ plugin }`) or an Obsidian file (`{ file }`: `app`, `appearance`, `hotkeys`, `core-plugins`, `community-plugins`). Exactly one of the two keys must be given. The result is ALWAYS redacted: secret values appear as `🔒`, and `redacted` lists their paths. If the file does not exist, `settings` is `null`. The settings of `settings-assistant` itself are not returned.
+- `planProfile` writes nothing. `profile` is an object or JSON text in the profile format (`version: 1`, `plugins`, Obsidian files, `notes`). `ApiCheckRow` carries `target` (e.g. `plugins.foo`), `path` (dotted path), `status` and, where present, `current`, `desired`, `note`. A row with status `secret` carries only `target`, `path` and `status`.
+- `applyProfile` shows the diff and the selection in its own dialog and writes only after the human confirms, with a snapshot taken before writing. `origin` names the caller and is stored as `api:<origin>` in the snapshot manifest (at most 80 characters, no control or line-break characters, not empty; otherwise `api:unknown`). `snapshot` is the snapshot folder or `null`.
+- `{ cancelled: true }` means the human dismissed the dialog and nothing was written. `{ busy: true }` means another operation is running; try again later.
 
-## Werkzeuge
+## Tools
 
-| Name | writes | confirms | Parameter |
+| Name | writes | confirms | Parameters |
 |---|---|---|---|
-| `read_settings` | `false` | `caller` | `{ plugin?: string; file?: string }` (genau eines von beiden) |
+| `read_settings` | `false` | `caller` | `{ plugin?: string; file?: string }` (exactly one of the two) |
 | `propose_settings` | `true` | `provider` | `{ profile: object }` |
 
-`execute(name, args)` prüft die Argumente. `propose_settings` ruft `applyProfile` mit dem Herkunftsnamen `propose_settings` und öffnet damit den eigenen Dialog.
+`execute(name, args)` validates the arguments. `propose_settings` calls `applyProfile` with the origin name `propose_settings` and thereby opens the plugin's own dialog.
 
-## Fehlerwörter
+## Error words
 
-- `bad-args`: Argumente fehlen, haben die falsche Form, oder eine Plugin-ID ist ungültig.
-- `own-settings`: `readSettings` für `settings-assistant` selbst.
-- `not-installed`: das Plugin ist nicht installiert.
-- `unreadable`: die Datei ist keine gültige JSON-Datei.
-- `unknown-tool`: `execute` kennt den Namen nicht.
-- `failed`: unerwarteter Fehler im Plugin oder beim Schreiben; der Text bleibt im Plugin.
-- `invalid-profile`: das Profil lässt sich nicht als JSON serialisieren.
-- Profilfehler, jeweils das Wort des Parsers: `invalid-json`, `not-object`, `missing-version`, `bad-version`, `future-version`, `bad-section`.
+- `bad-args`: arguments are missing or have the wrong shape, or a plugin ID is invalid.
+- `own-settings`: `readSettings` for `settings-assistant` itself.
+- `not-installed`: the plugin is not installed.
+- `unreadable`: the file is not valid JSON.
+- `unknown-tool`: `execute` does not know the name.
+- `failed`: unexpected error in the plugin or while writing; the text stays inside the plugin.
+- `invalid-profile`: the profile cannot be serialized as JSON.
+- Profile errors, each the parser's word: `invalid-json`, `not-object`, `missing-version`, `bad-version`, `future-version`, `bad-section`.
 
-## Beispiel: Koda (Tool-Calling, der Anbieter bestätigt)
+## Example: Koda (tool calling, the provider confirms)
 
 ```ts
 const sa = app.plugins.plugins["settings-assistant"]?.api;
 if (sa?.apiVersion !== 1) return;
-const tools = sa.tools();                      // ins Tool-Register des Agenten-Loops
-// … das Modell wählt propose_settings und liefert ein Profil …
+const tools = sa.tools();                      // into the agent loop's tool registry
+// … the model picks propose_settings and supplies a profile …
 const r = (await sa.execute("propose_settings", { profile })) as { error?: string; cancelled?: true; results?: unknown[] };
-// Settings Assistant zeigt seinen Diff-Dialog; Koda fragt zusätzlich nicht nach (confirms: "provider").
-if (r.error !== undefined) { /* Diagnosewort melden */ }
-else if (r.cancelled) { /* Mensch hat verworfen */ }
+// Settings Assistant shows its diff dialog; Koda does not ask in addition (confirms: "provider").
+if (r.error !== undefined) { /* report the diagnostic word */ }
+else if (r.cancelled) { /* the human dismissed it */ }
 ```

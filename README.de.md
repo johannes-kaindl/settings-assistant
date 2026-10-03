@@ -99,7 +99,7 @@ Die Doku ist auf Englisch.
 - [Align two vaults](https://github.com/johannes-kaindl/settings-assistant/blob/main/docs/howto-align-two-vaults.md) und [Ask the chat](https://github.com/johannes-kaindl/settings-assistant/blob/main/docs/howto-ask-the-chat.md) — Anleitungen.
 - [Profile format](https://github.com/johannes-kaindl/settings-assistant/blob/main/docs/reference-profile-format.md), [Check rows](https://github.com/johannes-kaindl/settings-assistant/blob/main/docs/reference-check-rows.md) und [Known limits](https://github.com/johannes-kaindl/settings-assistant/blob/main/docs/reference-known-limits.md) — Nachschlagewerk.
 - [Why secrets never travel](https://github.com/johannes-kaindl/settings-assistant/blob/main/docs/explanation-secrets.md) und [Snapshots and retention](https://github.com/johannes-kaindl/settings-assistant/blob/main/docs/explanation-snapshots.md) — Hintergrund.
-- [Plugin API v1](https://github.com/johannes-kaindl/settings-assistant/blob/main/docs/API.md) — für Plugin-Autoren (Deutsch).
+- [Plugin API v1](https://github.com/johannes-kaindl/settings-assistant/blob/main/docs/API.md) — für Plugin-Autoren (auf Englisch).
 
 ## Mitwirken
 
