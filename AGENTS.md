@@ -6,7 +6,7 @@ Workspace-weite Standards (comply-or-explain): [`../../_docs/CONVENTIONS.md`](..
 
 **Profil:** `ts-node` · `obsidian-plugin`.
 
-**Stand 2026-10-03: Repo-Gerüst (Task 0), noch kein Fachcode.** Spec und Plan liegen im Cockpit (Vault `25_Coding/settings-assistant/_SDD/`): `2026-10-03-settings-assistant-design.md` und `2026-10-03-settings-assistant-plan.md`. Reihenfolge: Spec lesen, Plan-Task nehmen, TDD, Gate.
+**Stand 2026-10-03:** Bau-Tasks 0–17c sind fertig und abgenommen, Version 0.1.0 ist release-reif, aber nicht veröffentlicht (den Release fährt der Master nach Johannes' Freigabe, CORE-AGENT-14). Spec und Plan liegen im Cockpit (Vault `25_Coding/settings-assistant/_SDD/`): `2026-10-03-settings-assistant-design.md` und `2026-10-03-settings-assistant-plan.md`. Nutzer-Doku: `README.md` (EN, kanonisch), `README.de.md`, `docs/` nach Diátaxis mit Einstieg `docs/README.md` (die Hilfe-Zeile im Einstellungs-Tab verlinkt genau dorthin); die Anbieter-API steht in `docs/API.md`.
 
 ## Project character
 
@@ -31,6 +31,30 @@ Workspace-weite Standards (comply-or-explain): [`../../_docs/CONVENTIONS.md`](..
 - Ein Anwenden zur Zeit (auch über die API). Das eigene Plugin wird nie aus-/eingeschaltet.
 - UI nach `UI-STANDARD.md` §8 (Hilfe-Zeile zuerst, Confirm-Kanon, Status-Vokabel `is-checking`/`is-ok`/`is-error`/`is-warning`, nur Theme-CSS-Variablen). Alle UI-Texte in `src/i18n/strings.ts` (en + de).
 
+## Architecture
+
+Der reine Kern liegt in `src/core/` (kein `obsidian`-Import, `npm run check:pure` nagelt das fest):
+
+- `types.ts` — `Json`, `Target` (`plugin` oder `obsidian`-Datei), `leaves`, `getAt`, `deepEqual`, `targetKey`.
+- `profile.ts` — `parseProfile`/`serializeProfile`, `ProfileError` (Codes `invalid-json`, `not-object`, `missing-version`, `bad-version`, `future-version`, `bad-section`), Plugin-ID-Prüfung `isValidPluginId`.
+- `reconcile.ts` — `reconcile()` macht aus Profil und Dateizustand die Prüfzeilen (`RowStatus`: `change`, `same`, `missing-key`, `not-installed`, `unreadable`, `shape-conflict`, `secret`, `read-only`); die Reihenfolge der Prüfungen ist die Rangfolge.
+- `secrets.ts` — Namensmuster plus Wertbedingung, `redact()`, `isSecretPath()`; Golden-Liste in `tests/secrets.test.ts`.
+- `patch.ts` — `applyRows()` setzt Werte und erhält unbekannte Felder, Reihenfolge, Einrückung und End-Zeilenumbruch.
+- `write-policy.ts` — `CURRENT_STAGE = 1`, `isWritable()`, `targetPath()`, `SELF_PLUGIN_ID`; eine Datei freizugeben heißt eine Zeile in `WRITE_STAGE`, ihr Schreibweg, ihr Test.
+- `apply-run.ts` — `runApply()` und `runRestore()` über die Ports (`ApplyPorts`): Schnappschuss zuerst, je Datei aus/lesen/prüfen/patchen/schreiben/an, Zurücklesen, Halt bei Fehler ohne Rollback.
+- `snapshot.ts` — Manifest-Typen, `hashText` (FNV-1a mit Längenpräfix), `restoreDecision()` (`restore`, `changed`, `unverified`).
+- `chat-context.ts`, `chat-markdown.ts`, `profile-note.ts`, `request-text.ts`, `settings.ts` — Chat-Kontext mit Schwärzung und Block-Extraktion, `neutralizeModelMarkdown`/`stripProfileBlocks`, Profilnotiz mit Schwärzung, Texte zur Anfrage-Sektion, Einstellungen mit Feldprüfung.
+
+Die Adapter in `src/obsidian/` sind dünn: `apply-service.ts` (ein Anwenden zur Zeit, Dialog, Bericht, Aufbewahrung), `snapshots.ts` (Ablage unter `<configDir>/plugins/settings-assistant/snapshots/`, `makePorts`), `config-io.ts` (Dateien nur über `app.vault.adapter`), `plugin-host.ts` (Plugin an/aus, „aktiv“ = geladen ODER gespeichert, schmales Interface auf das undokumentierte `app.plugins`), `profile-block.ts` (Codeblock-Prozessor), `apply-modal.ts`/`restore-modal.ts`/`check-rows-view.ts`, `chat-session.ts` (Verlauf nur im Speicher) und `chat-view.ts` (Ansicht `settings-assistant-chat`), `llm.ts`/`http.ts`/`local-endpoints.ts` (Endpunkt über Kit-`endpoint-source`), `settings-tab.ts` (deklarativ über `getSettingDefinitions()`), `api.ts` (Anbieter-API v1).
+
+Alle UI-Texte stehen in `src/i18n/strings.ts` (en + de; Englisch ist kanonisch und Rückfall, dass beide Wörterbücher dieselben Schlüssel tragen, prüft kein Test — beim Ergänzen beide Sprachen pflegen).
+
+## Befehle und Eingänge
+
+- Befehle: `undo-last-apply` („Undo last apply“), `open-chat` („Open settings chat“); dazu ein Ribbon-Symbol (`sliders-horizontal`) für den Chat und der Codeblock-Prozessor `settings-profile`.
+- Drei Eingänge, ein Schreibweg: Profil-Notiz (Herkunft `note:<pfad>`), Chat (`chat:<zeit>/<modell>`), API (`api:<aufrufer>`); ein Zurückholen trägt `restore:<ordner>`.
+- Die API (`docs/API.md`) öffnet beim Schreiben immer den eigenen Dialog (`confirms: "provider"`); es gibt keinen Parameter, der die Bestätigung umgeht.
+
 ## Commands
 
 ```bash
@@ -41,15 +65,33 @@ bash tools/sync-kit.sh [--check]
 npm run release       # delegiert an ../tools/release/release.mjs
 ```
 
+**GUI-Smoke (P1–P15)** gegen eine Obsidian-Zweitinstanz mit eigenem Profil und Port 9361, der Treiber startet und beendet sie selbst und baut den Vault VOR jedem Lauf aus `fixtures/vault/` (Testplugin `sa-probe` aus `fixtures/plugins/sa-probe/` korrigiert beim Laden einen Wert und speichert beim Abschalten). Orts- und Lock-Regeln stehen im Dach-`../AGENTS.md`, Abschnitt „Staging-Vaults: ein Ort, eine Variable“:
+
+```bash
+npm run build
+lsof -nP -iTCP:9361 -sTCP:LISTEN   # Port frei?
+python3 ~/.claude/hooks/obsidian-cdp-lock.py acquire --label settings-assistant --intent "GUI-Smoke :9361" --exclusive focus --port 9361 --ttl 300
+npm run smoke:gui -- --launch --port 9361
+python3 ~/.claude/hooks/obsidian-cdp-lock.py release
+```
+
+`release` gehört unmittelbar hinter den Lauf. Ohne den Lock blockt der CDP-Guard den Treiber.
+
 ## Conventions
 
 Conventional Commits, nur berührte Dateien per Pathspec (nie `git add -A`), Gate per `&&` vor dem Commit. Markdown: ein Absatz, eine Zeile. Release-Infra ist die zentrale (`../tools/release/`); lokale Release-Skripte sind ein Rückstand.
 
 ## Gotchas
 
-- `tools/sync-kit.sh` ist byte-gleich zur Vorlage `../tools/kit-sync/sync-kit.sh`; nicht anpassen.
-- Die Modulliste in `tools/kit-sync.json` braucht `folder-suggest` und `collapsible` (Abhängigkeiten von `settings_walker` und `request-section`); ungenutzte Module darf Task 18 entfernen.
-- `code-kit` ist auf 0.9.0 gepinnt; Task 7 hebt den Pin auf 0.10.0.
+- `tools/sync-kit.sh` ist byte-gleich zur Vorlage `../tools/kit-sync/sync-kit.sh`; nicht anpassen. Kit-Stände sind fest gepinnt: `obsidian-kit` 0.48.1, `code-kit` 0.11.0 (`tools/kit-sync.json`). Seit Task 18 sind nur benutzte Module gelistet; `folder-suggest` und `collapsible` bleiben, weil `settings_walker` und `request-section` sie brauchen. Wer ein Modul entfernt, prüft vorher die Importe innerhalb der vendorten Dateien (transitiv), danach `bash tools/sync-kit.sh && bash tools/sync-kit.sh --check` und `git rm` der Dateien. Entfernt in Task 18: `confirm`, `lab-client`, `stable-writer`, `stream-blocks`, `think-toggle`.
+- `minAppVersion` ist 1.11.4, weil die API-Schlüssel der lokalen Endpunkt-Liste im Schlüsselbund (`app.secretStorage`) liegen; Klartext-Schlüssel werden beim ersten Start migriert und aus der `data.json` entfernt. Wo der Schlüsselbund fehlt, bliebe der Klartext bis zur Migration stehen (CHANGELOG „Bekannt“).
+- `ProfileError.detail` (rohe `JSON.parse`-Meldung) wird NIE angezeigt, gespeichert, geloggt, in den Chat-Kontext oder über die API gegeben: V8 hängt dem Fehler den Quelltext an, und der kann ein Geheimnis enthalten. Konsumenten zeigen nur `code`; die API gibt nur das Wort zurück.
+- `neutralizeModelMarkdown` läuft über jede Chat-Antwort, bevor sie gerendert wird: `MarkdownRenderer` lädt Bilder, Embeds und HTML von selbst, und Modellausgabe ist nicht vertrauenswürdig. Bewusst ohne Fence-Erkennung, jede Abweichung von der Erkennung des Renderers ließe ein Bild durch. Links bleiben (ein Klick ist eine Nutzerhandlung).
+- Eigener-Plugin-Schutz: `settings-assistant` wird nie über ein Profil geschrieben (Prüfzeile `read-only`), nie aus- oder eingeschaltet (`plugin-host.ts` wirft `self`), nicht über `readSettings` ausgegeben (`own-settings`) und fehlt in der Plugin-Liste des Chats. Grund: ein Neuladen mitten im Anwenden würde die eigene Oberfläche löschen.
+- Der Vertrauens-/Restricted-Mode-/`.asar`-Vorlauf einer frischen Zweitinstanz steht im Dach-`../AGENTS.md`; der Treiber erledigt ihn selbst. Der erste Lauf nach Profilanlage ist ein Aufwärmlauf und zählt nicht.
+- Schnappschüsse kopieren die Datei unverändert, Geheimnisse eingeschlossen; sie bleiben im Konfigurationsordner des Vaults und werden nie angezeigt oder gesendet. Die Doku sagt das offen (`docs/explanation-secrets.md`); das ist keine Lücke, die ein Schwärzen im Schnappschuss schließen dürfte, weil das Zurückholen sonst die Geheimnisse löschen würde.
+- Zahlenschlüssel wie `"10"` sortiert JavaScript in Objekten nach vorn (siehe `patch.ts`, im CHANGELOG unter „Bekannt“).
+- Doku ist eine Zusage (CORE-META-18): Bei jeder Änderung an Befehlen, Einstellungs-Bezeichnungen, Prüfzeilen-Texten oder Fehlertexten die Stellen in `README.md`, `README.de.md` und `docs/` mit dem Wortlaut aus `src/i18n/strings.ts` gegenhalten; die Nutzer-Doku zitiert diese Texte wörtlich.
 
 ## Memory
 
@@ -58,3 +100,7 @@ Cockpit: `25_Coding/settings-assistant/` im Arbeits-Vault. Task-Reports der Plan
 ## Abweichungen von der Leitkonvention
 
 Keine.
+
+## UI-Abweichungen
+
+Keine. `python3 ../tools/ui_adoption_check.py` meldet für dieses Repo keinen Rückstand (Stand 2026-10-03). Zwei Bauarten sind nur der Vollständigkeit halber festgehalten, keine Abweichungen: Der Einstellungs-Tab ist deklarativ (`getSettingDefinitions()`) und führt die Hilfe-Zeile deshalb als `helpSettingDefinition(...)` statt `buildHelpSetting(...)`, das ist die in UI-STANDARD §8 für deklarative Tabs vorgesehene Form. Die Schnappschuss-Liste ist eine Kit-`version-list`, deren Zeilenklick den Zurückholen-Dialog öffnet, statt einen eigenen Zurückholen-Knopf je Zeile zu tragen; das Kit-Modul setzt dabei `aria-pressed="false"` auf einen Aktionsknopf (CHANGELOG „Bekannt“, Kit-Task angelegt).
