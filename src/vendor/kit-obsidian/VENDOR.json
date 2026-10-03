@@ -1,0 +1,6 @@
+{
+  "source": "obsidian-kit",
+  "version": "0.46.0",
+  "sha": "886bea5",
+  "vendored": "clipboard.ts, confirm.ts, endpoint-list.ts, model-picker.ts, settings_walker.ts, folder-suggest.ts, stream-area.ts, stable-writer.ts, endpoint-source.ts, request-section.ts, request-session.ts, thinking-control.ts, collapsible.ts, chat-client.ts, chat-transport.ts, shortcuts-bridge.ts, clock.ts, lab-client.ts, help-setting.ts"
+}
