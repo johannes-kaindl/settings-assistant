@@ -4,6 +4,8 @@
 import type { App } from "obsidian";
 import type { ApplyPorts, RestoreItem, SnapshotHandle } from "../core/apply-run";
 import { snapshotDirName, type SnapshotFile, type SnapshotManifest } from "../core/snapshot";
+import { isValidPluginId } from "../core/profile";
+import { isWritable, SELF_PLUGIN_ID, targetPath } from "../core/write-policy";
 import { OBSIDIAN_FILES, type ObsidianFile, type Target } from "../core/types";
 import { selectGfsRetention, type GfsPolicy } from "../vendor/kit/rotation";
 import { ensureDir, readConfig, removeConfig, writeConfig } from "./config-io";
@@ -62,7 +64,10 @@ export async function beginSnapshot(app: App, paths: string[], origin: string): 
 async function readManifest(app: App, dir: string): Promise<SnapshotManifest | null> {
   try {
     const m = JSON.parse(await app.vault.adapter.read(`${snapshotRoot(app)}/${dir}/manifest.json`)) as SnapshotManifest;
-    return m && m.version === 1 && Array.isArray(m.files) && typeof m.at === "string" ? m : null;
+    const ok = !!m && m.version === 1 && typeof m.at === "string" && Array.isArray(m.files) &&
+      m.files.every((f) => typeof f === "object" && f !== null && typeof f.path === "string" &&
+        typeof f.existed === "boolean" && (f.afterHash === null || typeof f.afterHash === "string"));
+    return ok ? m : null;
   } catch {
     return null;
   }
@@ -84,7 +89,7 @@ export async function listSnapshots(app: App): Promise<Array<{ dir: string; mani
 
 function targetFromPath(configDir: string, path: string): Target | null {
   const plugin = new RegExp(`^${configDir.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}/plugins/([^/]+)/data\\.json$`).exec(path);
-  if (plugin?.[1]) return { kind: "plugin", id: plugin[1] };
+  if (plugin?.[1]) return isValidPluginId(plugin[1]) && plugin[1] !== SELF_PLUGIN_ID ? { kind: "plugin", id: plugin[1] } : null;
   const file = path.startsWith(`${configDir}/`) ? path.slice(configDir.length + 1).replace(/\.json$/, "") : "";
   return (OBSIDIAN_FILES as readonly string[]).includes(file) ? { kind: "obsidian", file: file as ObsidianFile } : null;
 }
@@ -95,7 +100,8 @@ export async function loadRestoreItems(app: App, dir: string): Promise<RestoreIt
   const items: RestoreItem[] = [];
   for (const file of manifest.files) {
     const target = targetFromPath(app.vault.configDir, file.path);
-    if (!target) continue;
+    // Das Manifest ist Dateiinhalt, also Eingabe: der Pfad muss exakt aus dem Target rückrechenbar sein.
+    if (!target || !isWritable(target) || targetPath(target, app.vault.configDir) !== file.path) continue;
     const savedText = file.existed ? await app.vault.adapter.read(`${snapshotRoot(app)}/${dir}/files/${file.path}`) : null;
     items.push({ target, file, savedText });
   }

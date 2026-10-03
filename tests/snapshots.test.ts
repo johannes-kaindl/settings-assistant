@@ -105,6 +105,31 @@ describe("snapshots", () => {
     expect(items[1]).toMatchObject({ target: { kind: "obsidian", file: "hotkeys" }, savedText: null });
   });
 
+  it("loadRestoreItems drops manifest paths that do not map back to a writable target", async () => {
+    const { app, files } = fakeApp({ [DATA]: "{}" });
+    const h = await beginSnapshot(app, [DATA], "o");
+    const mp = `${snapshotRoot(app)}/${h.dir}/manifest.json`;
+    const m = JSON.parse(files.get(mp) ?? "");
+    const bad = [".cfg/plugins/../data.json", ".cfg/plugins/a b/data.json", ".cfg/plugins/settings-assistant/data.json", "../../x", "/etc/passwd"];
+    m.files = [...bad.map((path) => ({ path, existed: false, afterHash: null })), ...m.files];
+    files.set(mp, JSON.stringify(m));
+    const items = await loadRestoreItems(app, h.dir);
+    expect(items.map((i) => i.file.path)).toEqual([DATA]);
+  });
+
+  it("readManifest treats malformed file entries as unreadable", async () => {
+    const { app, files } = fakeApp({ [DATA]: "{}" });
+    const h = await beginSnapshot(app, [DATA], "o");
+    const mp = `${snapshotRoot(app)}/${h.dir}/manifest.json`;
+    const m = JSON.parse(files.get(mp) ?? "");
+    m.files = [{ path: DATA, existed: "yes", afterHash: null }];
+    files.set(mp, JSON.stringify(m));
+    expect(await listSnapshots(app)).toEqual([]);
+    m.files = [null];
+    files.set(mp, JSON.stringify(m));
+    expect(await listSnapshots(app)).toEqual([]);
+  });
+
   it("makePorts wires read/write/remove with directory creation", async () => {
     const { app, files } = fakeApp();
     const ports = makePorts(app);
