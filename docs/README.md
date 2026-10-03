@@ -15,7 +15,7 @@ Organised after [Diátaxis](https://diataxis.fr/): learning something, getting s
 | **[Profile format](reference-profile-format.md)** | Reference. Every section, the version rule, notes, unknown sections. |
 | **[Check rows](reference-check-rows.md)** | Reference. Every row status with its exact text, and the outcomes after an apply. |
 | **[Known limits](reference-known-limits.md)** | Reference. What version 1 does not do, and the small quirks that are known. |
-| **[Plugin API v1](API.md)** | Reference, for plugin authors (German). Redacted reading, plan, apply, tool definitions. |
+| **[Plugin API v1 (German)](API.md)** | Reference, for plugin authors; the page is in German. Redacted reading, plan, apply, tool definitions. |
 | **[Why secrets never travel](explanation-secrets.md)** | Explanation. The rule, why it looks at names and values together, and where it stops. |
 | **[Snapshots and retention](explanation-snapshots.md)** | Explanation. What is saved before a write, how long it stays, how a restore decides. |
 
