@@ -1,0 +1,1 @@
+{ "id": "sa-probe", "name": "SA Probe", "version": "0.0.1", "minAppVersion": "1.8.7", "description": "Test plugin for the settings-assistant GUI smoke.", "author": "test", "isDesktopOnly": false }
