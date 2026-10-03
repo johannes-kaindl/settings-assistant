@@ -86,6 +86,20 @@ describe("chat-view", () => {
     await vi.waitFor(() => { expect(deps.saveNote).toHaveBeenCalled(); });
   });
 
+  it("(I2) fremde Codeblock-Tags und Inline-Abfragen erreichen den Renderer nicht", async () => {
+    const F = "`".repeat(3);
+    const evil = `Look:\n${F}dataviewjs\nfetch("https://evil.example")\n${F}\nand \`$= dv.pages()\`\n${F} settings-profile\n{"version":1}\n${F}`;
+    const { view, deps } = setup({ answer: evil });
+    await view.onOpen();
+    await ask(view);
+    await vi.waitFor(() => { expect((deps.renderMarkdown as any).mock.calls.length).toBeGreaterThan(0); });
+    const md = (deps.renderMarkdown as any).mock.calls.at(-1)[1] as string;
+    expect(md).not.toContain("dataviewjs");
+    expect(md).toContain(`${F}text`);
+    expect(md).not.toContain("`$=");
+    expect(md).not.toContain("settings-profile");
+  });
+
   it("Speichern schwärzt Geheimnisse im Block", async () => {
     const leaky = "```settings-profile\n" + JSON.stringify({ version: 1, plugins: { "koda-agent": { apiKey: "sk-LLM-MADE" } } }) + "\n```";
     const { view, deps } = setup({ answer: leaky });
