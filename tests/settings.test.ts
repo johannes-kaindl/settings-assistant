@@ -36,6 +36,11 @@ describe("loadSettings", () => {
     expect((s["retention"] as { today: number }).today).toBe(3);
   });
 
+  it("behält id und secretId der Endpunkte (Schlüsselbund-Verweis darf beim Laden nicht verloren gehen)", () => {
+    const s = loadSettings({ endpoints: [{ url: "http://a:1234", id: "ab12", secretId: "settings-assistant-ab12", model: "m" }, { url: "http://b", id: 5, secretId: 7 }] });
+    expect(s.endpoints).toEqual([{ url: "http://a:1234", id: "ab12", secretId: "settings-assistant-ab12", model: "m" }, { url: "http://b" }]);
+  });
+
   it("prüft Endpunkte, Wahl, lokales Modell und Request-Block", () => {
     const s = loadSettings({
       endpoints: [{ url: "http://a:1234", apiKey: "k", model: "m" }, { url: 5 }, "x", { url: "http://b" }],

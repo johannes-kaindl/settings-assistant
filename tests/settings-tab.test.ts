@@ -1,13 +1,21 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import "../src/i18n/strings";
+
+vi.mock("../src/obsidian/http", () => ({
+  PROBE_TIMEOUT_MS: 1,
+  probeEndpoint: async () => ({ reachable: false, kind: "refused", klartext: "" }),
+  listModels: async () => [],
+  clientFor: () => ({ probe: async () => ({ reachable: false, kind: "refused", klartext: "" }), listModels: async () => [] }),
+}));
 import { makeFakeEl, Notice } from "./vendor/kit/obsidian-mock";
 import { DEFAULT_SETTINGS } from "../src/core/settings";
 import { SettingsAssistantSettingTab, type SettingsTabHost } from "../src/obsidian/settings-tab";
 import { createRequestSession } from "../src/vendor/kit-obsidian/request-session";
 
+const PLUGIN = { manifest: { id: "settings-assistant" } } as never;
 type FakeEl = ReturnType<typeof makeFakeEl>;
 
-function fakeApp(files: Record<string, string> = {}) {
+function fakeApp(files: Record<string, string> = {}, withSecrets = false) {
   const adapter = {
     exists: async (p: string) => Object.keys(files).some((k) => k === p || k.startsWith(`${p}/`)),
     read: async (p: string) => files[p] as string,
@@ -17,7 +25,9 @@ function fakeApp(files: Record<string, string> = {}) {
       return { files: [] as string[], folders: [...sub] };
     },
   };
-  return { vault: { configDir: ".cfg", adapter }, plugins: { plugins: {} } } as never;
+  const secrets = new Map<string, string>();
+  const secretStorage = { getSecret: (id: string) => secrets.get(id) ?? null, setSecret: (id: string, v: string) => { secrets.set(id, v); } };
+  return { vault: { configDir: ".cfg", adapter }, plugins: { plugins: {} }, ...(withSecrets ? { secretStorage } : {}) } as never;
 }
 
 function host(over: Partial<SettingsTabHost> = {}): SettingsTabHost {
@@ -39,8 +49,8 @@ const flush = async (): Promise<void> => { for (let i = 0; i < 10; i++) await Pr
 const manifest = (at: string, origin: string) => JSON.stringify({ version: 1, at, origin, files: [{ path: ".cfg/hotkeys.json", existed: true, afterHash: null }] });
 const ROOT = ".cfg/plugins/settings-assistant/snapshots";
 
-async function render(h: SettingsTabHost, files: Record<string, string> = {}): Promise<{ el: FakeEl; tab: SettingsAssistantSettingTab }> {
-  const tab = new SettingsAssistantSettingTab(fakeApp(files), {} as never, h);
+async function render(h: SettingsTabHost, files: Record<string, string> = {}, withSecrets = false): Promise<{ el: FakeEl; tab: SettingsAssistantSettingTab }> {
+  const tab = new SettingsAssistantSettingTab(fakeApp(files, withSecrets), PLUGIN, h);
   const el = makeFakeEl();
   (tab as unknown as { containerEl: FakeEl }).containerEl = el;
   tab.display();
@@ -57,6 +67,18 @@ describe("SettingsAssistantSettingTab", () => {
     expect(first.hasClass("setting-item")).toBe(true);
     expect(first.__setting.nameValue).toBe("Help");
     expect(first.querySelectorAll("button").length).toBeGreaterThan(0);
+  });
+
+  it("lokale Endpunkt-Zeile: Klartext-Schlüssel wandert in den Schlüsselbund, die Zeile zeigt „saved“ statt eines Klartextfelds", async () => {
+    const h = host();
+    h.settings.endpoints = [{ url: "http://127.0.0.1:1234", apiKey: "sk-FAKE-TAB" }];
+    const { el } = await render(h, {}, true);
+    const saved = el.querySelectorAll(".okit-ep-secret");
+    expect(saved).toHaveLength(1);
+    expect(saved[0].textContent).toBe("saved");
+    expect(JSON.stringify(h.settings.endpoints)).not.toContain("sk-FAKE-TAB");
+    expect(h.settings.endpoints[0]?.secretId).toBeTruthy();
+    expect(h.saveSettings).toHaveBeenCalled();
   });
 
   it("ohne Schnappschüsse steht der Empty-State", async () => {
@@ -106,7 +128,7 @@ describe("SettingsAssistantSettingTab", () => {
   it("ein Fehler beim Lesen der Liste zeigt den Empty-State statt zu werfen", async () => {
     const app = fakeApp({ [`${ROOT}/x/manifest.json`]: "{}" }) as { vault: { adapter: { list: () => Promise<never> } } };
     app.vault.adapter.list = async () => { throw new Error("boom"); };
-    const tab = new SettingsAssistantSettingTab(app as never, {} as never, host());
+    const tab = new SettingsAssistantSettingTab(app as never, PLUGIN, host());
     const el = makeFakeEl();
     (tab as unknown as { containerEl: FakeEl }).containerEl = el;
     tab.display();

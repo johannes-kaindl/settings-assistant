@@ -41,6 +41,8 @@ function loadEndpoints(raw: unknown): EndpointConfig[] {
     out.push({
       url: e["url"],
       ...(typeof e["apiKey"] === "string" ? { apiKey: e["apiKey"] } : {}),
+      ...(typeof e["id"] === "string" ? { id: e["id"] } : {}),
+      ...(typeof e["secretId"] === "string" ? { secretId: e["secretId"] } : {}),
       ...(typeof e["model"] === "string" ? { model: e["model"] } : {}),
     });
   }

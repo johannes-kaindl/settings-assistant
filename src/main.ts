@@ -1,6 +1,7 @@
 import { Component, MarkdownRenderer, Notice, Plugin, getLanguage, normalizePath, type WorkspaceLeaf } from "obsidian";
 import "./i18n/strings";
 import { pickLang, setLang, t } from "./vendor/kit/i18n";
+import { prepareLocal } from "./obsidian/local-endpoints";
 import { resolveEndpointSource, type EndpointSourceResult } from "./vendor/kit/endpoint-source";
 import type { EndpointConfig } from "./vendor/kit/endpoint_config";
 import { onLevelFor, resolveRequestParams, thinkingFor, type RequestSettings, type ThinkingLevel } from "./vendor/kit/sampling-profiles";
@@ -176,7 +177,7 @@ export default class SettingsAssistantPlugin extends Plugin {
     if (this.pendingResolve !== null) return this.pendingResolve;
     this.pendingResolve = resolveEndpointSource({
       manager,
-      local: this.settings.endpoints,
+      local: prepareLocal(this.app, this.manifest.id, this.settings, () => this.saveSettings()),
       localModel: this.settings.localModel,
       capability: "chat",
       choice: this.settings.endpointChoice,

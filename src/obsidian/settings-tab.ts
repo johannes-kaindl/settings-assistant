@@ -66,7 +66,7 @@ export class SettingsAssistantSettingTab extends PluginSettingTab {
   private cleanupPrevious: () => void = () => {};
   private uninstallRefresh: () => void = () => {};
 
-  constructor(app: App, plugin: Plugin, private readonly host: SettingsTabHost) {
+  constructor(app: App, private readonly plugin: Plugin, private readonly host: SettingsTabHost) {
     super(app, plugin);
     // Die Schnappschuss-Liste soll beim Öffnen des Tabs aktuell sein.
     this.uninstallRefresh = installTabRefreshOnOpen(this, () => this.renderImperative());
@@ -138,6 +138,10 @@ export class SettingsAssistantSettingTab extends PluginSettingTab {
       presetTooltip: (preset) => t("ep.preset", preset.label),
       presetLabel: (preset) => preset.label,
       checkConnection: t("ep.checkConnection"),
+      secretSaved: t("ep.secretSaved"),
+      secretChange: t("ep.secretChange"),
+      secretClear: t("ep.secretClear"),
+      secretUnavailable: t("ep.secretUnavailable"),
       saveFailed: t("ep.saveFailed"),
     };
   }
@@ -146,7 +150,7 @@ export class SettingsAssistantSettingTab extends PluginSettingTab {
     const parent = settingBodyHost(setting);
     const s = this.host.settings;
     buildEndpointSourceSection({
-      app: this.app, containerEl: parent, capability: "chat", caller: "settings-assistant",
+      app: this.app, pluginId: this.plugin.manifest.id, containerEl: parent, capability: "chat", caller: "settings-assistant",
       choice: () => s.endpointChoice,
       setChoice: async (c) => { s.endpointChoice = c; await this.host.saveSettings(); await this.host.resolveEndpoint(); },
       local: () => s.endpoints,
@@ -166,6 +170,8 @@ export class SettingsAssistantSettingTab extends PluginSettingTab {
     const s = this.host.settings;
     buildEndpointList({
       containerEl: parent,
+      app: this.app,
+      pluginId: this.plugin.manifest.id,
       label: t("src.pickEndpoint"),
       desc: "",
       placeholder: "http://127.0.0.1:1234",
