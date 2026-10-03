@@ -2,7 +2,7 @@
 
 > [🇬🇧 English](https://github.com/johannes-kaindl/settings-assistant/blob/main/README.md) · 🇩🇪 Deutsch
 
-**Einstellungen von Obsidian und Plugins über geprüfte Profile oder einen Chat mit einem lokalen LLM ändern — Geheimnisse bleiben draußen, vor jedem Schreiben steht ein Diff, Schnappschüsse erlauben das Zurückholen.**
+**Einstellungen von App und Plugins über geprüfte Profile oder einen Chat mit einem lokalen LLM ändern — Geheimnisse bleiben draußen, vor jedem Schreiben steht ein Diff, Schnappschüsse erlauben das Zurückholen.**
 
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](https://github.com/johannes-kaindl/settings-assistant/blob/main/LICENSE)
 [![Docs: CC BY-SA 4.0](https://img.shields.io/badge/docs-CC%20BY--SA%204.0-lightgrey.svg)](https://github.com/johannes-kaindl/settings-assistant/blob/main/LICENSE-DOCS)

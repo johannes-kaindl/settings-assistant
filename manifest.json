@@ -3,7 +3,7 @@
   "name": "Settings Assistant",
   "version": "0.1.0",
   "minAppVersion": "1.11.4",
-  "description": "Change Obsidian and plugin settings through reviewed profiles or a local-LLM chat — with secrets left out, a diff before every write, and snapshots to roll back.",
+  "description": "Change app and plugin settings through reviewed profiles or a local-LLM chat — with secrets left out, a diff before every write, and snapshots to roll back.",
   "author": "Johannes Kaindl",
   "authorUrl": "https://github.com/johannes-kaindl",
   "isDesktopOnly": false

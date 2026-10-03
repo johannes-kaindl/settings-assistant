@@ -1,7 +1,7 @@
 {
   "name": "settings-assistant",
   "version": "0.1.0",
-  "description": "Change Obsidian and plugin settings through reviewed profiles or a local-LLM chat — with secrets left out, a diff before every write, and snapshots to roll back.",
+  "description": "Change app and plugin settings through reviewed profiles or a local-LLM chat — with secrets left out, a diff before every write, and snapshots to roll back.",
   "type": "module",
   "scripts": {
     "dev": "node esbuild.config.mjs",

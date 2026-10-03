@@ -2,7 +2,7 @@
 
 > 🇬🇧 English · [🇩🇪 Deutsch](https://github.com/johannes-kaindl/settings-assistant/blob/main/README.de.md)
 
-**Change Obsidian and plugin settings through reviewed profiles or a local-LLM chat — with secrets left out, a diff before every write, and snapshots to roll back.**
+**Change app and plugin settings through reviewed profiles or a local-LLM chat — with secrets left out, a diff before every write, and snapshots to roll back.**
 
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](https://github.com/johannes-kaindl/settings-assistant/blob/main/LICENSE)
 [![Docs: CC BY-SA 4.0](https://img.shields.io/badge/docs-CC%20BY--SA%204.0-lightgrey.svg)](https://github.com/johannes-kaindl/settings-assistant/blob/main/LICENSE-DOCS)
