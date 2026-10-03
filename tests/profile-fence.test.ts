@@ -43,6 +43,17 @@ describe("settings-profile-Zäune (eine Quelle für strip und extract)", () => {
   });
 });
 
+describe("extractProfileBlocks: unvollständiger Zaun", () => {
+  it("ein Zaun ohne Schluss ist kein Block (abgebrochener Stream)", () => {
+    expect(extractProfileBlocks(`Sure.\n${B}settings-profile\n${body}`)).toEqual([]);
+  });
+  it("nur der geschlossene von zwei Zäunen wird gezogen", () => {
+    const out = extractProfileBlocks(`${B}settings-profile\n${body}\n${B}\ntext\n${B}settings-profile\n{"version":1`);
+    expect(out).toHaveLength(1);
+    expect(out[0]!.raw).toBe(body);
+  });
+});
+
 describe("stripProfileBlocks", () => {
   const body = '{"version":1}';
   it("entfernt vollständige Zäune", () => {
