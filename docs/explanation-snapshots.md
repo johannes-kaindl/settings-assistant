@@ -48,7 +48,7 @@ The settings under **Snapshots → Retention** are:
 | Keep per week | For the last N ISO weeks (Monday start) including the current one, the oldest of each week. | 4 |
 | Keep per month | For the last N calendar months including the current one, the oldest of each month. | 6 |
 
-0 keeps none for that period. The windows overlap, so at most 23 snapshots survive with the defaults and fewer in practice. Days, weeks and months follow the calendar of your computer's time zone, including daylight-saving changes. The defaults are starting values, not a measurement.
+0 keeps none for that period; the snapshot taken by the current apply or restore always stays, even at 0/0/0/0, so the last change can still be undone. The windows overlap, so at most 23 snapshots survive with the defaults and fewer in practice. Days, weeks and months follow the calendar of your computer's time zone, including daylight-saving changes. The defaults are starting values, not a measurement.
 
 Pruning runs after a successful apply or restore, after the new snapshot is saved. It deletes only what is outside every window. A snapshot dated in the future (a clock error) is always kept, and a snapshot whose manifest cannot be read is skipped and never deleted. If pruning itself fails, the report is not lost.
 

@@ -73,6 +73,7 @@ describe("ApplyService", () => {
     expect(writes).toEqual([".cfg/plugins/p/data.json"]);
     expect(prune).toHaveBeenCalledTimes(1);
     expect((prune.mock.calls[0] as unknown[])[2]).toEqual(DEFAULT_GFS_POLICY);
+    expect((prune.mock.calls[0] as unknown[])[3]).toEqual(["snap"]); // M3: der eigene Schnappschuss ist geschützt
     expect("origin" in report && report.origin).toBe("Codeblock note.md");
     expect(Notice.instances[0]?.message).toContain("Codeblock note.md");
   });

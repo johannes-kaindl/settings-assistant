@@ -82,6 +82,7 @@ describe("ApplyService.restoreInteractive", () => {
     expect(files[B]).toBe('{"a":99}');
     expect("results" in report && report.results.map((r) => r.outcome)).toEqual(["changed-since", "restored"]);
     expect(prune).toHaveBeenCalledTimes(1);
+    expect((prune.mock.calls[0] as unknown[])[3]).toEqual(["safety"]); // M3
     expect(Notice.instances[0]?.message).toContain("restore:2026-10-03T10-00-00");
     expect(Notice.instances[0]?.message).toContain("changed since");
   });

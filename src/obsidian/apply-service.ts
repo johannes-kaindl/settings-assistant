@@ -81,7 +81,7 @@ export class ApplyService {
       const ports = this.deps.ports ?? makePorts(this.app);
       const report = await runApply(selected, ports, { configDir: this.app.vault.configDir, origin });
       // Aufräumen darf den Bericht nicht verdecken.
-      if (report.snapshotDir !== null) await pruneSnapshots(this.app, Date.now(), this.settings().retention).catch(() => []);
+      if (report.snapshotDir !== null) await pruneSnapshots(this.app, Date.now(), this.settings().retention, [report.snapshotDir]).catch(() => []);
       new Notice(formatReport(report));
       return report;
     } catch (e) {
@@ -117,7 +117,7 @@ export class ApplyService {
       const origin = `restore:${dir}`;
       const run = await runRestore(todo, force, ports, { origin });
       const report: RestoreReport = { origin, ...run };
-      if (run.snapshotDir !== null) await pruneSnapshots(this.app, Date.now(), this.settings().retention).catch(() => []);
+      if (run.snapshotDir !== null) await pruneSnapshots(this.app, Date.now(), this.settings().retention, [run.snapshotDir]).catch(() => []);
       new Notice(formatRestoreReport(report));
       return report;
     } catch (e) {

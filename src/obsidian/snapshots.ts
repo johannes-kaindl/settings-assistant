@@ -113,11 +113,12 @@ export async function loadRestoreItems(app: App, dir: string): Promise<RestoreIt
   return items;
 }
 
-/** Löscht, was die GFS-Auswahl nennt (nie `future`); nicht lesbare Manifeste sind nicht im Eingang und bleiben. */
-export async function pruneSnapshots(app: App, now: number, policy: GfsPolicy): Promise<string[]> {
+/** Löscht, was die GFS-Auswahl nennt (nie `future`); nicht lesbare Manifeste sind nicht im Eingang und bleiben.
+ *  `protect`: Schnappschüsse, die nie gelöscht werden — der im selben Lauf angelegte (sonst löscht 0/0/0/0 ihn sofort). */
+export async function pruneSnapshots(app: App, now: number, policy: GfsPolicy, protect: readonly string[] = []): Promise<string[]> {
   const all = await listSnapshots(app);
   const entries = all.map((s) => ({ name: s.dir, time: Date.parse(s.manifest.at) })).filter((e) => Number.isFinite(e.time));
-  const { drop } = selectGfsRetention(entries, now, { policy });
+  const drop = selectGfsRetention(entries, now, { policy }).drop.filter((name) => !protect.includes(name));
   const root = snapshotRoot(app);
   for (const name of drop) await app.vault.adapter.rmdir(`${root}/${name}`, true);
   return drop;

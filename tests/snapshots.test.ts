@@ -96,6 +96,15 @@ describe("snapshots", () => {
     expect(files.has(`${snapshotRoot(app)}/${fut.dir}/manifest.json`)).toBe(true);
   });
 
+  it("(M3) prune löscht den geschützten, gerade angelegten Schnappschuss nie — auch bei Aufbewahrung 0/0/0/0", async () => {
+    const { app, files } = fakeApp({ [DATA]: "{}" });
+    vi.setSystemTime(new Date("2026-10-03T10:00:00Z")); const older = await beginSnapshot(app, [DATA], "o");
+    vi.setSystemTime(new Date("2026-10-03T11:00:00Z")); const fresh = await beginSnapshot(app, [DATA], "o");
+    const dropped = await pruneSnapshots(app, Date.parse("2026-10-03T12:00:00Z"), { today: 0, days: 0, weeks: 0, months: 0 }, [fresh.dir]);
+    expect(dropped).toEqual([older.dir]);
+    expect(files.has(`${snapshotRoot(app)}/${fresh.dir}/manifest.json`)).toBe(true);
+  });
+
   it("(f) loadRestoreItems: savedText null for existed:false, targets derived from path", async () => {
     const { app } = fakeApp({ [DATA]: '{"a":1}' });
     const h = await beginSnapshot(app, [DATA, HK], "o");
