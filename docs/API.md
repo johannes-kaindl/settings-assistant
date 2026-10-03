@@ -66,8 +66,8 @@ const sa = app.plugins.plugins["settings-assistant"]?.api;
 if (sa?.apiVersion !== 1) return;
 const tools = sa.tools();                      // ins Tool-Register des Agenten-Loops
 // … das Modell wählt propose_settings und liefert ein Profil …
-const r = await sa.execute("propose_settings", { profile });
+const r = (await sa.execute("propose_settings", { profile })) as { error?: string; cancelled?: true; results?: unknown[] };
 // Settings Assistant zeigt seinen Diff-Dialog; Koda fragt zusätzlich nicht nach (confirms: "provider").
-if ("error" in r) { /* Diagnosewort melden */ }
-else if ("cancelled" in r) { /* Mensch hat verworfen */ }
+if (r.error !== undefined) { /* Diagnosewort melden */ }
+else if (r.cancelled) { /* Mensch hat verworfen */ }
 ```

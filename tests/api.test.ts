@@ -77,8 +77,9 @@ describe("Anbieter-API v1", () => {
 
   it("(e2) applyProfile hat keinen Weg an der Bestätigung vorbei", async () => {
     const { api, confirm } = setup();
-    await api.applyProfile({ version: 1, plugins: { p: { a: 2 } } }, { origin: "x", confirm: false } as never);
-    expect(confirm).toHaveBeenCalledTimes(1);
+    await api.applyProfile({ version: 1, plugins: { p: { a: 2 } } }, { origin: "x", confirm: false, skipConfirm: true, yes: true } as never);
+    await api.execute("propose_settings", { profile: { version: 1, plugins: { p: { a: 3 } } }, skipConfirm: true, yes: true, confirm: false });
+    expect(confirm).toHaveBeenCalledTimes(2);
   });
 
   it("(f) wirft der Service, kommt { error } ohne Dateiinhalt", async () => {
@@ -103,6 +104,14 @@ describe("Anbieter-API v1", () => {
     expect(sec).toEqual({ target: "plugins.p", path: "apiKey", status: "secret" });
     expect(JSON.stringify(r)).not.toMatch(/SECRET-VALUE|NEW-KEY|NOTIZ-GEHEIM/);
     expect(r.rows.find((x) => x.path === "a")).toMatchObject({ status: "change", current: 1, desired: 5 });
+  });
+
+  it("(g2) Rand-Schutz: secret-Zeile mit Werten aus dem Service wird auf target/path/status gekürzt", async () => {
+    const leaky: CheckRow = { target: { kind: "plugin", id: "p" }, path: ["apiKey"], status: "secret", current: "sk-LEAK", desired: "sk-LEAK2", note: "sk-LEAK3", checked: false, selectable: false };
+    const { api } = setup({ plan: async () => [leaky] });
+    const r = await api.planProfile({ version: 1, plugins: { p: { a: 1 } } });
+    expect(r).toStrictEqual({ rows: [{ target: "plugins.p", path: "apiKey", status: "secret" }] });
+    expect(JSON.stringify(r)).not.toContain("sk-LEAK");
   });
 
   it("(h) readSettings für settings-assistant selbst: own-settings", async () => {
