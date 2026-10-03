@@ -1,4 +1,4 @@
-// vendored from code-kit@0.9.0, src/ts/pure/sampling-profiles.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
+// vendored from code-kit@0.10.0, src/ts/pure/sampling-profiles.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
 /** Request profiles for local and hosted LLM backends: which sampling values, which
  *  reasoning_effort and which minimum token budget a plugin sends, per model family × mode,
  *  and which of those fields a backend actually honours.
@@ -20,7 +20,7 @@ export type FamilyId = (typeof FAMILY_IDS)[number];
 /** Override key: a known family, or "unknown" for models the kit cannot place. */
 export type FamilyKey = FamilyId | "unknown";
 
-export const MODE_IDS = ["agent", "structured", "transform", "grounded", "companion", "creative"] as const;
+export const MODE_IDS = ["agent", "structured", "transform", "grounded", "companion", "creative", "complete"] as const;
 export type ModeId = (typeof MODE_IDS)[number];
 
 export const BACKEND_IDS = ["lmstudio", "openwebui", "ollama", "openai", "unknown"] as const;
@@ -136,6 +136,7 @@ export const MODES: Record<ModeId, ModeProfile> = {
   grounded: { temperature: u(0.4, RECO), thinking: "off" },
   companion: { temperature: u(0.7, RECO), thinking: "off" },
   creative: { temperature: u(0.7, RECO), thinking: "medium" },
+  complete: { temperature: u(0.2, RECO), thinking: "off" },
 };
 
 const STANDARD_ONLY: Record<FieldId, FieldSupport> = {
