@@ -5,6 +5,7 @@ import { tn } from "../i18n/plural";
 import { isValidRetentionValue, type SettingsAssistantSettings } from "../core/settings";
 import { listSnapshots } from "./snapshots";
 import { githubHelpUrls, helpSettingDefinition, HELP_SETTING_TEXTS_DE, HELP_SETTING_TEXTS_EN } from "../vendor/kit-obsidian/help-setting";
+import { findEndpointManager } from "../vendor/kit-obsidian/endpoint-source";
 import { installTabRefreshOnOpen, renderSettingDefinitions, settingBodyHost } from "../vendor/kit-obsidian/settings_walker";
 import type { LlmConnection } from "../vendor/kit-obsidian/llm-connection";
 import { buildVersionList } from "../vendor/kit-obsidian/version-list";
@@ -43,7 +44,11 @@ export class SettingsAssistantSettingTab extends PluginSettingTab {
         ...githubHelpUrls("settings-assistant"),
         texts: getLang() === "de" ? HELP_SETTING_TEXTS_DE : HELP_SETTING_TEXTS_EN,
       }),
-      { type: "group", heading: t("set.chatModel"), items: [{ render: (s: Setting) => { this.host.llm.renderSettings(settingBodyHost(s), { lang: getLang() }); } }] },
+      { type: "group", heading: t("set.chatModel"), items: [
+        { render: (s: Setting) => { this.host.llm.renderSettings(settingBodyHost(s), { lang: getLang() }); } },
+        // Das Kit zeichnet kein globales Modell; ohne Manager gilt es als Rückfall für Zeilen ohne eigenes Modell.
+        ...(findEndpointManager(this.app) ? [] : [{ name: t("set.model"), desc: t("set.modelDesc"), render: (s: Setting) => { this.renderLocalModel(s); } }]),
+      ] },
       {
         type: "group",
         heading: t("set.snapshots"),
@@ -70,6 +75,17 @@ export class SettingsAssistantSettingTab extends PluginSettingTab {
     const { containerEl } = this;
     containerEl.empty();
     this.cleanupPrevious = renderSettingDefinitions(containerEl, this.getSettingDefinitions(), this, this.app);
+  }
+
+  private renderLocalModel(setting: Setting): void {
+    setting.addText((tx) => {
+      tx.setValue(this.host.settings.localModel).onChange((v) => {
+        this.host.settings.localModel = v.trim();
+        this.host.llm.invalidate();
+        void this.host.saveSettings().catch(() => { new Notice(t("set.saveFailed")); });
+      });
+      tx.inputEl.setAttribute("aria-label", t("set.model"));
+    });
   }
 
   private renderRetention(setting: Setting, field: keyof GfsPolicy): void {

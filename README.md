@@ -83,7 +83,8 @@ The walk-through [First profile](https://github.com/johannes-kaindl/settings-ass
 | Setting | What it does |
 |---|---|
 | Help | Opens the documentation and the issue tracker. |
-| Endpoint | With the LLM Endpoint Manager installed: choose an endpoint or let the first reachable one win. Without it: an ordered list of OpenAI-compatible servers, each with an optional API key and model override, a connection status and a **Test connection** button; the model is chosen per endpoint row (empty lets the server use what it has loaded). |
+| Endpoint | With the LLM Endpoint Manager installed: choose an endpoint or let the first reachable one win. Without it: an ordered list of OpenAI-compatible servers, each with an optional API key and model override, a connection status and a **Test connection** button |
+| Model | Without the manager only: the model for endpoints in the list that have none of their own. Empty lets the server use what it has loaded. |
 | Request | The sampling values, thinking level and token budget actually sent for the current model family, with the last request and any deviations of the session. |
 | Retention | How many snapshots stay: **Keep from today**, **Keep per day**, **Keep per week**, **Keep per month**. Defaults 6, 7, 4 and 6; 0 keeps none for that period. |
 | Saved snapshots | The list of snapshots, newest first. Selecting one opens the restore dialog. |

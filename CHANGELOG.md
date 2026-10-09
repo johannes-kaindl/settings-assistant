@@ -10,7 +10,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - The wait for the first answer chunk is 10 minutes instead of 5 (a model that loads on demand needs the time). A request that ends at the token limit without any text is still an error, and the deviation **Empty answer: thinking used up the token budget** now also appears in the Request section.
 - **Endpoint** (choice at the LLM Endpoint Manager) only applies with the manager installed; without it the first reachable local endpoint is used, as the list says.
 - The error text for a missing endpoint is now **No endpoint available — set one up in the plugin settings.** (it was the code `no-endpoint`).
-- The separate **Model** field of the local list is gone; the model is chosen per endpoint row. A value saved earlier is still used as the fallback for rows without a model.
+- Without the manager, the **Model** row now sits below the endpoint block and applies to list rows without a model of their own; each row can also pick its own model.
 - Secrets are masked before the text leaves the plugin and restored in the answer: tokens, `Bearer` headers and private keys in your question go to the server as placeholders. Answers are shown as text, so an image link carrying a placeholder cannot send a secret out.
 - Local API keys are moved from `data.json` into Obsidian's secret storage at the first resolve, as before; this now needs Obsidian 1.11.4 (already the minimum).
 
