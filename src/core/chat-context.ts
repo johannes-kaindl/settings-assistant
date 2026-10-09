@@ -1,6 +1,6 @@
 import { parseProfile, type ParseResult } from "./profile";
 import { findProfileFences } from "./profile-fence";
-import { redact } from "./secrets";
+import { redactFields } from "../vendor/kit/redact";
 import type { Json } from "./types";
 
 export interface PluginInfo { id: string; name: string }
@@ -36,7 +36,7 @@ export function buildContext(input: { installed: readonly PluginInfo[]; selected
     if (s.text === null) { parts.push("(no settings file yet)"); continue; }
     let parsed: Json;
     try { parsed = JSON.parse(s.text) as Json; } catch { unreadable.push(s.id); parts.push("(settings file is not valid JSON)"); continue; }
-    const r = redact(parsed);
+    const r = redactFields(parsed);
     for (const p of r.redacted) redacted.push(`plugins.${s.id}.${p}`);
     parts.push(`${FENCE}json`, JSON.stringify(r.value, null, 2), FENCE);
   }

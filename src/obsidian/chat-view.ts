@@ -6,7 +6,7 @@ import { t } from "../vendor/kit/i18n";
 import { buildStreamArea, type StreamArea } from "../vendor/kit-obsidian/stream-area";
 import { buildThinkingControl, type ThinkingControlOptions } from "../vendor/kit-obsidian/thinking-control";
 import type { PluginInfo } from "../core/chat-context";
-import { neutralizeModelMarkdown } from "../core/chat-markdown";
+import { neutralizeModelMarkdown } from "../vendor/kit/safe-markdown";
 import { stripProfileBlocks } from "../core/profile-fence";
 import { redactedProfileNote, redactedRawBlock, profileNoteName } from "../core/profile-note";
 import type { ChatSession, ChatTurn, SentContext } from "./chat-session";

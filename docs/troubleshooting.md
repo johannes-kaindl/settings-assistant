@@ -74,9 +74,9 @@ Each entry starts with what you see — the wording is the plugin's own English 
 
 **Fix:** press **Set up a chat model**, then add your server under **Endpoint** and press **Test connection**. The row status says why a server is not reachable: **Connection refused — server not running or wrong port.**, **Unknown host — typo in the address?**, **Timed out — network unreachable.**, **Answers, but is not an OpenAI-compatible endpoint.** or **Access denied — API key missing or invalid.** Local servers usually need a port, for example `http://127.0.0.1:1234`. For server setup see the [local LLM setup guide](https://uplink.jkaindl.de/llm-setup).
 
-## Error: no-endpoint / Error: timeout / Error: network / Error: http 404
+## Error: No endpoint available / Error: timeout / Error: network / Error: http 404
 
-**Cause:** a chat request failed. `no-endpoint` means no endpoint could be resolved; `timeout` and `network` mean the server did not answer; `http <status>` is the server's answer, for example 404 for a wrong address or model name, 401 for a missing key. `overflow` and `truncated` mean the answer did not fit the context or the token budget.
+**Cause:** a chat request failed. **No endpoint available — set one up in the plugin settings.** means no endpoint could be resolved; `timeout` and `network` mean the server did not answer; `http <status>` is the server's answer, for example 404 for a wrong address or model name, 401 for a missing key. `overflow` and `truncated` mean the answer did not fit the context or the token budget.
 
 **Fix:** check the endpoint and the model under **Settings → Settings Assistant**, and the details under **Request**. The row **Last request** shows what was sent and **deviation(s) this session** lists what the server did differently.
 

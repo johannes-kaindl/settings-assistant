@@ -1,21 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import "../src/i18n/strings";
 
-vi.mock("../src/obsidian/http", () => ({
-  PROBE_TIMEOUT_MS: 1,
-  probeEndpoint: async () => ({ reachable: false, kind: "refused", klartext: "" }),
-  listModels: async () => [],
-  clientFor: () => ({ probe: async () => ({ reachable: false, kind: "refused", klartext: "" }), listModels: async () => [] }),
-}));
-const sectionSpy = vi.hoisted(() => ({ calls: [] as Array<Record<string, unknown>> }));
-vi.mock("../src/vendor/kit-obsidian/endpoint-source", async (orig) => {
-  const m = await orig<typeof import("../src/vendor/kit-obsidian/endpoint-source")>();
-  return { ...m, buildEndpointSourceSection: (o: Record<string, unknown>) => { sectionSpy.calls.push(o); return (m.buildEndpointSourceSection as (x: unknown) => unknown)(o); } };
-});
 import { makeFakeEl, Notice } from "./vendor/kit/obsidian-mock";
 import { DEFAULT_SETTINGS } from "../src/core/settings";
 import { SettingsAssistantSettingTab, type SettingsTabHost } from "../src/obsidian/settings-tab";
-import { createRequestSession } from "../src/vendor/kit-obsidian/request-session";
+import { createLlmConnection, type LlmConnection } from "../src/vendor/kit-obsidian/llm-connection";
+import { applyLlmPatch, toLlmSettings } from "../src/core/llm-settings";
+import type { SettingsAssistantSettings } from "../src/core/settings";
 
 const PLUGIN = { manifest: { id: "settings-assistant" } } as never;
 type FakeEl = ReturnType<typeof makeFakeEl>;
@@ -35,16 +26,20 @@ function fakeApp(files: Record<string, string> = {}, withSecrets = false) {
   return { vault: { configDir: ".cfg", adapter }, plugins: { plugins: {} }, ...(withSecrets ? { secretStorage } : {}) } as never;
 }
 
+/** Die echte Verbindung mit derselben Zuordnung wie `main.ts` — `fakeApp` ist das App-Objekt des Tabs. */
+function connection(app: unknown, settings: SettingsAssistantSettings, save: () => Promise<void>): LlmConnection {
+  return createLlmConnection({
+    app: app as never, pluginId: "settings-assistant", caller: "settings-assistant", capability: "chat", mode: "structured",
+    getSettings: () => toLlmSettings(settings),
+    persist: (patch) => { applyLlmPatch(settings, patch); return save(); },
+  });
+}
+
 function host(over: Partial<SettingsTabHost> = {}): SettingsTabHost {
   return {
     settings: structuredClone(DEFAULT_SETTINGS),
+    llm: { renderSettings: vi.fn(), hideSettings: vi.fn() } as unknown as LlmConnection,
     saveSettings: vi.fn(async () => {}),
-    saveRequestSettings: vi.fn(async () => {}),
-    requestSession: createRequestSession({ message: () => "" }),
-    requestSectionState: () => ({ family: null, familySource: "none", backend: "unknown", backendSource: "none", model: "", sentModel: "" }),
-    resolveEndpoint: vi.fn(async () => null),
-    invalidateEndpointCache: vi.fn(),
-    activeEndpointUrl: () => null,
     restore: vi.fn(async () => ({ cancelled: true as const })),
     ...over,
   };
@@ -74,23 +69,39 @@ describe("SettingsAssistantSettingTab", () => {
     expect(first.querySelectorAll("button").length).toBeGreaterThan(0);
   });
 
-  it("die Chat-Modell-Sektion bekommt die pluginId des Plugins", async () => {
-    sectionSpy.calls.length = 0;
-    await render(host());
-    expect(sectionSpy.calls).toHaveLength(1);
-    expect(sectionSpy.calls[0]?.pluginId).toBe("settings-assistant");
+  it("die Verbindung zeichnet Quelle, Liste und Anfrage in einen eigenen Host — nie in den Tab-Container", async () => {
+    const h = host();
+    const { el } = await render(h);
+    const calls = (h.llm.renderSettings as unknown as { mock: { calls: Array<[FakeEl, { lang: string }]> } }).mock.calls;
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.[0]).not.toBe(el);
+    expect(calls[0]?.[1]).toEqual({ lang: "en" });
   });
 
-  it("lokale Endpunkt-Zeile: Klartext-Schlüssel wandert in den Schlüsselbund, die Zeile zeigt „saved“ statt eines Klartextfelds", async () => {
+  it("hide() schließt die Modell-Listen der Verbindung", async () => {
     const h = host();
-    h.settings.endpoints = [{ url: "http://127.0.0.1:1234", apiKey: "sk-FAKE-TAB" }];
-    const { el } = await render(h, {}, true);
+    const { tab } = await render(h);
+    tab.hide();
+    expect(h.llm.hideSettings).toHaveBeenCalledTimes(1);
+  });
+
+  it("lokale Endpunkt-Zeile über die echte Verbindung: Klartext-Schlüssel wandert in den Schlüsselbund, die Zeile zeigt „saved“", async () => {
+    const settings = structuredClone(DEFAULT_SETTINGS);
+    settings.endpoints = [{ url: "http://127.0.0.1:1234", apiKey: "sk-FAKE-TAB" }];
+    const save = vi.fn(async () => {});
+    const app = fakeApp({}, true);
+    const h = host({ settings, saveSettings: save, llm: connection(app, settings, save) });
+    const tab = new SettingsAssistantSettingTab(app, PLUGIN, h);
+    const el = makeFakeEl();
+    (tab as unknown as { containerEl: FakeEl }).containerEl = el;
+    tab.display();
+    await flush();
     const saved = el.querySelectorAll(".okit-ep-secret");
     expect(saved).toHaveLength(1);
     expect(saved[0].textContent).toBe("saved");
-    expect(JSON.stringify(h.settings.endpoints)).not.toContain("sk-FAKE-TAB");
-    expect(h.settings.endpoints[0]?.secretId).toBeTruthy();
-    expect(h.saveSettings).toHaveBeenCalled();
+    expect(JSON.stringify(settings.endpoints)).not.toContain("sk-FAKE-TAB");
+    expect(settings.endpoints[0]?.secretId).toBeTruthy();
+    expect(save).toHaveBeenCalled();
   });
 
   it("ohne Schnappschüsse steht der Empty-State", async () => {

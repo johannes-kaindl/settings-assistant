@@ -30,7 +30,7 @@ export interface ChatSessionDeps {
   ): Promise<{ ok: true; content: string; reasoning?: string } | { ok: false; error: string }>;
   readSettings(id: string): Promise<string | null>;
   installed(): PluginInfo[];
-  describeEndpoint(): { endpoint: string; model: string };
+  describeEndpoint(): { endpoint: string; model: string } | Promise<{ endpoint: string; model: string }>;
 }
 
 /** Gesprächsverlauf nur im Speicher. Nachrichten je Runde: `[system, …frühere Runden, user(Kontext + "\n\n" + Frage)]`.
@@ -71,7 +71,7 @@ export class ChatSession {
     const built = buildContext({ installed: this.deps.installed(), selected });
     const userContent = `${built.context}\n\n${message}`;
     const messages: ChatWireMessage[] = [{ role: "system", content: built.system }, ...this.history(), { role: "user", content: userContent }];
-    const ep = this.deps.describeEndpoint();
+    const ep = await this.deps.describeEndpoint();
     const sent: SentContext = {
       plugins: ids, redacted: built.redacted, unreadable: built.unreadable,
       endpoint: ep.endpoint, model: ep.model, prompt: `${built.system}\n\n${userContent}`,

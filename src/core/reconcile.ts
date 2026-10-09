@@ -1,5 +1,5 @@
 import { noteKey } from "./profile";
-import { isSecretPath, redact } from "./secrets";
+import { isSecretPath, redactFields } from "../vendor/kit/redact";
 import { deepEqual, getAt, isPlainObject, leaves, sameTarget, type Json, type SettingsProfile, type Target } from "./types";
 import { CURRENT_STAGE, isWritable, type Stage } from "./write-policy";
 
@@ -18,7 +18,7 @@ export function parseTarget(text: string | null): { ok: true; content: Json | nu
 
 /** Ein Listen-Wert (Blatt) kann Geheimnisse in seinen Elementen tragen (`endpoints[0].secretId`). */
 function hidesSecret(v: Json | undefined): boolean {
-  return v !== undefined && redact(v).redacted.length > 0;
+  return v !== undefined && redactFields(v).redacted.length > 0;
 }
 
 /** Liegt auf dem Weg zu `path` ein vorhandener Wert, der kein Objekt ist? */

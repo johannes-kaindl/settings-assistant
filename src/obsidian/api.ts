@@ -3,7 +3,7 @@ import type { ApplyReport, RowOutcome } from "../core/apply-run";
 import { isValidPluginId, parseProfile } from "../core/profile";
 import type { CheckRow, RowStatus } from "../core/reconcile";
 import { parseTarget } from "../core/reconcile";
-import { redact } from "../core/secrets";
+import { redactFields } from "../vendor/kit/redact";
 import { OBSIDIAN_FILES, isPlainObject, targetKey, type Json, type ObsidianFile, type SettingsProfile } from "../core/types";
 import { CURRENT_STAGE, isSelfPluginId, isWritable, targetPath } from "../core/write-policy";
 import { readConfig } from "./config-io";
@@ -76,7 +76,7 @@ function toApiResult(report: ApplyReport): ApiApplyResult {
     results: report.results.map((r) => ({
       path: `${targetKey(r.row.target)}.${r.row.path.join(".")}`,
       outcome: r.outcome,
-      ...(r.actual !== undefined && r.row.status !== "secret" ? { actual: redact(r.actual).value } : {}),
+      ...(r.actual !== undefined && r.row.status !== "secret" ? { actual: redactFields(r.actual).value } : {}),
     })),
   };
 }
@@ -113,7 +113,7 @@ export function createSettingsAssistantApi(deps: { app: App; service: ApplyApiSe
       const parsed = parseTarget(await readConfig(app, path));
       if (!parsed.ok) return { error: "unreadable" };
       if (parsed.content === null) return { settings: null, redacted: [] };
-      const r = redact(parsed.content);
+      const r = redactFields(parsed.content);
       return { settings: r.value, redacted: r.redacted };
     } catch { return FAILED; }
   }

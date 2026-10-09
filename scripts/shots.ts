@@ -280,7 +280,7 @@ async function setzeEndpunkt(cdp: Cdp, fake: FakeEndpoint): Promise<boolean> {
     const p = app.plugins.plugins[${q(PLUGIN_ID)}];
     p.settings.endpoints = [{ url: ${q(fake.url)}, apiKey: "", model: ${q(FAKE_MODEL)} }];
     p.settings.endpointChoice = {}; p.settings.localModel = "";
-    p.cachedLocal = null;
+    p.llm.invalidate();
     await p.saveSettings();
     const ep = await p.resolveEndpoint();
     return { url: ep ? ep.url : null };

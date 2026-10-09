@@ -1,22 +1,17 @@
 import { Component, MarkdownRenderer, Notice, Plugin, getLanguage, normalizePath, type WorkspaceLeaf } from "obsidian";
 import "./i18n/strings";
-import { pickLang, setLang, t } from "./vendor/kit/i18n";
-import { resolveWithPreparedLocal } from "./obsidian/local-endpoints";
-import type { EndpointSourceResult } from "./vendor/kit/endpoint-source";
+import { getLang, pickLang, setLang, t } from "./vendor/kit/i18n";
 import type { EndpointConfig } from "./vendor/kit/endpoint_config";
-import { onLevelFor, resolveRequestParams, thinkingFor, type RequestSettings, type ThinkingLevel } from "./vendor/kit/sampling-profiles";
-import type { ChatClient } from "./vendor/kit-obsidian/chat-client";
-import { createRequestSession, type RequestSession } from "./vendor/kit-obsidian/request-session";
-import type { RequestSectionState } from "./vendor/kit-obsidian/request-section";
-import { findEndpointManager, onEndpointManagerChanged } from "./vendor/kit-obsidian/endpoint-source";
+import { onLevelFor, thinkingFor, type RequestSettings, type ThinkingLevel } from "./vendor/kit/sampling-profiles";
+import { createLlmConnection, type LlmConnection } from "./vendor/kit-obsidian/llm-connection";
+import { onEndpointManagerChanged } from "./vendor/kit-obsidian/endpoint-source";
 import { loadSettings, type SettingsAssistantSettings } from "./core/settings";
-import { deviationNotice } from "./core/request-text";
+import { applyLlmPatch, toLlmSettings } from "./core/llm-settings";
 import { ApplyService } from "./obsidian/apply-service";
 import { createSettingsAssistantApi, type SettingsAssistantApi } from "./obsidian/api";
 import { openPluginSettings } from "./obsidian/apply-modal";
 import { renderProfileBlock } from "./obsidian/profile-block";
-import { PROBE_TIMEOUT_MS, probeEndpoint } from "./obsidian/http";
-import { cachedProbe, createChatSend, makeChatClient, type ChatSend } from "./obsidian/llm";
+import { createChatSend, type ChatSend } from "./obsidian/chat-send";
 import { CHAT_MODE, SettingsAssistantSettingTab } from "./obsidian/settings-tab";
 import { listSnapshots, pickUndoTarget } from "./obsidian/snapshots";
 import { ChatSession } from "./obsidian/chat-session";
@@ -34,12 +29,8 @@ export default class SettingsAssistantPlugin extends Plugin {
   applyService!: ApplyService;
   /** Anbieter-API v1 (docs/API.md): `app.plugins.plugins["settings-assistant"].api`. */
   api!: SettingsAssistantApi;
-  requestSession: RequestSession = createRequestSession({ message: (d) => deviationNotice(d) });
-  /** Letzte Auflösung der Chat-Quelle — trägt Familie/Backend für den Abschnitt „Anfrage“ (Task 14 nutzt sie für den Chat). */
-  private activeSource: EndpointSourceResult | null = null;
-  private cachedLocal: EndpointConfig | null = null;
-  private pendingResolve: Promise<EndpointConfig | null> | null = null;
-  private chatClient: { key: string; client: ChatClient } | null = null;
+  /** Die LLM-Anbindung: Endpunkt-Quelle, Auflösung, Parameter, Client, Prüfung der Antwort und die Settings-Abschnitte. */
+  llm!: LlmConnection;
   private unsubscribeManager: () => void = () => {};
   private chatSession!: ChatSession;
   private readonly markdownHost = new Component();
@@ -47,6 +38,25 @@ export default class SettingsAssistantPlugin extends Plugin {
   async onload(): Promise<void> {
     setLang(pickLang(safeGetLanguage()));
     this.settings = loadSettings(await this.loadData());
+    this.llm = createLlmConnection({
+      app: this.app,
+      pluginId: this.manifest.id,
+      caller: "settings-assistant",
+      capability: "chat",
+      // Die Antwort ist ein schema-validiertes Profil, kein freier Agent-Loop.
+      mode: CHAT_MODE,
+      // „Am Limit ohne Text“ bleibt ein Fehler (nicht ein leerer Antwortblock).
+      truncated: "error",
+      lang: () => getLang(),
+      // Der Chat zeigt die Stufenwahl, wenn die Einstellung an ist.
+      levelPicker: true,
+      getSettings: () => toLlmSettings(this.settings),
+      // Erst in die Settings schreiben, dann speichern: die Endpunkt-Liste liest ihre Zeilen danach zurück.
+      persist: (patch) => {
+        applyLlmPatch(this.settings, patch);
+        return patch.request !== undefined ? this.saveSettings().then(() => this.refreshChatViews()) : this.saveSettings();
+      },
+    });
     this.applyService = new ApplyService(this.app, () => this.settings);
     this.api = createSettingsAssistantApi({ app: this.app, service: this.applyService });
     this.registerMarkdownCodeBlockProcessor("settings-profile", (src, el, ctx) =>
@@ -54,13 +64,8 @@ export default class SettingsAssistantPlugin extends Plugin {
 
     this.addSettingTab(new SettingsAssistantSettingTab(this.app, this, {
       settings: this.settings,
+      llm: this.llm,
       saveSettings: () => this.saveSettings(),
-      saveRequestSettings: (next) => this.saveRequestSettings(next),
-      requestSession: this.requestSession,
-      requestSectionState: () => this.requestSectionState(),
-      resolveEndpoint: async () => { const r = await this.resolveEndpoint(); void this.refreshChatViews(); return r; },
-      invalidateEndpointCache: () => { this.cachedLocal = null; },
-      activeEndpointUrl: () => this.activeSource?.config?.url ?? null,
       restore: (dir) => this.applyService.restoreInteractive(dir),
     }));
 
@@ -87,7 +92,7 @@ export default class SettingsAssistantPlugin extends Plugin {
       renderMarkdown: (el, md) => MarkdownRenderer.render(this.app, md, el, "", this.markdownHost),
       saveNote: (name, text) => this.saveProfileNote(name, text),
       thinking: {
-        family: () => this.activeSource?.family ?? null,
+        family: () => this.llm.source().family,
         current: () => thinkingFor(this.settings.request, CHAT_MODE),
         onLevel: () => onLevelFor(this.settings.request, CHAT_MODE),
         setLevel: (l) => this.setChatThinking(l),
@@ -103,8 +108,8 @@ export default class SettingsAssistantPlugin extends Plugin {
     this.addCommand({ id: "open-chat", name: t("cmd.chat"), callback: () => { void this.openChat(); } });
     this.addRibbonIcon("sliders-horizontal", t("cmd.chat"), () => { void this.openChat(); });
 
-    void this.resolveEndpoint();
-    this.unsubscribeManager = onEndpointManagerChanged(this.app, () => { this.cachedLocal = null; void this.resolveEndpoint().then(() => this.refreshChatViews()); });
+    void this.llm.resolve().catch(() => undefined);
+    this.unsubscribeManager = onEndpointManagerChanged(this.app, () => { this.llm.invalidate(); void this.llm.resolve().then(() => this.refreshChatViews()).catch(() => undefined); });
     this.registerEvent(this.app.workspace.on("active-leaf-change", (leaf) => { if (leaf?.view instanceof SettingsChatView) void leaf.view.reload(); }));
   }
 
@@ -159,69 +164,21 @@ export default class SettingsAssistantPlugin extends Plugin {
     }
   }
 
-  requestSectionState(): RequestSectionState {
-    const s = this.activeSource;
-    return {
-      family: s?.family ?? null, familySource: s?.familySource ?? "none",
-      ...(s?.displayFamily !== undefined ? { displayFamily: s.displayFamily } : {}),
-      backend: s?.backend ?? "unknown", backendSource: s?.backendSource ?? "none",
-      model: s?.model ?? "", sentModel: s?.sentModel ?? "",
-      ...(s?.defaultModel !== undefined ? { defaultModel: s.defaultModel } : {}),
-    };
-  }
-
-  /** Löst die Chat-Quelle auf (Manager, sonst lokale Liste) und merkt das Ergebnis; der lokale Pfad wird gecacht. */
+  /** Löst die Chat-Quelle auf (Manager, sonst lokale Liste); die Verbindung merkt die lokale Auflösung bis `invalidate()`. */
   async resolveEndpoint(): Promise<EndpointConfig | null> {
-    const manager = findEndpointManager(this.app);
-    if (!manager && this.cachedLocal !== null) return this.cachedLocal;
-    if (this.pendingResolve !== null) return this.pendingResolve;
-    this.pendingResolve = resolveWithPreparedLocal({
-      app: this.app, pluginId: this.manifest.id, settings: this.settings, save: () => this.saveSettings(),
-      input: {
-        manager,
-        localModel: this.settings.localModel,
-        capability: "chat",
-        choice: this.settings.endpointChoice,
-        caller: "settings-assistant",
-        backendOf: (cfg) => cachedProbe(cfg.url, cfg.model || this.settings.localModel),
-      },
-      ping: (ep) => probeEndpoint(ep, PROBE_TIMEOUT_MS).then((s) => s.kind === "ok"),
-    })
-      .then((r) => {
-        this.activeSource = r;
-        if (r.kind === "local") this.cachedLocal = r.config;
-        return r.config;
-      })
-      .finally(() => { this.pendingResolve = null; });
-    return this.pendingResolve;
+    return (await this.llm.resolve()).config ?? null;
   }
 
   /** Anzeige für „Sent context“: Endpunkt-URL und das Modell, wie es gesendet wird (nie Schlüssel). */
-  describeEndpoint(): { endpoint: string; model: string } {
-    const s = this.activeSource;
-    return { endpoint: s?.config?.url ?? "", model: s?.sentModel ?? s?.model ?? "" };
+  async describeEndpoint(): Promise<{ endpoint: string; model: string }> {
+    try {
+      const r = await this.llm.resolve();
+      return { endpoint: r.config?.url ?? "", model: r.sentModel || r.model };
+    } catch { return { endpoint: "", model: "" }; }
   }
 
-  /** `send` für die Chat-Sitzung (Task 15 reicht sie an `ChatSession` weiter). Löst den Endpunkt bei jedem Aufruf frisch auf. */
+  /** `send` für die Chat-Sitzung: ein Aufruf der Verbindung. */
   chatSend(): ChatSend {
-    return createChatSend({
-      resolve: async () => {
-        const endpoint = await this.resolveEndpoint();
-        const src = this.activeSource;
-        if (endpoint === null || src === null) return null;
-        const family = src.family ?? null;
-        const thinking = thinkingFor(this.settings.request, CHAT_MODE);
-        const overrides = this.settings.request.overrides[CHAT_MODE]?.[family ?? "unknown"] ?? {};
-        const { params } = resolveRequestParams({ family, mode: CHAT_MODE, backend: src.backend ?? "unknown", thinking, overrides });
-        return { endpoint, sentModel: src.sentModel || src.model, params, family, thinking };
-      },
-      client: (target) => {
-        const key = `${target.endpoint.url}|${this.activeSource?.transport ?? "http"}`;
-        if (this.chatClient?.key !== key) this.chatClient = { key, client: makeChatClient(this.activeSource) };
-        return this.chatClient.client;
-      },
-      recordRequest: (params) => { this.requestSession.recordRequest(params); },
-      report: (ds) => { this.requestSession.report(ds); },
-    });
+    return createChatSend(this.llm);
   }
 }

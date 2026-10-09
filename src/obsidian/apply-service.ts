@@ -4,7 +4,7 @@ import type { GfsPolicy } from "../vendor/kit/rotation";
 import { runApply, runRestore, type ApplyPorts, type ApplyReport, type RestoreResult, type RowResult } from "../core/apply-run";
 import { restoreDecision } from "../core/snapshot";
 import { reconcile, type CheckRow } from "../core/reconcile";
-import { redact } from "../core/secrets";
+import { redactFields } from "../vendor/kit/redact";
 import { sameTarget, targetKey, type SettingsProfile, type Target } from "../core/types";
 import { openApplyModal } from "./apply-modal";
 import { readTargetStates } from "./config-io";
@@ -25,7 +25,7 @@ export interface ApplyDeps {
 function outcomeText(r: RowResult): string {
   switch (r.outcome) {
     // Ein Plugin kann an den Pfad einen Teilbaum mit geheimem Namen zurückschreiben: nur geschwärzt zeigen.
-    case "corrected": return t("outcome.corrected", r.actual === undefined ? "—" : JSON.stringify(redact(r.actual).value));
+    case "corrected": return t("outcome.corrected", r.actual === undefined ? "—" : JSON.stringify(redactFields(r.actual).value));
     case "error": return t("outcome.error", r.error ?? "");
     default: return t(`outcome.${r.outcome}`);
   }

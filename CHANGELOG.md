@@ -4,6 +4,16 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Changed
+
+- The chat connection now runs on the shared obsidian-kit connection: endpoint source, endpoint list, model lists, request parameters, the Request section and the check of every answer come from one place. The Settings tab shows them in one block under **Chat model**.
+- The wait for the first answer chunk is 10 minutes instead of 5 (a model that loads on demand needs the time). A request that ends at the token limit without any text is still an error, and the deviation **Empty answer: thinking used up the token budget** now also appears in the Request section.
+- **Endpoint** (choice at the LLM Endpoint Manager) only applies with the manager installed; without it the first reachable local endpoint is used, as the list says.
+- The error text for a missing endpoint is now **No endpoint available — set one up in the plugin settings.** (it was the code `no-endpoint`).
+- The separate **Model** field of the local list is gone; the model is chosen per endpoint row. A value saved earlier is still used as the fallback for rows without a model.
+- Secrets are masked before the text leaves the plugin and restored in the answer: tokens, `Bearer` headers and private keys in your question go to the server as placeholders. Answers are shown as text, so an image link carrying a placeholder cannot send a secret out.
+- Local API keys are moved from `data.json` into Obsidian's secret storage at the first resolve, as before; this now needs Obsidian 1.11.4 (already the minimum).
+
 ## [0.1.1] — 2026-10-03
 
 ### Changed

