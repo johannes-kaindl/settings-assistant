@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-10-09
+
 ### Changed
 
 - The chat connection now runs on the shared obsidian-kit connection: endpoint source, endpoint list, model lists, request parameters, the Request section and the check of every answer come from one place. The Settings tab shows them in one block under **Chat model**.
