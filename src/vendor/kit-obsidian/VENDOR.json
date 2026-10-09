@@ -1,6 +1,6 @@
 {
   "source": "obsidian-kit",
-  "version": "0.48.1",
-  "sha": "e18bf32",
-  "vendored": "clipboard.ts, endpoint-list.ts, endpoint-secrets.ts, secrets.ts, model-picker.ts, settings_walker.ts, folder-suggest.ts, stream-area.ts, endpoint-source.ts, request-section.ts, request-session.ts, thinking-control.ts, collapsible.ts, chat-client.ts, chat-transport.ts, shortcuts-bridge.ts, clock.ts, help-setting.ts, version-list.ts"
+  "version": "0.51.2",
+  "sha": "7699e21",
+  "vendored": "clipboard.ts, endpoint-list.ts, endpoint-secrets.ts, secrets.ts, model-picker.ts, settings_walker.ts, folder-suggest.ts, stream-area.ts, endpoint-source.ts, request-section.ts, request-session.ts, thinking-control.ts, collapsible.ts, chat-client.ts, chat-transport.ts, shortcuts-bridge.ts, clock.ts, help-setting.ts, version-list.ts, llm-connection.ts, llm-connection-strings.ts, backend-probe.ts"
 }

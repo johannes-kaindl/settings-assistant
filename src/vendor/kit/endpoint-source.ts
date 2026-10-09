@@ -1,4 +1,4 @@
-// vendored from obsidian-kit@0.48.1, src/pure/endpoint-source.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
+// vendored from obsidian-kit@0.51.2, src/pure/endpoint-source.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
 import { hydrateEndpointSecrets, resolveActiveEndpointConfig, type EndpointConfig } from "./endpoint_config";
 import type { SecretStore } from "./secrets";
 import { familyFromName, type BackendId, type FamilyId, type ModelFamilyId } from "./sampling-profiles";
@@ -69,6 +69,10 @@ export interface EndpointSourceInput {
    *  der Manager hat seinen eigenen Schlüsselbund. Obsidian-Konsumenten rufen dafür
    *  `prepareLocalEndpoints` (migriert und hydriert) und lassen dieses Feld leer. */
   secrets?: Pick<SecretStore, "get"> | null;
+  /** Namensraum der Schlüssel in `secrets` (z. B. `<pluginId>-ep`), Pflicht zusammen mit `secrets`:
+   *  gelesen wird nur eine `secretId` im Raum `<secretPrefix>-` (code-kit 0.15.0). Fehlt er, wird nicht
+   *  hydriert — die Config trägt dann keinen Schlüssel, es wird aber auch nie ein fremder gelesen. */
+  secretPrefix?: string;
   localModel?: string;
   capability: Capability;
   choice?: EndpointChoice;
@@ -92,6 +96,8 @@ export interface EndpointSourceResult {
   /** Nur vom Manager-Pfad gesetzt (lokale Endpunkte kennen nur `"http"`); additiv, Opt-in. */
   transport?: EndpointTransport;
   shortcut?: ShortcutTransportConfig;
+  /** Modell-Tabelle des Managers (nur Manager-Pfad), damit ein Aufruf mit anderem Modell dessen Familie und Alias kennt. */
+  models?: ApiModelInfo[];
 }
 
 /** Familie und gesendete Schreibweise eines Modells. `aliasOf` wird genau EINMAL aufgelöst —
@@ -146,6 +152,7 @@ async function finish(
   // Das Standardmodell in DERSELBEN Schreibweise wie sentModel — sonst meldet der Abschnitt
   // „Anfrage" eine JIT-Abweichung, wo nur der Alias greift.
   if (manager?.defaultModel) out.defaultModel = describeModel(manager.defaultModel, manager.models).sentModel;
+  if (manager?.models) out.models = manager.models;
   if (manager?.transport) out.transport = manager.transport;
   if (manager?.shortcut) out.shortcut = manager.shortcut;
   return out;
@@ -160,7 +167,7 @@ export async function resolveEndpointSource(
 ): Promise<EndpointSourceResult> {
   const { manager } = input;
   if (!manager) {
-    const config = await resolveActiveEndpointConfig(input.secrets ? hydrateEndpointSecrets(input.local, input.secrets) : input.local, ping);
+    const config = await resolveActiveEndpointConfig(input.secrets && input.secretPrefix ? hydrateEndpointSecrets(input.local, input.secrets, input.secretPrefix) : input.local, ping);
     return finish({ kind: "local", config, model: config ? localModelOf(input.choice, config, input.localModel) : "" }, input, null);
   }
   const opts = input.caller ? { caller: input.caller } : undefined;

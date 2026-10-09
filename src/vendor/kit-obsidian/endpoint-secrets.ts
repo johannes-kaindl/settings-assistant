@@ -1,4 +1,4 @@
-// vendored from obsidian-kit@0.48.1, src/obsidian/endpoint-secrets.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
+// vendored from obsidian-kit@0.51.2, src/obsidian/endpoint-secrets.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
 /** Schlüsselbund für die LOKALE Endpunkt-Liste eines Plugins ohne Endpoint-Manager.
  *
  *  Die Liste persistiert `secretId` statt `apiKey`; der Schlüssel lebt im Obsidian-Schlüsselbund
@@ -125,7 +125,7 @@ export function migrateLocalEndpoints<T extends EndpointConfig>(
 /** Kopien der Liste mit `apiKey` aus dem Schlüsselbund — für `authHeaders` und Clients. */
 export function hydrateLocalEndpoints<T extends EndpointConfig>(app: App, pluginId: string, list: T[]): T[] {
   if (!secretStorageAvailable(app)) return list.map((e) => ({ ...e }));
-  return hydrateEndpointSecrets(list, scopedSecretStore(obsidianSecretStore(app), pluginId)) as T[];
+  return hydrateEndpointSecrets(list, scopedSecretStore(obsidianSecretStore(app), pluginId), endpointSecretPrefix(pluginId)) as T[];
 }
 
 /** Ein Aufruf vor dem Auflösen: migriert (wer den Settings-Tab nie öffnet, migriert trotzdem),

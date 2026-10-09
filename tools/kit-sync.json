@@ -1,7 +1,7 @@
 {
   "sources": {
-    "obsidian-kit": { "ref": "0.48.1" },
-    "code-kit": { "ref": "0.11.0" }
+    "obsidian-kit": { "ref": "0.51.2" },
+    "code-kit": { "ref": "0.15.0" }
   },
   "targets": [
     { "dir": "src/vendor/kit", "source": "code-kit", "from": "src/ts/web", "modules": ["clipboard"] },
@@ -10,11 +10,12 @@
       "modules": [
         "sse", "endpoint", "endpoint_config", "endpoint_diagnostics", "model-choice",
         "model-list-cache", "reasoning", "capabilities", "think-splitter",
-        "timeout", "error_body", "i18n", "settings", "sampling-profiles", "rotation"
+        "timeout", "error_body", "i18n", "settings", "sampling-profiles", "rotation",
+        "backend-probe", "redact", "safe-markdown", "secrets"
       ]
     },
     {
-      "dir": "src/vendor/kit", "source": "obsidian-kit", "from": "src/pure", "modules": ["endpoint-source", "secrets"],
+      "dir": "src/vendor/kit", "source": "obsidian-kit", "from": "src/pure", "modules": ["endpoint-source"],
       "rewrite": [["../vendor/code-kit/pure/", "./"], ["../vendor/code-kit/web/", "./"], ["../pure/", "./"]]
     },
     {
@@ -22,10 +23,11 @@
       "modules": [
         "clipboard", "endpoint-list", "endpoint-secrets", "secrets", "model-picker", "settings_walker", "folder-suggest",
         "stream-area", "endpoint-source", "request-section", "request-session",
-        "thinking-control", "collapsible", "chat-client", "chat-transport", "shortcuts-bridge", "clock", "help-setting", "version-list"
+        "thinking-control", "collapsible", "chat-client", "chat-transport", "shortcuts-bridge", "clock", "help-setting", "version-list",
+        "llm-connection", "llm-connection-strings", "backend-probe"
       ],
       "rewrite": [["../pure/", "../kit/"], ["../vendor/code-kit/pure/", "../kit/"], ["../vendor/code-kit/web/", "../kit/"]]
     },
-    { "dir": "tests/vendor/kit", "source": "obsidian-kit", "from": "src/testing", "modules": ["obsidian-mock"] }
+    { "dir": "tests/vendor/kit", "source": "obsidian-kit", "from": "src/testing", "modules": ["kit-css", "obsidian-mock"] }
   ]
 }
