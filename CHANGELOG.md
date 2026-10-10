@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-10-10
+
 ### Changed
 
 - **The Model setting is gone.** The model now lives only in the endpoint row. On the first start after the update, the old value moves once into every endpoint row that has no model of its own, and `localModel` is removed from `data.json`. A value without any endpoint row (no local endpoints at all) is lost; with the LLM Endpoint Manager installed the rows are filled too, but its endpoints still decide.
