@@ -48,10 +48,10 @@ describe("Anbieter-API v1", () => {
 
   it("(M1) planProfile zeigt für die eigenen Einstellungen keine Ist-Werte (wie readSettings → own-settings)", async () => {
     const { api } = setup();
-    const r = await api.planProfile({ version: 1, plugins: { "settings-assistant": { endpoints: [], localModel: "m" } } });
+    const r = await api.planProfile({ version: 1, plugins: { "settings-assistant": { endpoints: [], retention: { today: 1 } } } });
     expect(r).toEqual({ rows: [
       { target: "plugins.settings-assistant", path: "endpoints", status: "read-only" },
-      { target: "plugins.settings-assistant", path: "localModel", status: "read-only" },
+      { target: "plugins.settings-assistant", path: "retention.today", status: "read-only" },
     ] });
   });
 

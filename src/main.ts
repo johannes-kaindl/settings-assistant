@@ -37,7 +37,10 @@ export default class SettingsAssistantPlugin extends Plugin {
 
   async onload(): Promise<void> {
     setLang(pickLang(safeGetLanguage()));
-    this.settings = loadSettings(await this.loadData());
+    const raw: unknown = await this.loadData();
+    this.settings = loadSettings(raw);
+    // Das frühere globale Modell ist in die Zeilen gewandert; den Altschlüssel einmal von der Platte nehmen.
+    if (typeof raw === "object" && raw !== null && "localModel" in raw) await this.saveSettings();
     this.llm = createLlmConnection({
       app: this.app,
       pluginId: this.manifest.id,

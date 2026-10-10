@@ -1,4 +1,4 @@
-import type { EndpointConfig } from "../vendor/kit/endpoint_config";
+import { fillMissingRowModels, type EndpointConfig } from "../vendor/kit/endpoint_config";
 import type { EndpointChoice } from "../vendor/kit/endpoint-source";
 import { DEFAULT_GFS_POLICY, type GfsPolicy } from "../vendor/kit/rotation";
 import { DEFAULT_REQUEST_SETTINGS, sanitizeRequestSettings, type RequestSettings } from "../vendor/kit/sampling-profiles";
@@ -8,7 +8,6 @@ export interface SettingsAssistantSettings {
   retention: GfsPolicy;
   endpoints: EndpointConfig[];
   endpointChoice: EndpointChoice;
-  localModel: string;
   request: RequestSettings;
 }
 
@@ -16,7 +15,6 @@ export const DEFAULT_SETTINGS: SettingsAssistantSettings = {
   retention: DEFAULT_GFS_POLICY,
   endpoints: [],
   endpointChoice: {},
-  localModel: "",
   request: DEFAULT_REQUEST_SETTINGS,
 };
 
@@ -57,15 +55,19 @@ function loadChoice(raw: unknown): EndpointChoice {
   };
 }
 
-/** Werte prüfen, nicht durchreichen; unbekannte Felder bleiben erhalten (Spec § 12). */
+/** Werte prüfen, nicht durchreichen; unbekannte Felder bleiben erhalten (Spec § 12).
+ *  Migration: Das frühere globale Modell `localModel` wandert einmalig in die Endpunkt-Zeilen ohne eigenes Modell
+ *  (`fillMissingRowModels`, Reihenfolge laut dessen TSDoc: Zeilen laden → füllen → Altschlüssel entfernen). Der
+ *  Altschlüssel muss aus dem Ergebnis verschwinden — `...merged` trägt ihn sonst bei jedem Start wieder mit, und
+ *  die Migration füllte eine bewusst geleerte Zeile erneut auf. Gespeichert wird in `main.ts`, wenn er dastand. */
 export function loadSettings(raw: unknown): SettingsAssistantSettings {
   const merged = mergeSettings(DEFAULT_SETTINGS, raw) as SettingsAssistantSettings & Record<string, unknown>;
+  const { localModel: legacyModel, ...rest } = merged;
   return {
-    ...merged,
+    ...rest,
     retention: loadRetention(merged.retention),
-    endpoints: loadEndpoints(merged.endpoints),
+    endpoints: fillMissingRowModels(loadEndpoints(merged.endpoints), legacyModel),
     endpointChoice: loadChoice(merged.endpointChoice),
-    localModel: typeof merged.localModel === "string" ? merged.localModel : "",
     request: sanitizeRequestSettings(merged.request).settings,
   };
 }

@@ -78,28 +78,18 @@ describe("SettingsAssistantSettingTab", () => {
     expect(calls[0]?.[1]).toEqual({ lang: "en" });
   });
 
-  it("ohne Manager gibt es die Modell-Zeile; ihre Eingabe setzt localModel, verwirft die gemerkte Auflösung und speichert", async () => {
+  it("es gibt keine globale Modell-Zeile mehr: das Modell lebt nur in der Endpunkt-Zeile (mit und ohne Manager)", async () => {
     const h = host();
     const { el } = await render(h);
-    const input = el.querySelectorAll("input").find((i: FakeEl) => i.getAttribute("aria-label") === "Model");
-    expect(input).toBeTruthy();
-    const comp = (input.parentElement.parentElement as FakeEl).__setting.components[0];
-    comp.onChangeCB?.("  qwen3  ");
-    await flush();
-    expect(h.settings.localModel).toBe("qwen3");
-    expect(h.llm.invalidate).toHaveBeenCalledTimes(1);
-    expect(h.saveSettings).toHaveBeenCalledTimes(1);
-  });
-
-  it("mit Manager gibt es die Modell-Zeile nicht", async () => {
+    expect(el.querySelectorAll("input").filter((i: FakeEl) => i.getAttribute("aria-label") === "Model")).toHaveLength(0);
     const app = fakeApp();
     (app as unknown as { plugins: { plugins: Record<string, unknown> } }).plugins.plugins["llm-endpoint-manager"] = { api: { version: 1, list: () => [], get: () => null, resolve: async () => ({}), materialize: async () => ({}), models: async () => [], importEndpoints: async () => ({}), on: () => () => {} } };
     const tab = new SettingsAssistantSettingTab(app, PLUGIN, host());
-    const el = makeFakeEl();
-    (tab as unknown as { containerEl: FakeEl }).containerEl = el;
+    const el2 = makeFakeEl();
+    (tab as unknown as { containerEl: FakeEl }).containerEl = el2;
     tab.display();
     await flush();
-    expect(el.querySelectorAll("input").filter((i: FakeEl) => i.getAttribute("aria-label") === "Model")).toHaveLength(0);
+    expect(el2.querySelectorAll("input").filter((i: FakeEl) => i.getAttribute("aria-label") === "Model")).toHaveLength(0);
   });
 
   it("hide() schließt die Modell-Listen der Verbindung", async () => {

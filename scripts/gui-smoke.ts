@@ -803,7 +803,7 @@ async function p8p12(c: Ctx): Promise<void> {
   const pre = await c.cdp.evaluate<{ url: string | null }>(`
     const p = app.plugins.plugins[${q(PLUGIN_ID)}];
     p.settings.endpoints = [{ url: ${q(c.fake.url)}, apiKey: ${q(FAKE_ENDPOINT_KEY)}, model: ${q(FAKE_MODEL)} }];
-    p.settings.endpointChoice = {}; p.settings.localModel = "";
+    p.settings.endpointChoice = {};
     p.llm.invalidate();
     await p.saveSettings();
     const ep = await p.resolveEndpoint();
@@ -891,7 +891,7 @@ async function chatRunde(c: Ctx, frage: string): Promise<void> {
   const pre = await c.cdp.evaluate<{ url: string | null }>(`
     const p = app.plugins.plugins[${q(PLUGIN_ID)}];
     p.settings.endpoints = [{ url: ${q(c.fake.url)}, apiKey: ${q(FAKE_ENDPOINT_KEY)}, model: ${q(FAKE_MODEL)} }];
-    p.settings.endpointChoice = {}; p.settings.localModel = "";
+    p.settings.endpointChoice = {};
     p.llm.invalidate();
     await p.saveSettings();
     const ep = await p.resolveEndpoint();
@@ -1039,7 +1039,7 @@ async function p15(c: Ctx): Promise<void> {
     if (app.plugins.plugins[id]) await app.plugins.disablePlugin(id);
     const alt = (await app.vault.adapter.exists(path)) ? JSON.parse(await app.vault.adapter.read(path)) : {};
     alt.endpoints = [{ url: ${q(c.fake.url)}, apiKey: ${q(FAKE_ENDPOINT_KEY)}, model: ${q(FAKE_MODEL)} }];
-    alt.endpointChoice = {}; alt.localModel = "";
+    alt.endpointChoice = {};
     await app.vault.adapter.write(path, JSON.stringify(alt, null, 2));
     // Gegenprobe der Vorbedingung: der Klartext steht VOR dem Einschalten auf Platte (das Plugin kann ihn beim Start sofort bereinigen).
     const vorher = (await app.vault.adapter.read(path)).includes(${q(FAKE_ENDPOINT_KEY)});
