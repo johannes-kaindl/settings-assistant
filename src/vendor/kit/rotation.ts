@@ -1,4 +1,4 @@
-// vendored from code-kit@0.15.4, src/ts/pure/rotation.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
+// vendored from code-kit@0.17.0, src/ts/pure/rotation.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
 /** Which of a set of timestamp-named directories have to go, so that the newest `keep`
  *  survive. Used for rotating backups, snapshots and any other write-once, keep-N store.
  *
@@ -57,6 +57,19 @@ export function selectRotatedOut(names: string[], keep: number): string[] {
  *  **Callers delete only after the new snapshot has been written** — the retention keeps no
  *  "last remainder": a single entry older than the oldest window is in `drop`.
  *
+ *  ── Protecting entries: `keepNewest` and `protect` (added 0.17.0) ───────────────────────
+ *  GFS keeps the **oldest** entry of each window. A caller whose entry times are not the time the
+ *  entry was written has no "newest is safe" guarantee: vault-rag names its index backups after the
+ *  `built_at` of the index container, so with backups of 10-08 07:00 and 10-09 09:00 / 15:00 / 21:00
+ *  at `now` = 10-10 12:00 the newest (10-09 21:00) lands in `drop`. `keepNewest` protects the
+ *  newest entry that is not after `now`. `protect` is the general form — a list of names that are
+ *  never in `drop` — and covers what settings-assistant (`snapshots.ts`) did by filtering `drop`
+ *  afterwards (the snapshot taken in the very run). Both default off, so existing callers are
+ *  unchanged; both are additive, and a protected entry that no window keeps is labelled
+ *  `"protected"` (`keep` and `drop` stay disjoint, which a `drop.filter` could not promise).
+ *  The two are separate options because they answer different questions — "never lose the latest"
+ *  needs no name, "never lose this one" is a name the caller already holds.
+ *
  *  ── Calendar ────────────────────────────────────────────────────────────────────────────
  *  Day, week (ISO, Monday start) and month borders come from an injected {@link GfsCalendar};
  *  `now` is injected too (no `Date.now()`, no file system). A calendar maps an instant to the
@@ -67,7 +80,9 @@ export function selectRotatedOut(names: string[], keep: number): string[] {
  *  {@link zoneCalendar} for a named IANA zone independent of the machine. Entries after `now`
  *  (clock skew) are always kept and labelled `"future"`. */
 
-export type GfsBucket = "today" | "day" | "week" | "month" | "future";
+/** `"protected"` (0.17.0) is only ever the label of an entry that `keepNewest` / `protect` keeps
+ *  and no window does; {@link gfsBucket} classifies by window and never returns it. */
+export type GfsBucket = "today" | "day" | "week" | "month" | "future" | "protected";
 
 export interface GfsPolicy {
   /** The newest N entries of the current day. */
@@ -105,6 +120,10 @@ export interface GfsOptions {
   policy?: GfsPolicy;
   /** Default {@link localCalendar}. */
   calendar?: GfsCalendar;
+  /** Also keep the newest entry that is not after `now`. Default off. See the module header. */
+  keepNewest?: boolean;
+  /** Names that are never in `drop`; a name that is not an entry is ignored. Default none. */
+  protect?: readonly string[];
 }
 
 const DAY_MS = 86_400_000;
@@ -149,7 +168,7 @@ export function zoneCalendar(timeZone: string): GfsCalendar {
 }
 
 /** The display order: the shortest window wins, so a grouped list shows every entry once. */
-const RANK: readonly GfsBucket[] = ["today", "day", "week", "month", "future"];
+const RANK: readonly GfsBucket[] = ["today", "day", "week", "month", "future", "protected"];
 
 /** The windows an entry satisfies as a *candidate* (not whether it is the oldest of its window). */
 function windowsOf(time: number, now: number, policy: GfsPolicy, cal: GfsCalendar): GfsBucket[] {
@@ -172,7 +191,7 @@ export function gfsBucket(entry: GfsEntry, now: number, opts: GfsOptions = {}): 
 
 /** Which entries stay and which may go. `keep` and `drop` are both oldest first (ties by name);
  *  each kept entry carries its display `bucket` (rank today > day > week > month; `future` for an
- *  entry after `now`) and all `buckets` it satisfies — the windows overlap, an entry can owe its
+ *  entry after `now`; `protected` for one only `keepNewest` / `protect` keeps) and all `buckets` it satisfies — the windows overlap, an entry can owe its
  *  place to two. `entries` is not modified. */
 export function selectGfsRetention(
   entries: readonly GfsEntry[],
@@ -212,6 +231,18 @@ export function selectGfsRetention(
   oldestPerWindow("week", (ms) => cal.week(ms));
   oldestPerWindow("month", (ms) => cal.month(ms));
 
+  if (opts.keepNewest) {
+    // `sorted` is oldest first, so the last entry that is not in the future is the newest real one.
+    for (let i = sorted.length - 1; i >= 0; i--) {
+      const e = sorted[i];
+      if (e && e.time <= now) { mark(e.name, "protected"); break; }
+    }
+  }
+  if (opts.protect?.length) {
+    const protectedNames = new Set(opts.protect);
+    for (const e of sorted) if (protectedNames.has(e.name)) mark(e.name, "protected");
+  }
+
   const keep: { name: string; bucket: GfsBucket; buckets: GfsBucket[] }[] = [];
   const drop: string[] = [];
   for (const e of sorted) {
@@ -222,4 +253,47 @@ export function selectGfsRetention(
     else keep.push({ name: e.name, bucket: first, buckets });
   }
   return { keep, drop };
+}
+
+/* ── Names that carry their time ─────────────────────────────────────────────────────────
+ *
+ *  {@link selectGfsRetention} needs `{ name, time }`; the caller derives the time. The time is read
+ *  from the **name**, not from the file's mtime, on purpose: a copy, a sync or a backup restore sets
+ *  mtimes anew, and the retention would then rotate by the wrong instant. The name survives that.
+ *  (Reasoning and tests taken over from `finance-ledger/src/core/snapshot/snapshotName.ts`.)
+ *
+ *  Two copies existed: finance-ledger `snapshotFileName(prefix, time)` / `snapshotTimeFromName(name)`
+ *  (`<prefix>-YYYY-MM-DDTHH-MM-SS-mmmZ.json`, "unknown means keep") and vault-rag `backupDirName`
+ *  (`builtAt.replace(/[:.]/g, "-")`, the stamp alone, no inverse — and `Date.parse` on such a name
+ *  is `NaN`). One pair carries both: the stamp is the ISO instant with `-` for `:` and `.`, always
+ *  UTC (sortable and place-independent; the calendar borders are drawn later by the injected
+ *  {@link GfsCalendar}), and it may sit anywhere in the name between a `prefix` and a `suffix`.
+ *
+ *  Not carried: a stamp without milliseconds (obsidian-transmute drops them). Such a name is `null`
+ *  — and so kept. */
+
+const STAMP_RE = /(?<!\d)(\d{4})-(\d{2})-(\d{2})T(\d{2})-(\d{2})-(\d{2})-(\d{3})Z(?!\d)/;
+
+/** The name for an instant: `prefix` + `YYYY-MM-DDTHH-MM-SS-mmmZ` (UTC) + `suffix`. Prefix and
+ *  suffix are taken verbatim, so the caller puts the separator and the extension in
+ *  (`{ prefix: "snap-", suffix: ".json" }`). With equal affixes the names sort in chronological
+ *  order, which is what {@link selectRotatedOut} needs. Throws a `RangeError` for a time that is
+ *  not a date (`NaN`, ±Infinity): a name that cannot be read back is worse than no name. */
+export function stampedName(time: number, affixes: { prefix?: string; suffix?: string } = {}): string {
+  const stamp = new Date(time).toISOString().replace(/[:.]/g, "-");
+  return `${affixes.prefix ?? ""}${stamp}${affixes.suffix ?? ""}`;
+}
+
+/** The instant a name carries, or `null` if it carries none. `null` means "do not pass this entry
+ *  to {@link selectGfsRetention}": what the retention does not know it does not delete — unknown
+ *  means keep. A stamp that is not a real instant (month 13, 30 February) is `null` too: `Date.UTC`
+ *  would roll it over to a different day, and a rotation by the wrong day is silent. If a name
+ *  holds several stamps, the first one counts. */
+export function timeFromStampedName(name: string): number | null {
+  const m = STAMP_RE.exec(name);
+  if (!m) return null;
+  const [y, mo, d, h, mi, s, ms] = m.slice(1).map(Number) as [number, number, number, number, number, number, number];
+  const time = Date.UTC(y, mo - 1, d, h, mi, s, ms);
+  // Round trip: the same stamp must come back, otherwise the fields were out of range and rolled over.
+  return Number.isNaN(time) || new Date(time).toISOString().replace(/[:.]/g, "-") !== m[0] ? null : time;
 }
