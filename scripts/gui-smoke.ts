@@ -1,5 +1,5 @@
 /**
- * GUI-Smoke — faehrt die Pruefpunkte P1-P18 gegen ein LAUFENDES Obsidian (CORE-TEST-02 b).
+ * GUI-Smoke — faehrt die Pruefpunkte P1-P19 gegen ein LAUFENDES Obsidian (CORE-TEST-02 b).
  *
  * Gemessen wird die SACHE: Dateiinhalt auf Platte (`sa-probe/data.json`, `hotkeys.json`, Schnappschuss-
  * Manifest), Dialogtext, Notice — nicht die Existenz eines Elements. Das Testplugin `sa-probe`
@@ -82,6 +82,7 @@ const PUNKTE = [
   "P16 Roh-Block im Chat: unter dem Block ein „Raw block (secrets redacted)“ mit 🔒, nirgends der Schluessel; ungueltiges JSON wird nicht angezeigt",
   "P17 Neutralisierung: dataviewjs-Zaun, Inline-Code, img und javascript:-Link erzeugen im Chat kein code/pre/img und keinen Request",
   "P18 Schwaerzung: Bearer-Token und PEM gehen als Platzhalter an den Server, die Antwort kommt im Original zurueck, ein Bild mit Platzhalter in der URL erzeugt kein img",
+  "P19 Globales Modell abgeschafft: Alt-data.json mit localModel migriert in die Zeile, danach kein localModel mehr auf Platte, eine geleerte Zeile bleibt leer, die Zeilenauswahl hat keine Option „global model“",
 ] as const;
 type PunktName = (typeof PUNKTE)[number];
 const pn = (prefix: string): PunktName => {
@@ -1092,6 +1093,48 @@ async function p15(c: Ctx): Promise<void> {
     `data.json ohne Klartext, mit secretId/id, ohne apiKey: ${String(platteOk)} · hydrierter Schluessel im Speicher: ${String(speicherOk)} · Authorization-Header am Server „${gesehen === null ? "keine Anfrage" : gesehen.replace(FAKE_ENDPOINT_KEY, "<Endpunkt-Schluessel>")}“ (ok ${String(headerOk)}) · Zeile „${String(zeile.saved)}“, Klartext sichtbar: ${String(zeile.klartext)}`);
 }
 
+/** Alt-`data.json` mit `localModel` → Migration in die Zeile ohne Modell → Altschluessel von der Platte → zweiter Start. */
+async function p19(c: Ctx): Promise<void> {
+  const lauf = (alt: string) => c.cdp.evaluate<{ ok: boolean; vorher: string }>(`
+    const id = ${q(PLUGIN_ID)};
+    const path = app.vault.configDir + "/plugins/" + id + "/data.json";
+    if (app.plugins.plugins[id]) await app.plugins.disablePlugin(id);
+    const alt = (await app.vault.adapter.exists(path)) ? JSON.parse(await app.vault.adapter.read(path)) : {};
+    ${alt}
+    await app.vault.adapter.write(path, JSON.stringify(alt, null, 2));
+    const vorher = await app.vault.adapter.read(path);
+    await app.plugins.enablePlugin(id);
+    await new Promise((r) => setTimeout(r, 1200));
+    return { ok: !!app.plugins.plugins[id], vorher };
+  `);
+  const lies = async () => JSON.parse((await c.cdp.evaluate<{ t: string }>(`return { t: await app.vault.adapter.read(app.vault.configDir + "/plugins/" + ${q(PLUGIN_ID)} + "/data.json") };`)).t) as { localModel?: unknown; endpoints?: Array<{ model?: string }> };
+  const pre = await lauf(`alt.endpoints = [{ url: ${q(c.fake.url)}, apiKey: "" }]; alt.endpointChoice = {}; alt.localModel = "legacy-p19";`);
+  if (!pre.ok) throw new Vorbedingung("settings-assistant laesst sich nicht neu laden");
+  if (!pre.vorher.includes("legacy-p19")) throw new Vorbedingung("die Vorbereitung hat localModel nicht in die data.json gebracht");
+  await sleep(800);
+  const a = await lies();
+  const migriert = a.endpoints?.[0]?.model === "legacy-p19" && !("localModel" in a);
+  // Zweiter Lauf: die Zeile bewusst leeren, Plugin neu starten — sie darf nicht wieder gefuellt werden.
+  const pre2 = await lauf(`alt.endpoints = [{ url: ${q(c.fake.url)}, apiKey: "" }]; delete alt.localModel;`);
+  if (!pre2.ok) throw new Vorbedingung("settings-assistant laesst sich nicht ein zweites Mal neu laden");
+  await sleep(800);
+  const b = await lies();
+  const bleibtLeer = (b.endpoints?.[0]?.model ?? "") === "" && !("localModel" in b);
+  // Zeilenauswahl: Optionen aller Auswahlfelder der Einstellungen; ohne gemessene Auswahl ist „keine Option“ nichts wert.
+  await lauf(`alt.endpoints = [{ url: ${q(c.fake.url)}, apiKey: "", model: ${q(FAKE_MODEL)} }]; delete alt.localModel;`);
+  let stelle: SettingsStelle | null = null;
+  let opts: string[] = [];
+  try {
+    stelle = await openSettings(c.cdp, c.port);
+    await sleep(1500);
+    opts = (await stelle.cdp.evaluate<{ o: string[] }>(`return { o: Array.from(document.querySelectorAll("select option")).map((o) => o.textContent ?? "") };`)).o;
+  } finally { closeSettings(c.cdp, stelle); }
+  if (opts.length === 0) { unmeasured(pn("P19"), "keine Auswahl mit Optionen in den Einstellungen gesehen — „keine Option global model“ waere nichts wert"); return; }
+  const global = opts.filter((o) => /global model|globales Modell/i.test(o));
+  record(pn("P19"), migriert && bleibtLeer && global.length === 0,
+    `Altwert in der Zeile, localModel von der Platte: ${String(migriert)} · geleerte Zeile bleibt nach Neustart leer: ${String(bleibtLeer)} · Optionen [${opts.join("; ")}], davon „global model“: ${global.length}`);
+}
+
 async function main(): Promise<void> {
   const argv = process.argv.slice(2);
   const portArg = argv.indexOf("--port");
@@ -1128,7 +1171,7 @@ async function main(): Promise<void> {
       const reihe: Array<[PunktName, (c: Ctx) => Promise<void>]> = [
         [pn("P1"), p1], [pn("P2"), p2], [pn("P13"), p13], [pn("P7"), p7], [pn("P14"), p14],
         [pn("P3"), p3], [pn("P4"), p4], [pn("P5"), p5], [pn("P11"), p11], [pn("P6"), p6],
-        [pn("P9"), p9], [pn("P10"), p10], [pn("P8"), p8p12], [pn("P15"), p15], [pn("P16"), p16], [pn("P17"), p17], [pn("P18"), p18],
+        [pn("P9"), p9], [pn("P10"), p10], [pn("P8"), p8p12], [pn("P15"), p15], [pn("P16"), p16], [pn("P17"), p17], [pn("P18"), p18], [pn("P19"), p19],
       ];
       for (const [name, fn] of reihe) {
         await schliesseDialoge(cdp);
