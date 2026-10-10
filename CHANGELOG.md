@@ -4,6 +4,12 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Changed
+
+- **The Model setting is gone.** The model now lives only in the endpoint row. On the first start after the update, the old value moves once into every endpoint row that has no model of its own, and `localModel` is removed from `data.json`. A value without any endpoint row (no local endpoints at all) is lost; with the LLM Endpoint Manager installed the rows are filled too, but its endpoints still decide.
+- A new endpoint row inherits no model any more, and a model that is set in a row can no longer be switched back to "empty" in the row's selection (the option **global model** is gone). A row without a model sends an empty model name: the chat then shows an empty **Model** in the sent context and the snapshot origin reads `chat:<time>/`.
+- The shared kit is updated (code-kit 0.17.0). The check for remote targets in the chat answer now treats link and image targets longer than 2048 characters as remote (fail closed), so such a target is neutralised instead of rendered.
+
 ## [0.2.0] — 2026-10-09
 
 ### Changed

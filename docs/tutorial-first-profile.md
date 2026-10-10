@@ -6,7 +6,7 @@ This walk-through takes you from a fresh install to one setting changed through 
 
 Follow the [manual install in the README](https://github.com/johannes-kaindl/settings-assistant/blob/main/README.md#install), then enable **Settings Assistant** under **Settings → Community plugins**. The plugin needs Obsidian 1.11.4 or newer.
 
-Open **Settings → Settings Assistant**. The first row is **Help**; below it you will find the endpoint, the chat model, **Request** and **Snapshots**. You do not need to set any of them for a profile in a note.
+Open **Settings → Settings Assistant**. The first row is **Help**; below it you will find the endpoint (each row with its model), **Request** and **Snapshots**. You do not need to set any of them for a profile in a note.
 
 ## 2. Pick a setting to change
 

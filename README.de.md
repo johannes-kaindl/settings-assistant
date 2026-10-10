@@ -83,9 +83,8 @@ Die Anleitung [First profile](https://github.com/johannes-kaindl/settings-assist
 | Einstellung | Was sie tut |
 |---|---|
 | Hilfe | Öffnet die Dokumentation und den Issue-Tracker. |
-| Endpunkt | Mit installiertem LLM Endpoint Manager: einen Endpunkt wählen oder den ersten erreichbaren gewinnen lassen. Ohne ihn: eine geordnete Liste OpenAI-kompatibler Server, je mit optionalem API-Schlüssel und Modell-Überschreibung, Verbindungsstatus und Knopf **Verbindung prüfen**. |
+| Endpunkt | Mit installiertem LLM Endpoint Manager: einen Endpunkt wählen oder den ersten erreichbaren gewinnen lassen. Ohne ihn: eine geordnete Liste OpenAI-kompatibler Server, je mit optionalem API-Schlüssel und Modell, Verbindungsstatus und Knopf **Verbindung prüfen**. |
 | Request | Die tatsächlich gesendeten Sampling-Werte, Denkstufe und das Token-Budget für die aktuelle Modellfamilie, dazu die letzte Anfrage und Abweichungen der Sitzung. |
-| Modell | Nur ohne Manager: das Modell für Endpunkte der Liste ohne eigenes. Leer lässt den Server nehmen, was er geladen hat. |
 | Aufbewahrung | Wie viele Schnappschüsse bleiben: **Behalten von heute**, **Behalten je Tag**, **Behalten je Woche**, **Behalten je Monat**. Standard 6, 7, 4 und 6; 0 behält für den Zeitraum keinen. |
 | Gespeicherte Schnappschüsse | Die Liste der Schnappschüsse, neueste zuerst. Ein Klick öffnet den Zurückholen-Dialog. |
 
