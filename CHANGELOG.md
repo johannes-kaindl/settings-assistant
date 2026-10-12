@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.4.1] — 2026-10-12
+
 ### Changed
 
 - **Endpoint rows:** the "move up" and "remove endpoint" buttons stay together, and the address and the model ID stay fully visible at normal width; in a narrow window the block of model and buttons moves as a whole into a second line (obsidian-kit 0.59.0–0.59.1). The key field gives way first, so its placeholder may be shortened.

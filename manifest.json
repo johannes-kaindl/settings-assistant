@@ -1,7 +1,7 @@
 {
   "id": "settings-assistant",
   "name": "Settings Assistant",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "minAppVersion": "1.11.4",
   "description": "Change app and plugin settings through reviewed profiles or a local-LLM chat — with secrets left out, a diff before every write, and snapshots to roll back.",
   "author": "Johannes Kaindl",
