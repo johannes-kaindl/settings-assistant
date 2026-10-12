@@ -10,10 +10,10 @@
  *
  * ```bash
  * npm run build
- * lsof -nP -iTCP:9400 -sTCP:LISTEN                         # Port frei?
- * python3 ~/.claude/hooks/obsidian-cdp-lock.py acquire --label settings-assistant --intent "shots.ts" --exclusive focus --port 9400 --ttl 300
- * npm run shots -- --port 9400                              # alles aufnehmen (frischer Prozess je Lauf)
- * npm run shots -- --port 9400 --only hero.png              # ein Bild
+ * lsof -nP -iTCP:<PORT> -sTCP:LISTEN                         # Port frei?
+ * python3 ~/.claude/hooks/obsidian-cdp-lock.py acquire --label settings-assistant --intent "shots.ts" --exclusive focus --port <PORT> --ttl 300
+ * npm run shots -- --port <PORT>                              # alles aufnehmen (frischer Prozess je Lauf)
+ * npm run shots -- --port <PORT> --only hero.png              # ein Bild
  * npm run shots -- --list                                   # Vertrag anzeigen
  * python3 ~/.claude/hooks/obsidian-cdp-lock.py release
  * ```
@@ -39,7 +39,6 @@ const DEMO_ID = "quick-capture";
 const REPO_ROOT = cwd();
 const OUT_DIR = join(REPO_ROOT, "docs/images");
 const FIXTURE_DIR = join(OUT_DIR, "fixture");
-const DEFAULT_PORT = 9400;
 const PROFILE_BASE = "/tmp/obs-test-settings-assistant";
 const OBSIDIAN_BIN = "/Applications/Obsidian.app/Contents/MacOS/Obsidian";
 const CAPTURE_WIDTH = 1200;
@@ -423,7 +422,10 @@ async function main(): Promise<void> {
     for (const s of SHOTS) console.log(`  ${s.klasse.padEnd(8)} ${s.name}`);
     return;
   }
-  const port = Number(flag("--port") ?? DEFAULT_PORT);
+  const port = Number(flag("--port"));
+  if (!Number.isInteger(port) || port < 1024 || port > 65535) {
+    throw new Error("--port <1024-65535> ist Pflicht (kein Standardport: 9222 gehoert der regulaeren Instanz). Beispiel: npm run shots -- --port <PORT>");
+  }
   const nur = flag("--only");
   if (!existsSync(OUT_DIR)) mkdirSync(OUT_DIR, { recursive: true });
 

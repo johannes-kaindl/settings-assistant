@@ -14,9 +14,9 @@
  *
  *   echo "$STAGING_VAULTS_DIR"                                      # muss gesetzt sein (~/.zshenv)
  *   npm run build
- *   lsof -nP -iTCP:9361 -sTCP:LISTEN                                # Port frei?
- *   python3 ~/.claude/hooks/obsidian-cdp-lock.py acquire --label settings-assistant --intent "GUI-Smoke :9361" --exclusive focus --port 9361 --ttl 300
- *   npm run smoke:gui -- --launch --port 9361
+ *   lsof -nP -iTCP:<PORT> -sTCP:LISTEN                                # Port frei?
+ *   python3 ~/.claude/hooks/obsidian-cdp-lock.py acquire --label settings-assistant --intent "GUI-Smoke :<PORT>" --exclusive focus --port <PORT> --ttl 300
+ *   npm run smoke:gui -- --launch --port <PORT>
  *   python3 ~/.claude/hooks/obsidian-cdp-lock.py release
  *
  * `--launch` baut den Vault aus `fixtures/vault/` (VOR jedem Lauf, Zustand aus Abbruechen darf nicht
@@ -51,7 +51,6 @@ const PROBE_ID = "sa-probe";
 const REPO_ROOT = cwd();
 const FIXTURE_DIR = join(REPO_ROOT, "fixtures/vault");
 const PROBE_FIXTURE = join(REPO_ROOT, "fixtures/plugins", PROBE_ID);
-const DEFAULT_PORT = 9361;
 const PROFILE_BASE = "/tmp/obs-test-settings-assistant";
 const OBSIDIAN_BIN = "/Applications/Obsidian.app/Contents/MacOS/Obsidian";
 const FAKE_MODEL = "smoke-model";
@@ -1099,8 +1098,11 @@ async function p19(c: Ctx): Promise<void> {
 
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
-  const port = Number(args.value("port") ?? DEFAULT_PORT);
-  if (args.has("setup")) { setupVault(); console.log(`\nDen Vault in der Zweitinstanz oeffnen, dann: npm run smoke:gui -- --port ${port}`); return; }
+  if (args.has("setup")) { setupVault(); console.log("\nDen Vault in der Zweitinstanz oeffnen, dann: npm run smoke:gui -- --port <PORT>"); return; }
+  const port = Number(args.value("port"));
+  if (!Number.isInteger(port) || port < 1024 || port > 65535) {
+    throw new Error("--port <1024-65535> ist Pflicht (kein Standardport: 9222 gehoert der regulaeren Instanz). Beispiel: npm run smoke:gui -- --launch --port <PORT>");
+  }
 
   const launch = args.has("launch");
   const fake = await startFakeEndpoint();
