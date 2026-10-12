@@ -6,10 +6,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Changed
 
-- **Endpoint rows:** the "move up" and "remove endpoint" buttons now sit together and stay in one place; the address field keeps its full width while the API key and model fields are a little narrower (obsidian-kit 0.59.0).
+- **Endpoint rows:** the "move up" and "remove endpoint" buttons stay together, and the address and the model ID stay fully visible at normal width; in a narrow window the block of model and buttons moves as a whole into a second line (obsidian-kit 0.59.0–0.59.1). The key field gives way first, so its placeholder may be shortened.
 - **Request section:** for a model whose family or backend is not known yet, the section now reads "Family: not detected yet · Backend: not detected yet" and notes that this is normal for a freshly added endpoint (it was "unknown"; obsidian-kit 0.59.0).
 - **Chat:** scrolling up while a reply streams keeps your position, as before. The kit now follows the end by itself; the chat tells it whether you were at the bottom, so the view does not jump back.
-- Kit pins moved to obsidian-kit 0.59.0 and code-kit 0.24.0 (skipping obsidian-kit 0.56.1–0.58.0, whose changes nothing in the plugin shows).
+- Kit pins moved to obsidian-kit 0.59.1 and code-kit 0.24.0 (skipping obsidian-kit 0.56.1–0.58.0, whose changes nothing in the plugin shows).
 
 ## [0.4.0] — 2026-10-12
 
