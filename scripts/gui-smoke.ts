@@ -85,6 +85,7 @@ const PUNKTE = [
   "P20 Strom: der Chat-Verlauf folgt dem Ende, solange niemand eingreift (Kontrolle zu P21)",
   "P21 Folge-Regel: Hochscrollen mitten im Strom wird respektiert, der Verlauf springt nicht zurueck",
   "P22 Denkblock live: der Reasoning-Text ist waehrend des Stroms sichtbar und waechst",
+  "P23 Strom mit absatzgrossen Stuecken: der Chat-Verlauf folgt dem Ende auch bei Spruengen ueber die Folge-Schwelle (Kit 0.59.0, withFollow)",
 ] as const;
 type PunktName = (typeof PUNKTE)[number];
 const pn = (prefix: string): PunktName => {
@@ -1093,8 +1094,12 @@ const STROM_STUECKE = Math.ceil(STROM_TEXT.length / STROM_LAENGE);
 const MSGS = `document.querySelector(".sa-chat-messages")`;
 interface Strom { grund?: string; ueberlauf: number; hoehe: number; stuecke: number; proben: { top: number; abstand: number }[] }
 
-async function strommessung(c: Ctx, stoere: boolean): Promise<Strom> {
-  const stub = await startLlmStub({ models: [FAKE_MODEL], takt: STROM_TAKT, nachlaufMs: 3 * STROM_TAKT, standard: { text: STROM_TEXT, laenge: STROM_LAENGE } });
+async function strommessung(c: Ctx, stoere: boolean, grob = false): Promise<Strom> {
+  // `grob`: ein ganzer Absatz je Stueck (Zuwachs > 40 px, Kit-Folge-Schwelle).
+  const absaetze = STROM_TEXT.split(/(?<=\n\n)/);
+  const takt = grob ? 150 : STROM_TAKT;
+  const anzahl = grob ? absaetze.length : STROM_STUECKE;
+  const stub = await startLlmStub({ models: [FAKE_MODEL], takt, nachlaufMs: 3 * takt, standard: grob ? { stuecke: absaetze } : { text: STROM_TEXT, laenge: STROM_LAENGE } });
   try {
     await chatSenden(c, "SMOKE-STROM lange Antwort", stub.url);
     const hoehe = await c.cdp.evaluate<number>(`const el = ${MSGS}; return el ? el.clientHeight : -1;`);
@@ -1114,7 +1119,7 @@ async function strommessung(c: Ctx, stoere: boolean): Promise<Strom> {
     const t = Date.now();
     if (start === null) return { grund: "Ueberlauf blieb unter 100 px (Strom zu kurz oder Verlauf zu hoch)", ueberlauf: 0, hoehe, stuecke: 0, proben: [] };
     const chat0 = stub.letzte("chat")?.zeit ?? t;
-    const bis = chat0 + STROM_STUECKE * STROM_TAKT - STROM_TAKT; // nur bis zum vorletzten Stueck abtasten
+    const bis = chat0 + anzahl * takt - takt; // nur bis zum vorletzten Stueck abtasten
     const proben: { top: number; abstand: number }[] = [];
     while (Date.now() < bis) {
       proben.push(await c.cdp.evaluate<{ top: number; abstand: number }>(`
@@ -1123,7 +1128,7 @@ async function strommessung(c: Ctx, stoere: boolean): Promise<Strom> {
       `));
       await sleep(60);
     }
-    const stuecke = Math.max(0, Math.floor((bis - t) / STROM_TAKT));
+    const stuecke = Math.max(0, Math.floor((bis - t) / takt));
     await pollUntil<boolean>(c.cdp, `const s = document.querySelector(".sa-chat-send"); return s && s.textContent === "Send" ? true : null;`, 25_000, 300).catch(() => undefined);
     return { ueberlauf: start.ue, hoehe, stuecke, proben, grund: stuecke < 2 ? `nur ${stuecke} Stueck(e) nach dem Messbeginn` : undefined };
   } finally {
@@ -1137,6 +1142,13 @@ async function p20(c: Ctx): Promise<void> {
   if (m.grund !== undefined) { unmeasured(pn("P20"), `${m.grund} (${stromZeige(m)})`); return; }
   const maxAbstand = Math.max(...m.proben.map((x) => x.abstand));
   record(pn("P20"), maxAbstand < 40, `${stromZeige(m)} · groesster Abstand zum Ende ${maxAbstand} px (soll < 40) · Abstand-Verlauf ${m.proben.filter((_, i) => i % 6 === 0).map((x) => x.abstand).join(",")}`);
+}
+
+async function p23(c: Ctx): Promise<void> {
+  const m = await strommessung(c, false, true);
+  if (m.grund !== undefined) { unmeasured(pn("P23"), `${m.grund} (${stromZeige(m)})`); return; }
+  const maxAbstand = Math.max(...m.proben.map((x) => x.abstand));
+  record(pn("P23"), maxAbstand < 40, `${stromZeige(m)} · groesster Abstand zum Ende ${maxAbstand} px (soll < 40) · Abstand-Verlauf ${m.proben.filter((_, i) => i % 6 === 0).map((x) => x.abstand).join(",")}`);
 }
 
 async function p21(c: Ctx): Promise<void> {
@@ -1215,7 +1227,7 @@ async function main(): Promise<void> {
       const reihe: Array<[PunktName, (c: Ctx) => Promise<void>]> = [
         [pn("P1"), p1], [pn("P2"), p2], [pn("P13"), p13], [pn("P7"), p7], [pn("P14"), p14],
         [pn("P3"), p3], [pn("P4"), p4], [pn("P5"), p5], [pn("P11"), p11], [pn("P6"), p6],
-        [pn("P9"), p9], [pn("P10"), p10], [pn("P8"), p8p12], [pn("P15"), p15], [pn("P16"), p16], [pn("P17"), p17], [pn("P18"), p18], [pn("P19"), p19], [pn("P20"), p20], [pn("P21"), p21], [pn("P22"), p22],
+        [pn("P9"), p9], [pn("P10"), p10], [pn("P8"), p8p12], [pn("P15"), p15], [pn("P16"), p16], [pn("P17"), p17], [pn("P18"), p18], [pn("P19"), p19], [pn("P20"), p20], [pn("P21"), p21], [pn("P22"), p22], [pn("P23"), p23],
       ];
       for (const [name, fn] of reihe) {
         await schliesseDialoge(cdp);

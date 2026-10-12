@@ -182,14 +182,19 @@ export class SettingsChatView extends ItemView {
         if (!live) this.finalRendered.add(turn);
         el.empty();
         el.createDiv({ cls: "sa-chat-role", text: t("chat.role.assistant") });
-        this.renderAnswer(el, turn, live, turns[i - 1]?.sent);
+        this.renderAnswer(el, turn, live, turns[i - 1]?.sent, atBottom);
       }
     });
     if (atBottom) box.scrollTop = box.scrollHeight ?? 0;
   }
 
-  private renderAnswer(el: HTMLElement, turn: ChatTurn, live: boolean, sent: SentContext | undefined): void {
+  private renderAnswer(el: HTMLElement, turn: ChatTurn, live: boolean, sent: SentContext | undefined, warUnten: boolean): void {
+    // `follow: warUnten`: `update()` baut die laufende Antwort bei jedem Stueck NEU (el.empty() + frischer Bereich). Seit
+    // obsidian-kit 0.59.0 folgt `setTail` von sich aus (`withFollow`), misst aber auf dem geschrumpften Verlauf und holte eine
+    // hochgescrollte Ansicht ans Ende zurueck (Smoke P21, gemessen 2026-10-12). „War der Nutzer unten?“ wird deshalb VOR dem
+    // Umbau gemessen (`update()`) und dem neuen Bereich mitgegeben.
     const area: StreamArea = buildStreamArea(el, {
+      follow: warUnten,
       strings: { reasoning: t("chat.reasoning.live") }, cls: "sa-chat-stream", reasoningOpen: live,
       scrollEl: this.messagesEl ?? undefined, bodyCls: "markdown-rendered",
     });
