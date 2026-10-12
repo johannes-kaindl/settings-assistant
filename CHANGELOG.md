@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.4.0] — 2026-10-12
+
 ### Changed
 
 - **The endpoint list shows the context length.** Under a reachable row with a model it now reads "Context: loaded N · max M tokens" (only "max M" when the model is not loaded, nothing when the server names no number). The line comes from the shared kit and asks LM Studio or Ollama after the status check.
