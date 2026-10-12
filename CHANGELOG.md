@@ -4,6 +4,16 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Changed
+
+- **The endpoint list shows the context length.** Under a reachable row with a model it now reads "Context: loaded N · max M tokens" (only "max M" when the model is not loaded, nothing when the server names no number). The line comes from the shared kit and asks LM Studio or Ollama after the status check.
+- **A row's model can be set back to "— (server picks)".** The model selection of every row offers this option again (the "global model" option stays gone): choosing it removes the model from that row, and the row then sends no model name, as before for an empty row.
+- **Clearer status hints.** The tooltips of the status icons and the input hints use the kit's wording (EN/DE): a timeout now says "network unreachable (wrong network / VPN off?)", a server that is not an LLM API says "wrong path/service?", and "Not reachable" no longer ends in a dangling dash.
+- **Masking before a request is broader.** Secrets are masked more often on their way to the server: a `Bearer` token is caught in any case and from 8 characters (it was 16, lower case slipped through), also a token with `=` in it. Prose such as "Bearer authentication" is masked too and reaches the server as `Bearer [redacted-token]`.
+- **Remote targets in the chat answer.** A link or image target split over a line break, or after a lone carriage return, no longer keeps a remote image alive; a Mermaid diagram that could load something from outside is shown as plain text (the source stays readable) and is not drawn; the check of CSS targets stays linear on long answers. Answers are still shown as text.
+- **Long answers render faster and leak less.** The guard against remote targets while an answer streams in checks only what changed (a 100 KB answer took 3.2 s, now 1.3 s in the measurement of the kit) and the removal of a model's `<think>` block is linear (50 000 unclosed `<think>` took seconds, now under a millisecond).
+- The shared kit is updated to obsidian-kit 0.56.0 and code-kit 0.23.0 (one step, no intermediate pin).
+
 ## [0.3.0] — 2026-10-10
 
 ### Changed
