@@ -23,13 +23,12 @@
  */
 import { execFileSync, spawn, type ChildProcess } from "node:child_process";
 import { copyFileSync, existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
-import { createServer, type Server } from "node:http";
-import type { AddressInfo } from "node:net";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { argv, cwd, exit } from "node:process";
 
 import { Cdp, attachTo, bereiteInstanzVor, clearNotices, closeExtraLeaves, openExisting, pollUntil, reopenNote, setAppConfig } from "../../tools/obsidian-cdp/cdp.js";
+import { startLlmStub } from "../../tools/obsidian-cdp/llm-stub.js";
 import { boxOf, capture, setWindowSize, writeShot, type Rect } from "../../tools/obsidian-cdp/shot.js";
 import { buildVault, stagingVaultDir } from "../../tools/obsidian-cdp/vault.js";
 
@@ -71,42 +70,13 @@ const CHAT_ANSWER = [
 ].join("\n");
 
 interface FakeEndpoint { url: string; close: () => Promise<void> }
+/** Der zentrale Stub (`tools/obsidian-cdp/llm-stub.ts`) streamt die feste Antwort in zwei Haelften. */
 async function startFakeEndpoint(): Promise<FakeEndpoint> {
-  const server: Server = createServer((req, res) => {
-    res.setHeader("Access-Control-Allow-Origin", "*");
-    res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
-    if (req.method === "OPTIONS") { res.writeHead(204); res.end(); return; }
-    if (req.url?.includes("/v1/models") === true) {
-      res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ data: [{ id: FAKE_MODEL, object: "model" }] }));
-      return;
-    }
-    if (req.method === "POST" && req.url?.includes("/v1/chat/completions") === true) {
-      req.on("data", () => undefined);
-      req.on("end", () => {
-        res.writeHead(200, { "Content-Type": "text/event-stream" });
-        const half = Math.floor(CHAT_ANSWER.length / 2);
-        for (const part of [CHAT_ANSWER.slice(0, half), CHAT_ANSWER.slice(half)]) {
-          res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: part }, finish_reason: null }], model: FAKE_MODEL })}\n\n`);
-        }
-        res.write(`data: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: "stop" }], model: FAKE_MODEL })}\n\n`);
-        res.write("data: [DONE]\n\n");
-        res.end();
-      });
-      return;
-    }
-    res.writeHead(404);
-    res.end();
-  });
   // Fester Port statt Zufall, damit die Adresse im Bild immer gleich aussieht. NICHT 1234: dort haelt LM Studio einen Wildcard-Bind,
   // und ein spezifischer Bind daneben gelingt trotzdem — Anfragen landeten dann beim Fake, aber nur dank Bind-Reihenfolge. Ist der Port belegt, ein freier.
-  await new Promise<void>((resolve) => {
-    server.once("error", () => { server.listen(0, "127.0.0.1", resolve); });
-    server.listen(8765, "127.0.0.1", resolve);
-  });
-  const port = (server.address() as AddressInfo).port;
-  return { url: `http://127.0.0.1:${port}`, close: () => new Promise<void>((resolve) => { server.close(() => { resolve(); }); }) };
+  const optionen = { models: [FAKE_MODEL], standard: { text: CHAT_ANSWER, teile: 2, model: FAKE_MODEL } };
+  const stub = await startLlmStub({ ...optionen, port: 8765 }).catch(() => startLlmStub({ ...optionen, port: 0 }));
+  return { url: stub.url, close: () => stub.stop() };
 }
 
 // --- Vault und Instanz ---------------------------------------------------------------------------

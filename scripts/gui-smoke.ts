@@ -35,14 +35,13 @@
  */
 import { execFileSync, spawn, type ChildProcess } from "node:child_process";
 import { copyFileSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { createServer, type Server } from "node:http";
-import type { AddressInfo } from "node:net";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { cwd } from "node:process";
 
 import { Cdp, attachTo, bereiteInstanzVor, clearNotices, closeExtraLeaves, notices, openExisting, pollUntil, reopenNote, requireVisible } from "../../tools/obsidian-cdp/cdp.js";
 import { Vorbedingung, createBilanz, parseArgs, runDriver } from "../../tools/obsidian-cdp/bilanz.js";
+import { startLlmStub, type StubAnfrage } from "../../tools/obsidian-cdp/llm-stub.js";
 import { buildVault, requireEigenerBuild, stagingVaultDir } from "../../tools/obsidian-cdp/vault.js";
 
 const REPO_NAME = "settings-assistant";
@@ -83,6 +82,9 @@ const PUNKTE = [
   "P17 Neutralisierung: dataviewjs-Zaun, Inline-Code, img und javascript:-Link erzeugen im Chat kein code/pre/img und keinen Request",
   "P18 Schwaerzung: Bearer-Token und PEM gehen als Platzhalter an den Server, die Antwort kommt im Original zurueck, ein Bild mit Platzhalter in der URL erzeugt kein img",
   "P19 Globales Modell abgeschafft: Alt-data.json mit localModel migriert in die Zeile, danach kein localModel mehr auf Platte, eine geleerte Zeile bleibt leer, die Zeilenauswahl hat keine Option „global model“",
+  "P20 Strom: der Chat-Verlauf folgt dem Ende, solange niemand eingreift (Kontrolle zu P21)",
+  "P21 Folge-Regel: Hochscrollen mitten im Strom wird respektiert, der Verlauf springt nicht zurueck",
+  "P22 Denkblock live: der Reasoning-Text ist waehrend des Stroms sichtbar und waechst",
 ] as const;
 type PunktName = (typeof PUNKTE)[number];
 const pn = (prefix: string): PunktName => {
@@ -159,45 +161,21 @@ function antwortFuer(body: string): string {
   return CHAT_ANSWER;
 }
 
-interface FakeEndpoint { url: string; close: () => Promise<void>; bodies: string[]; auth: string[] }
+interface FakeEndpoint { url: string; close: () => Promise<void>; readonly bodies: string[]; readonly auth: string[] }
+/** Seit Welle 20 der zentrale Stub (`tools/obsidian-cdp/llm-stub.ts`): CORS an, strenge Pfade, Antwort in zwei Haelften
+ *  nach `antwortFuer`. `bodies` und `auth` sind Getter ueber den Mitschnitt der Chat-Anfragen (wie der alte Server). */
 async function startFakeEndpoint(): Promise<FakeEndpoint> {
-  const bodies: string[] = [];
-  const auth: string[] = [];
-  const server: Server = createServer((req, res) => {
-    // Der Renderer laeuft unter app://obsidian.md — ohne CORS-Header sieht der Server nie eine Anfrage.
-    res.setHeader("Access-Control-Allow-Origin", "*");
-    res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
-    if (req.method === "OPTIONS") { res.writeHead(204); res.end(); return; }
-    if (req.url?.includes("/v1/models") === true) {
-      res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ data: [{ id: FAKE_MODEL, object: "model" }] }));
-      return;
-    }
-    if (req.method === "POST" && req.url?.includes("/v1/chat/completions") === true) {
-      let body = "";
-      req.on("data", (chunk: Buffer) => { body += chunk.toString("utf8"); });
-      req.on("end", () => {
-        bodies.push(body);
-        auth.push(String(req.headers.authorization ?? ""));
-        res.writeHead(200, { "Content-Type": "text/event-stream" });
-        const answer = antwortFuer(body);
-        const half = Math.floor(answer.length / 2);
-        for (const part of [answer.slice(0, half), answer.slice(half)]) {
-          res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: part }, finish_reason: null }], model: FAKE_MODEL })}\n\n`);
-        }
-        res.write(`data: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: "stop" }], model: FAKE_MODEL })}\n\n`);
-        res.write("data: [DONE]\n\n");
-        res.end();
-      });
-      return;
-    }
-    res.writeHead(404);
-    res.end();
+  const stub = await startLlmStub({
+    models: [FAKE_MODEL],
+    antwort: (anfrage) => ({ text: antwortFuer(anfrage.body), teile: 2, model: FAKE_MODEL }),
   });
-  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
-  const port = (server.address() as AddressInfo).port;
-  return { url: `http://127.0.0.1:${port}`, bodies, auth, close: () => new Promise<void>((resolve) => { server.close(() => { resolve(); }); }) };
+  const chat = (): StubAnfrage[] => stub.anfragen().filter((a) => a.route === "chat");
+  return {
+    url: stub.url,
+    get bodies() { return chat().map((a) => a.body); },
+    get auth() { return chat().map((a) => String(a.header.authorization ?? "")); },
+    close: () => stub.stop(),
+  };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -848,18 +826,18 @@ async function p8p12(c: Ctx): Promise<void> {
 
 // ---------------------------------------------------------------------------------------------
 
-/** Endpunkt auf den Fake setzen, Chat oeffnen, NEUEN Chat beginnen, Frage senden, auf das Ende der Antwort warten. */
-async function chatRunde(c: Ctx, frage: string): Promise<void> {
+/** Endpunkt auf `url` stellen, Chat oeffnen, neues Gespraech, `frage` senden — ohne auf das Ende zu warten. */
+async function chatSenden(c: Ctx, frage: string, url: string = c.fake.url): Promise<void> {
   const pre = await c.cdp.evaluate<{ url: string | null }>(`
     const p = app.plugins.plugins[${q(PLUGIN_ID)}];
-    p.settings.endpoints = [{ url: ${q(c.fake.url)}, apiKey: ${q(FAKE_ENDPOINT_KEY)}, model: ${q(FAKE_MODEL)} }];
+    p.settings.endpoints = [{ url: ${q(url)}, apiKey: ${q(FAKE_ENDPOINT_KEY)}, model: ${q(FAKE_MODEL)} }];
     p.settings.endpointChoice = {};
     p.llm.invalidate();
     await p.saveSettings();
     const ep = await p.resolveEndpoint();
     return { url: ep ? ep.url : null };
   `);
-  if (pre.url !== c.fake.url) throw new Vorbedingung(`Chat-Endpunkt laesst sich nicht aufloesen (${String(pre.url)})`);
+  if (pre.url !== url) throw new Vorbedingung(`Chat-Endpunkt laesst sich nicht aufloesen (${String(pre.url)})`);
   await c.cdp.evaluate(`app.workspace.detachLeavesOfType("settings-assistant-chat"); await new Promise((r) => setTimeout(r, 300)); app.commands.executeCommandById(${q(`${PLUGIN_ID}:open-chat`)}); return { ok: true };`);
   const da = await pollUntil<{ ok: boolean }>(c.cdp, `return document.querySelector(".sa-chat-input") ? { ok: true } : null;`, 10_000, 250);
   if (!da) throw new Vorbedingung("Chat-Ansicht oeffnet sich nicht (kein .sa-chat-input)");
@@ -877,6 +855,11 @@ async function chatRunde(c: Ctx, frage: string): Promise<void> {
     document.querySelector(".sa-chat-send").click();
     return { ok: true };
   `);
+}
+
+/** Endpunkt auf den Fake setzen, Chat oeffnen, NEUEN Chat beginnen, Frage senden, auf das Ende der Antwort warten. */
+async function chatRunde(c: Ctx, frage: string): Promise<void> {
+  await chatSenden(c, frage);
   const fertig = await pollUntil<{ ok: boolean }>(c.cdp, `
     const send = document.querySelector(".sa-chat-send");
     const turns = document.querySelectorAll(".sa-chat-turn.is-assistant").length;
@@ -1096,6 +1079,105 @@ async function p19(c: Ctx): Promise<void> {
     `Altwert in der Zeile, localModel von der Platte: ${String(migriert)} · geleerte Zeile bleibt nach Neustart leer: ${String(bleibtLeer)} · Optionen [${opts.join("; ")}], davon „global model“: ${global.length}`);
 }
 
+// ---------------------------------------------------------------------------------------------
+// Strom im Chat (Welle 20, zentraler Stub): Folge-Regel und Denkblock live
+// ---------------------------------------------------------------------------------------------
+// Bisher ohne Modell nicht messbar. Scrollender Container ist `.sa-chat-messages` (`scrollEl` von `buildStreamArea`,
+// Spalten-Flex mit `min-height: 0`, begrenzte Hoehe). Gueltigkeit (CORE-TEST-22): Ueberlauf >= 80 px zum Stoerungszeitpunkt
+// (Folge-Schwelle 40 px + 40 px Spielraum), mindestens zwei Stuecke nach der Stoerung, abgetastet nur bis zum vorletzten
+// Stueck; der Stub haelt danach drei Takte offen. Sonst „nichts gemessen“. Tokengrosse Stuecke (10 Zeichen).
+const STROM_TAKT = 40;
+const STROM_LAENGE = 10;
+const STROM_TEXT = Array.from({ length: 26 }, (_, i) => `Absatz ${i + 1}: Der Strom laeuft weiter, Wort fuer Wort, damit der Verlauf waechst und das Ende wandert.\n\n`).join("");
+const STROM_STUECKE = Math.ceil(STROM_TEXT.length / STROM_LAENGE);
+const MSGS = `document.querySelector(".sa-chat-messages")`;
+interface Strom { grund?: string; ueberlauf: number; hoehe: number; stuecke: number; proben: { top: number; abstand: number }[] }
+
+async function strommessung(c: Ctx, stoere: boolean): Promise<Strom> {
+  const stub = await startLlmStub({ models: [FAKE_MODEL], takt: STROM_TAKT, nachlaufMs: 3 * STROM_TAKT, standard: { text: STROM_TEXT, laenge: STROM_LAENGE } });
+  try {
+    await chatSenden(c, "SMOKE-STROM lange Antwort", stub.url);
+    const hoehe = await c.cdp.evaluate<number>(`const el = ${MSGS}; return el ? el.clientHeight : -1;`);
+    if (hoehe <= 0) return { grund: "Verlauf nicht sichtbar (Hoehe 0)", ueberlauf: 0, hoehe, stuecke: 0, proben: [] };
+    let start: { ue: number; top: number } | null = null;
+    const frist = Date.now() + 15_000;
+    while (Date.now() < frist && start === null) {
+      start = await c.cdp.evaluate<{ ue: number; top: number } | null>(`
+        const el = ${MSGS};
+        const ue = el.scrollHeight - el.clientHeight;
+        if (ue < 100) return null;
+        ${stoere ? "el.scrollTop = 0;" : ""}
+        return { ue, top: el.scrollTop };
+      `);
+      if (start === null) await sleep(40);
+    }
+    const t = Date.now();
+    if (start === null) return { grund: "Ueberlauf blieb unter 100 px (Strom zu kurz oder Verlauf zu hoch)", ueberlauf: 0, hoehe, stuecke: 0, proben: [] };
+    const chat0 = stub.letzte("chat")?.zeit ?? t;
+    const bis = chat0 + STROM_STUECKE * STROM_TAKT - STROM_TAKT; // nur bis zum vorletzten Stueck abtasten
+    const proben: { top: number; abstand: number }[] = [];
+    while (Date.now() < bis) {
+      proben.push(await c.cdp.evaluate<{ top: number; abstand: number }>(`
+        const el = ${MSGS};
+        return { top: el.scrollTop, abstand: el.scrollHeight - el.scrollTop - el.clientHeight };
+      `));
+      await sleep(60);
+    }
+    const stuecke = Math.max(0, Math.floor((bis - t) / STROM_TAKT));
+    await pollUntil<boolean>(c.cdp, `const s = document.querySelector(".sa-chat-send"); return s && s.textContent === "Send" ? true : null;`, 25_000, 300).catch(() => undefined);
+    return { ueberlauf: start.ue, hoehe, stuecke, proben, grund: stuecke < 2 ? `nur ${stuecke} Stueck(e) nach dem Messbeginn` : undefined };
+  } finally {
+    await stub.stop();
+  }
+}
+const stromZeige = (m: Strom): string => `Hoehe ${m.hoehe} px · Ueberlauf bei Messbeginn ${m.ueberlauf} px · ${m.stuecke} Stuecke danach · ${m.proben.length} Proben`;
+
+async function p20(c: Ctx): Promise<void> {
+  const m = await strommessung(c, false);
+  if (m.grund !== undefined) { unmeasured(pn("P20"), `${m.grund} (${stromZeige(m)})`); return; }
+  const maxAbstand = Math.max(...m.proben.map((x) => x.abstand));
+  record(pn("P20"), maxAbstand < 40, `${stromZeige(m)} · groesster Abstand zum Ende ${maxAbstand} px (soll < 40) · Abstand-Verlauf ${m.proben.filter((_, i) => i % 6 === 0).map((x) => x.abstand).join(",")}`);
+}
+
+async function p21(c: Ctx): Promise<void> {
+  const m = await strommessung(c, true);
+  if (m.grund !== undefined) { unmeasured(pn("P21"), `${m.grund} (${stromZeige(m)})`); return; }
+  const maxTop = Math.max(...m.proben.map((x) => x.top));
+  record(pn("P21"), maxTop < 4, `${stromZeige(m)} · scrollTop nach der Stoerung 0, danach hoechstens ${maxTop} px (soll < 4) · Abstand zum Ende zuletzt ${m.proben[m.proben.length - 1]?.abstand} px`);
+}
+
+async function p22(c: Ctx): Promise<void> {
+  const stub = await startLlmStub({
+    models: [FAKE_MODEL], takt: 250, nachlaufMs: 750,
+    standard: { reasoning: "Ich ueberlege Schritt fuer Schritt, was zu tun ist. ".repeat(12), laenge: 40, text: "Fertig." },
+  });
+  try {
+    await chatSenden(c, "SMOKE-DENKEN bitte nachdenken", stub.url);
+    type Probe = { len: number; offen: boolean; sichtbar: boolean; body: number };
+    const proben: Probe[] = [];
+    const frist = Date.now() + 8_000;
+    while (Date.now() < frist && proben.length < 12) {
+      const pr = await c.cdp.evaluate<Probe | null>(`
+        const pre = document.querySelector(".sa-chat-turn.is-assistant .okit-stream-reasoning pre");
+        if (!pre) return null;
+        const det = pre.closest("details");
+        return { len: pre.textContent.length, offen: det.open, sichtbar: pre.getBoundingClientRect().height > 0, body: (document.querySelector(".sa-chat-turn.is-assistant .okit-stream-body")?.textContent ?? "").trim().length };
+      `);
+      if (pr !== null) proben.push(pr);
+      await sleep(250);
+    }
+    await pollUntil<boolean>(c.cdp, `const s = document.querySelector(".sa-chat-send"); return s && s.textContent === "Send" ? true : null;`, 25_000, 300).catch(() => undefined);
+    if (proben.length < 3) { unmeasured(pn("P22"), `nur ${proben.length} Probe(n) mit Denkblock im Strom`); return; }
+    const langen = proben.map((x) => x.len);
+    const waechst = langen.every((l, i) => i === 0 || l >= langen[i - 1]!) && langen[langen.length - 1]! > langen[0]!;
+    const sichtbar = proben.every((x) => x.offen && x.sichtbar);
+    const vorAntwort = proben[0]!.body === 0;
+    record(pn("P22"), waechst && sichtbar && vorAntwort, `${proben.length} Proben, Laenge ${langen.join(" → ")} · offen und sichtbar: ${String(sichtbar)} · beim ersten Probepunkt noch keine Antwort: ${String(vorAntwort)}`);
+  } finally {
+    await stub.stop();
+  }
+}
+
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
   if (args.has("setup")) { setupVault(); console.log("\nDen Vault in der Zweitinstanz oeffnen, dann: npm run smoke:gui -- --port <PORT>"); return; }
@@ -1133,7 +1215,7 @@ async function main(): Promise<void> {
       const reihe: Array<[PunktName, (c: Ctx) => Promise<void>]> = [
         [pn("P1"), p1], [pn("P2"), p2], [pn("P13"), p13], [pn("P7"), p7], [pn("P14"), p14],
         [pn("P3"), p3], [pn("P4"), p4], [pn("P5"), p5], [pn("P11"), p11], [pn("P6"), p6],
-        [pn("P9"), p9], [pn("P10"), p10], [pn("P8"), p8p12], [pn("P15"), p15], [pn("P16"), p16], [pn("P17"), p17], [pn("P18"), p18], [pn("P19"), p19],
+        [pn("P9"), p9], [pn("P10"), p10], [pn("P8"), p8p12], [pn("P15"), p15], [pn("P16"), p16], [pn("P17"), p17], [pn("P18"), p18], [pn("P19"), p19], [pn("P20"), p20], [pn("P21"), p21], [pn("P22"), p22],
       ];
       for (const [name, fn] of reihe) {
         await schliesseDialoge(cdp);
