@@ -41,7 +41,8 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { cwd } from "node:process";
 
-import { Cdp, attachTo, clearNotices, closeExtraLeaves, notices, openExisting, pollUntil, reopenNote, requireVisible } from "../../tools/obsidian-cdp/cdp.js";
+import { Cdp, attachTo, bereiteInstanzVor, clearNotices, closeExtraLeaves, notices, openExisting, pollUntil, reopenNote, requireVisible } from "../../tools/obsidian-cdp/cdp.js";
+import { Vorbedingung, createBilanz, parseArgs, runDriver } from "../../tools/obsidian-cdp/bilanz.js";
 import { buildVault, requireEigenerBuild, stagingVaultDir } from "../../tools/obsidian-cdp/vault.js";
 
 const REPO_NAME = "settings-assistant";
@@ -91,28 +92,8 @@ const pn = (prefix: string): PunktName => {
   return hit;
 };
 
-type Zustand = "gruen" | "rot" | "uebersprungen" | "nichts-gemessen";
-interface Check { name: string; zustand: Zustand; detail: string }
-const checks = new Map<string, Check>();
-function put(name: string, zustand: Zustand, detail: string, marker: string): void {
-  if (checks.has(name)) return; // der erste Eintrag zaehlt (ein Aufraeumfehler danach aendert nichts)
-  checks.set(name, { name, zustand, detail });
-  console.log(`  ${marker} ${name} — ${detail}`);
-}
-const record = (name: PunktName, passed: boolean, detail: string): void => { put(name, passed ? "gruen" : "rot", detail, passed ? "✓" : "✗"); };
-const skipped = (name: PunktName, reason: string): void => { put(name, "uebersprungen", `uebersprungen: ${reason}`, "·"); };
-const unmeasured = (name: PunktName, reason: string): void => { put(name, "nichts-gemessen", `NICHTS GEMESSEN: ${reason}`, "?"); };
-
-/** Der Gegenstand des Punkts wurde nicht erreicht (Vorbedingung fehlt) — „nichts gemessen", nicht rot. */
-class Vorbedingung extends Error {}
-
-async function punkt(name: PunktName, fn: () => Promise<void>): Promise<void> {
-  console.log(`\n${name}`);
-  try { await fn(); } catch (e) {
-    unmeasured(name, e instanceof Vorbedingung ? e.message : `Abbruch im Treiber: ${(e as Error).message}`);
-  }
-  if (!checks.has(name)) unmeasured(name, "der Punkt hat nichts aufgezeichnet");
-}
+// Erfasser, Soll-Liste (Nenner) und Abschlusszeile kommen aus der zentralen Bruecke (`bilanz.ts`); dieser Treiber war ihre Vorlage.
+const { record, skipped, unmeasured, punkt, abschluss } = createBilanz({ punkte: PUNKTE });
 
 const q = (s: string): string => JSON.stringify(s);
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
@@ -298,28 +279,9 @@ async function warteAufFenster(port: number, timeoutMs: number): Promise<Cdp> {
   throw new Error(`Kein Obsidian-Fenster fuer Vault "${REPO_NAME}" auf Port ${port} nach ${Math.round(timeoutMs / 1000)} s. ${letzter}`);
 }
 
-/** Vertrauensdialog (frisches Profil), Restricted Mode, beide Plugins laden, Pop-outs schliessen. */
+/** Vertrauensdialog (frisches Profil), Restricted Mode, beide Plugins laden — aus der zentralen Bruecke (`bereiteInstanzVor`). */
 async function bereiteVor(cdp: Cdp): Promise<string> {
-  const log: string[] = [];
-  const vertraut = await pollUntil<{ ok: boolean }>(cdp, `
-    const btn = Array.from(document.querySelectorAll(".modal-container button")).find((b) => /trust|vertrau/i.test(b.textContent || ""));
-    if (btn) { btn.click(); return { ok: true }; }
-    return document.querySelector(".workspace") && app.plugins && app.plugins.manifests && app.plugins.manifests[${q(PLUGIN_ID)}] && !document.querySelector(".modal-container") ? { ok: false } : null;
-  `, 20_000, 500);
-  log.push(vertraut?.ok === true ? "Vertrauensdialog bestaetigt" : "kein Vertrauensdialog");
-  await sleep(800);
-  const r = await cdp.evaluate<{ s: string }>(`
-    try {
-      if (app.plugins.setEnable) await app.plugins.setEnable(true);
-      for (const id of [${q(PROBE_ID)}, ${q(PLUGIN_ID)}]) {
-        if (!app.plugins.plugins[id]) await app.plugins.enablePluginAndSave(id);
-      }
-      await new Promise((r) => setTimeout(r, 1500));
-      return { s: [${q(PROBE_ID)}, ${q(PLUGIN_ID)}].map((id) => id + ":" + (app.plugins.plugins[id] ? "geladen" : "FEHLT")).join(" ") };
-    } catch (e) { return { s: "Fehler: " + (e && e.message ? e.message : String(e)) }; }
-  `);
-  log.push(r.s);
-  return log.join("; ");
+  return (await bereiteInstanzVor(cdp, { pluginIds: [PROBE_ID, PLUGIN_ID] })).hinweis;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -1136,13 +1098,11 @@ async function p19(c: Ctx): Promise<void> {
 }
 
 async function main(): Promise<void> {
-  const argv = process.argv.slice(2);
-  const portArg = argv.indexOf("--port");
-  const port = portArg >= 0 ? Number(argv[portArg + 1]) : DEFAULT_PORT;
-  if (argv.includes("--setup")) { setupVault(); console.log(`\nDen Vault in der Zweitinstanz oeffnen, dann: npm run smoke:gui -- --port ${port}`); return; }
+  const args = parseArgs(process.argv.slice(2));
+  const port = Number(args.value("port") ?? DEFAULT_PORT);
+  if (args.has("setup")) { setupVault(); console.log(`\nDen Vault in der Zweitinstanz oeffnen, dann: npm run smoke:gui -- --port ${port}`); return; }
 
-  const t0 = Date.now();
-  const launch = argv.includes("--launch");
+  const launch = args.has("launch");
   const fake = await startFakeEndpoint();
   let inst: Instanz | null = null;
   let cdp: Cdp | null = null;
@@ -1190,15 +1150,8 @@ async function main(): Promise<void> {
     if (inst) await stopInstanz(inst);
   }
 
-  const alle = PUNKTE.map((name) => checks.get(name) ?? { name, zustand: "nichts-gemessen" as Zustand, detail: "nie aufgezeichnet" });
-  const zaehle = (z: Zustand): number => alle.filter((c) => c.zustand === z).length;
-  const rot = alle.filter((c) => c.zustand === "rot");
-  const nichts = alle.filter((c) => c.zustand === "nichts-gemessen");
-  console.log(`\n${zaehle("gruen")} gruen · ${rot.length} rot · ${zaehle("uebersprungen")} uebersprungen · ${nichts.length} nichts gemessen · von ${PUNKTE.length} Pruefpunkten (${Math.round((Date.now() - t0) / 1000)} s)`);
+  abschluss();
   for (const w of warnungen) console.log(`WARNUNG: ${w}`);
-  if (rot.length) console.log(`Rot: ${rot.map((r) => r.name.split(" ")[0]).join(" · ")}`);
-  if (nichts.length) console.log(`Nichts gemessen: ${nichts.map((r) => r.name.split(" ")[0]).join(" · ")}`);
-  if (rot.length || nichts.length) process.exitCode = 1;
 }
 
-main().catch((e: unknown) => { console.error(`\nABBRUCH: ${(e as Error).message}`); process.exitCode = 2; });
+runDriver(main);

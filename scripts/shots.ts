@@ -29,7 +29,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { argv, cwd, exit } from "node:process";
 
-import { Cdp, attachTo, clearNotices, closeExtraLeaves, openExisting, pollUntil, reopenNote, setAppConfig } from "../../tools/obsidian-cdp/cdp.js";
+import { Cdp, attachTo, bereiteInstanzVor, clearNotices, closeExtraLeaves, openExisting, pollUntil, reopenNote, setAppConfig } from "../../tools/obsidian-cdp/cdp.js";
 import { boxOf, capture, setWindowSize, writeShot, type Rect } from "../../tools/obsidian-cdp/shot.js";
 import { buildVault, stagingVaultDir } from "../../tools/obsidian-cdp/vault.js";
 
@@ -185,23 +185,9 @@ async function warteAufFenster(port: number, timeoutMs: number): Promise<Cdp> {
 
 /** Vertrauensdialog, Restricted Mode, beide Plugins laden; Oberflaeche Englisch. */
 async function bereiteVor(cdp: Cdp): Promise<void> {
-  await pollUntil<{ ok: boolean }>(cdp, `
-    const btn = Array.from(document.querySelectorAll(".modal-container button")).find((b) => /trust|vertrau/i.test(b.textContent || ""));
-    if (btn) { btn.click(); return { ok: true }; }
-    return document.querySelector(".workspace") && app.plugins && app.plugins.manifests && app.plugins.manifests[${q(PLUGIN_ID)}] && !document.querySelector(".modal-container") ? { ok: false } : null;
-  `, 20_000, 500);
-  await sleep(800);
-  const r = await cdp.evaluate<{ s: string; lang: string }>(`
-    try { localStorage.setItem("language", "en"); } catch (e) {}
-    try {
-      if (app.plugins.setEnable) await app.plugins.setEnable(true);
-      for (const id of [${q(DEMO_ID)}, ${q(PLUGIN_ID)}]) {
-        if (!app.plugins.plugins[id]) await app.plugins.enablePluginAndSave(id);
-      }
-      await new Promise((r) => setTimeout(r, 1500));
-      return { s: [${q(DEMO_ID)}, ${q(PLUGIN_ID)}].map((id) => id + ":" + (app.plugins.plugins[id] ? "geladen" : "FEHLT")).join(" "), lang: String(window.moment ? window.moment.locale() : "?") };
-    } catch (e) { return { s: "Fehler: " + (e && e.message ? e.message : String(e)), lang: "?" }; }
-  `);
+  const vor = await bereiteInstanzVor(cdp, { pluginIds: [DEMO_ID, PLUGIN_ID], sprache: "en" });
+  const lang = await cdp.evaluate<string>(`return String(window.moment ? window.moment.locale() : "?");`);
+  const r = { s: vor.hinweis, lang };
   console.log(`Plugins: ${r.s}; Sprache ${r.lang}`);
   if (!r.s.includes(`${PLUGIN_ID}:geladen`) || r.s.includes("FEHLT")) throw new Error(`Plugins nicht geladen — ${r.s}`);
   if (r.lang !== "en") throw new Error(`Oberflaeche ist nicht Englisch (${r.lang}) — die Bilder wuerden die falsche Sprache zeigen`);
