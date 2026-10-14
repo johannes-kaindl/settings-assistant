@@ -161,6 +161,27 @@ describe("chat-view", () => {
     expect(session.selected).toEqual(["lingotuner"]);
   });
 
+  it("die laufende Antwort wird einmal gebaut und danach fortgeschrieben, nicht je Stück neu aufgebaut", async () => {
+    let view: SettingsChatView | undefined;
+    const seen: unknown[] = [];
+    const streams = () => (view!.contentEl as any).querySelectorAll(".sa-chat-stream") as any[];
+    const send: ChatSessionDeps["send"] = async (_m, _s, onDelta) => {
+      onDelta({ content: "a" }); seen.push(streams()[0]);
+      onDelta({ content: "ab" }); seen.push(streams()[0]);
+      onDelta({ reasoning: "denkt" }); seen.push(streams()[0]);
+      return { ok: true, content: "ab" };
+    };
+    const made = setup({ send });
+    view = made.view;
+    await view.onOpen();
+    await ask(view);
+    expect(seen[0]).toBeDefined();
+    expect(seen[1]).toBe(seen[0]);
+    expect(seen[2]).toBe(seen[0]);
+    expect(((seen[0] as any).textContent as string)).toContain("ab");
+    await vi.waitFor(() => { expect(streams().length).toBe(1); });
+  });
+
   it("Abbrechen ruft den AbortController", async () => {
     let captured: AbortSignal | null = null;
     const send: ChatSessionDeps["send"] = (_m, signal) => new Promise((resolve) => { captured = signal; signal.addEventListener("abort", () => { resolve({ ok: false, error: "aborted" }); }); });

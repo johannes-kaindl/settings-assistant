@@ -41,6 +41,8 @@ export class SettingsChatView extends ItemView {
   private running = false;
   private turnEls = new Map<ChatTurn, HTMLElement>();
   private finalRendered = new Set<ChatTurn>();
+  /** Der Strom-Bereich der laufenden Antwort: einmal gebaut, danach nur fortgeschrieben (kein Neuaufbau je Stück). */
+  private liveAreas = new Map<ChatTurn, StreamArea>();
 
   constructor(leaf: WorkspaceLeaf, private readonly deps: ChatViewDeps) { super(leaf); }
 
@@ -76,6 +78,7 @@ export class SettingsChatView extends ItemView {
     root.addClass("sa-chat");
     this.turnEls.clear();
     this.finalRendered.clear();
+    this.liveAreas.clear();
     this.messagesEl = null; this.inputEl = null; this.chipsEl = null; this.actionBtn = null; this.thinkCtl = null;
     if (!this.endpointOk) {
       const empty = root.createDiv({ cls: "sa-empty" });
@@ -140,6 +143,7 @@ export class SettingsChatView extends ItemView {
     this.deps.session.reset();
     this.turnEls.clear();
     this.finalRendered.clear();
+    this.liveAreas.clear();
     this.messagesEl?.empty();
     this.update();
   }
@@ -178,8 +182,10 @@ export class SettingsChatView extends ItemView {
         return;
       }
       const live = this.running && i === turns.length - 1;
+      const area = live ? this.liveAreas.get(turn) : undefined;
+      if (area) { this.advanceLive(area, turn); return; }
       if (live || !this.finalRendered.has(turn)) {
-        if (!live) this.finalRendered.add(turn);
+        if (!live) { this.finalRendered.add(turn); this.liveAreas.delete(turn); }
         el.empty();
         el.createDiv({ cls: "sa-chat-role", text: t("chat.role.assistant") });
         this.renderAnswer(el, turn, live, turns[i - 1]?.sent, atBottom);
@@ -198,14 +204,14 @@ export class SettingsChatView extends ItemView {
       strings: { reasoning: t("chat.reasoning.live") }, cls: "sa-chat-stream", reasoningOpen: live,
       scrollEl: this.messagesEl ?? undefined, bodyCls: "markdown-rendered",
     });
+    if (live) {
+      this.liveAreas.set(turn, area);
+      this.advanceLive(area, turn);
+      return;
+    }
     if (turn.reasoning) {
       area.setReasoning(turn.reasoning);
-      area.setReasoningSummary(live && turn.content === "" ? t("chat.reasoning.live") : t("chat.reasoning.done"));
-    }
-    if (live) {
-      area.setTail(turn.content);
-      area.statusEl.setText(t("chat.working"));
-      return;
+      area.setReasoningSummary(t("chat.reasoning.done"));
     }
     if (turn.content !== "") {
       const text = neutralizeModelMarkdown(stripProfileBlocks(turn.content));
@@ -219,6 +225,16 @@ export class SettingsChatView extends ItemView {
     }
     (turn.blocks ?? []).forEach((b) => { this.renderBlock(el.createDiv({ cls: "sa-chat-block" }), b, sent?.model ?? ""); });
     if (sent) this.renderSent(el, sent);
+  }
+
+  /** Schreibt den Stand der laufenden Antwort in ihren Bereich (Denkblock, Antwortstück, Status). */
+  private advanceLive(area: StreamArea, turn: ChatTurn): void {
+    if (turn.reasoning) {
+      area.setReasoning(turn.reasoning);
+      area.setReasoningSummary(turn.content === "" ? t("chat.reasoning.live") : t("chat.reasoning.done"));
+    }
+    area.setTail(turn.content);
+    area.statusEl.setText(t("chat.working"));
   }
 
   private renderBlock(box: HTMLElement, b: NonNullable<ChatTurn["blocks"]>[number], model: string): void {

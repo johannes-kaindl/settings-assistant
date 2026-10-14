@@ -4,6 +4,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Changed
+
+- **Chat:** the running answer is built once and then only updated, instead of being torn down and rebuilt with every streamed piece. Scrolling, text selection and the open thinking block stay where they are while the answer grows.
+
 ## [0.4.1] — 2026-10-12
 
 ### Changed
