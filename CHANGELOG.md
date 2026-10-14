@@ -6,6 +6,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Changed
 
+- Kit pins raised to `obsidian-kit` 0.60.1 and `code-kit` 0.27.1 (from 0.59.1 and 0.24.0). Visible effects of the skipped releases (obsidian-kit 0.60.0, 0.60.1; code-kit 0.25.0, 0.26.0, 0.27.0, 0.27.1):
+  - **Chat header:** the thinking button now has a visible gap between its icon and its label (the plugin's stylesheet carries the kit rules).
+  - **Request section:** a hint about discarded request settings lists them sorted instead of in stored order.
+  - **Snapshot list:** the rows are announced as plain buttons that open the restore dialog, no longer as toggles.
 - **Chat:** the running answer is built once and then only updated, instead of being torn down and rebuilt with every streamed piece. Scrolling, text selection and the open thinking block stay where they are while the answer grows.
 
 ## [0.4.1] — 2026-10-12

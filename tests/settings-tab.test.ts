@@ -157,6 +157,8 @@ describe("SettingsAssistantSettingTab", () => {
     expect(rows).toHaveLength(2);
     expect(rows[0].textContent).toContain("chat:x");
     expect(rows[1].textContent).toContain("note:A.md");
+    // Aktionszeilen: kein Umschalter, also weder aria-pressed noch is-active an irgendeiner Zeile (UI-STANDARD §8 Zustands-Knopf)
+    for (const r of rows) { expect(r.getAttribute("aria-pressed")).toBeNull(); expect(r.classList?.contains?.("is-active") ?? false).toBe(false); }
     expect(el.querySelectorAll(".sa-empty")).toHaveLength(0);
     rows[0].click();
     expect(h.restore).toHaveBeenCalledWith("2026-10-02T10-00-00");
