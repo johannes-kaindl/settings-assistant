@@ -304,6 +304,11 @@ describe("chat-view", () => {
     it("data-href macht ein javascript:-Ziel nicht harmlos", () => {
       expect(hrefAfter({ href: "javascript:alert(1)", "data-href": "x" })).toBeNull();
     });
+    it("data-href ist eine Pauschal-Ausnahme: ein interner Link mit obsidian://-Ziel behält sein href (so festgehalten, nicht empfohlen)", () => {
+      expect(hrefAfter({ href: "obsidian://open?vault=x", "data-href": "x" })).toBe("obsidian://open?vault=x");
+    });
+    it.each(["java\u200bscript:alert(1)", "\u200bjavascript:alert(1)", "java\u200dscript:alert(1)", "\ufeffjavascript:alert(1)", "java\u0085script:alert(1)", "java\u007fscript:alert(1)"])(
+      "unsichtbare Zeichen im Schema (%j) verstecken es nicht", (href) => { expect(hrefAfter({ href })).toBeNull(); });
     it("verschachtelte Links werden alle geprüft", () => {
       const root = makeFakeEl();
       const a = root.createDiv().createEl("p").createEl("a", { attr: { href: "data:x" } });

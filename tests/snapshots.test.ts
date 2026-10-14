@@ -119,7 +119,7 @@ describe("snapshots", () => {
     const h = await beginSnapshot(app, [DATA], "o");
     const mp = `${snapshotRoot(app)}/${h.dir}/manifest.json`;
     const m = JSON.parse(files.get(mp) ?? "");
-    const bad = [".cfg/plugins/../data.json", ".cfg/plugins/a b/data.json", ".cfg/plugins/settings-assistant/data.json", ".cfg/plugins/Settings-Assistant/data.json", "../../x", "/etc/passwd"];
+    const bad = [".cfg/plugins/../data.json", ".cfg/plugins/a b/data.json", ".cfg/plugins/settings-assistant/data.json", ".cfg/plugins/Settings-Assistant/data.json", ".cfg/plugins/__proto__/data.json", "../../x", "/etc/passwd"];
     m.files = [...bad.map((path) => ({ path, existed: false, afterHash: null })), ...m.files];
     files.set(mp, JSON.stringify(m));
     const items = await loadRestoreItems(app, h.dir);
