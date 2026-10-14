@@ -1,5 +1,5 @@
 /**
- * GUI-Smoke — faehrt die Pruefpunkte P1-P19 gegen ein LAUFENDES Obsidian (CORE-TEST-02 b).
+ * GUI-Smoke — faehrt die Pruefpunkte P1-P24 gegen ein LAUFENDES Obsidian (CORE-TEST-02 b).
  *
  * Gemessen wird die SACHE: Dateiinhalt auf Platte (`sa-probe/data.json`, `hotkeys.json`, Schnappschuss-
  * Manifest), Dialogtext, Notice — nicht die Existenz eines Elements. Das Testplugin `sa-probe`
@@ -39,7 +39,8 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { cwd } from "node:process";
 
-import { Cdp, attachTo, bereiteInstanzVor, clearNotices, closeExtraLeaves, notices, openExisting, pollUntil, reopenNote, requireVisible } from "../../tools/obsidian-cdp/cdp.js";
+import { Cdp, attachTo, beimAbbruch, bereiteInstanzVor, clearNotices, closeExtraLeaves, istAbgebrochen, notices, openExisting, pollUntil, reopenNote, requireVisible, schliesseDialog } from "../../tools/obsidian-cdp/cdp.js";
+import { messeFolge, zeichneFolge } from "../../tools/obsidian-cdp/folge.js";
 import { Vorbedingung, createBilanz, parseArgs, runDriver } from "../../tools/obsidian-cdp/bilanz.js";
 import { startLlmStub, type StubAnfrage } from "../../tools/obsidian-cdp/llm-stub.js";
 import { buildVault, requireEigenerBuild, stagingVaultDir } from "../../tools/obsidian-cdp/vault.js";
@@ -86,6 +87,7 @@ const PUNKTE = [
   "P21 Folge-Regel: Hochscrollen mitten im Strom wird respektiert, der Verlauf springt nicht zurueck",
   "P22 Denkblock live: der Reasoning-Text ist waehrend des Stroms sichtbar und waechst",
   "P23 Strom mit absatzgrossen Stuecken: der Chat-Verlauf folgt dem Ende auch bei Spruengen ueber die Folge-Schwelle (Kit 0.59.0, withFollow)",
+  "P24 Folge-Regel, zweite Haelfte: steht der Nutzer wieder unten, folgt der Chat-Verlauf dem Strom wieder",
 ] as const;
 type PunktName = (typeof PUNKTE)[number];
 const pn = (prefix: string): PunktName => {
@@ -234,11 +236,15 @@ function startInstanz(vaultDir: string, port: number): Instanz {
   return { child, ud };
 }
 
+/** Idempotent: im Normalweg (`finally`) und im Abbruch-Modul (hoechstens eine Sekunde, daher kurze Fristen). */
 async function stopInstanz(inst: Instanz): Promise<void> {
+  if (inst.child.exitCode !== null || inst.child.signalCode !== null) return;
+  const eilig = istAbgebrochen();
   const exited = new Promise<void>((resolve) => { inst.child.once("exit", () => { resolve(); }); });
-  if (inst.child.exitCode === null) inst.child.kill("SIGTERM");
-  await Promise.race([exited, sleep(8000)]);
-  if (inst.child.exitCode === null && inst.child.signalCode === null) { inst.child.kill("SIGKILL"); await Promise.race([exited, sleep(4000)]); }
+  inst.child.kill("SIGTERM");
+  await Promise.race([exited, sleep(eilig ? 600 : 8000)]);
+  if (inst.child.exitCode === null && inst.child.signalCode === null) { inst.child.kill("SIGKILL"); await Promise.race([exited, sleep(eilig ? 200 : 4000)]); }
+  if (eilig) return;
   await sleep(500);
   const rest = pgrepProfile(inst.ud);
   console.log(`Zweitinstanz beendet (PID ${inst.child.pid ?? "?"}); verbleibende Prozesse im Profil: ${rest === "" ? "keine" : rest.replace(/\n/g, ",")}`);
@@ -294,12 +300,10 @@ async function leseProbeText(cdp: Cdp): Promise<string> {
 }
 
 async function schliesseDialoge(cdp: Cdp): Promise<void> {
-  await cdp.evaluate(`
-    for (const b of document.querySelectorAll(".modal-container .modal-close-button")) b.click();
-    await new Promise((r) => setTimeout(r, 200));
-    for (const n of document.querySelectorAll(".notice")) n.remove();
-    return { ok: true };
-  `).catch(() => undefined);
+  // `schliesseDialog` kennt beide Knopf-Formen (`.modal-close-button` bis 1.12, `.modal-header-button` ab 1.14.4).
+  await schliesseDialog(cdp).catch(() => undefined);
+  await sleep(200);
+  await clearNotices(cdp).catch(() => undefined);
 }
 
 /** Eine Notiz im Lesemodus oeffnen und auf den gerenderten Profil-Block warten. */
@@ -828,7 +832,8 @@ async function p8p12(c: Ctx): Promise<void> {
 // ---------------------------------------------------------------------------------------------
 
 /** Endpunkt auf `url` stellen, Chat oeffnen, neues Gespraech, `frage` senden — ohne auf das Ende zu warten. */
-async function chatSenden(c: Ctx, frage: string, url: string = c.fake.url): Promise<void> {
+/** Endpunkt setzen, Chat oeffnen, neuen Chat beginnen — alles, was VOR dem Senden liegt (die Folge-Messung haengt ihren Beobachter dazwischen). */
+async function chatVorbereiten(c: Ctx, url: string = c.fake.url): Promise<void> {
   const pre = await c.cdp.evaluate<{ url: string | null }>(`
     const p = app.plugins.plugins[${q(PLUGIN_ID)}];
     p.settings.endpoints = [{ url: ${q(url)}, apiKey: ${q(FAKE_ENDPOINT_KEY)}, model: ${q(FAKE_MODEL)} }];
@@ -849,6 +854,9 @@ async function chatSenden(c: Ctx, frage: string, url: string = c.fake.url): Prom
     return { ok: true };
   `);
   await clearNotices(c.cdp);
+}
+
+async function chatAbsenden(c: Ctx, frage: string): Promise<void> {
   await c.cdp.evaluate(`
     const i = document.querySelector(".sa-chat-input");
     i.value = ${q(frage)};
@@ -856,6 +864,11 @@ async function chatSenden(c: Ctx, frage: string, url: string = c.fake.url): Prom
     document.querySelector(".sa-chat-send").click();
     return { ok: true };
   `);
+}
+
+async function chatSenden(c: Ctx, frage: string, url: string = c.fake.url): Promise<void> {
+  await chatVorbereiten(c, url);
+  await chatAbsenden(c, frage);
 }
 
 /** Endpunkt auf den Fake setzen, Chat oeffnen, NEUEN Chat beginnen, Frage senden, auf das Ende der Antwort warten. */
@@ -1092,70 +1105,40 @@ const STROM_LAENGE = 10;
 const STROM_TEXT = Array.from({ length: 26 }, (_, i) => `Absatz ${i + 1}: Der Strom laeuft weiter, Wort fuer Wort, damit der Verlauf waechst und das Ende wandert.\n\n`).join("");
 const STROM_STUECKE = Math.ceil(STROM_TEXT.length / STROM_LAENGE);
 const MSGS = `document.querySelector(".sa-chat-messages")`;
-interface Strom { grund?: string; ueberlauf: number; hoehe: number; stuecke: number; proben: { top: number; abstand: number }[] }
+const P20 = pn("P20"), P21 = pn("P21"), P23 = pn("P23"), P24 = pn("P24");
 
-async function strommessung(c: Ctx, stoere: boolean, grob = false): Promise<Strom> {
-  // `grob`: ein ganzer Absatz je Stueck (Zuwachs > 40 px, Kit-Folge-Schwelle).
+/** Folge-Messung: zentral (`messeFolge`, tools/obsidian-cdp/README § Folge-Messung). Hier bleibt das Wissen ueber den Chat:
+ *  Stub, Vorbereitung, Senden, der Scroll-Container und „laeuft der Strom noch“. `grob`: ein ganzer Absatz je Stueck. */
+async function strom(c: Ctx, opt: { kontrolle: boolean; stoerung: boolean; wiederaufnahme?: boolean }, grob = false): Promise<Awaited<ReturnType<typeof messeFolge>>> {
   const absaetze = STROM_TEXT.split(/(?<=\n\n)/);
   const takt = grob ? 150 : STROM_TAKT;
-  const anzahl = grob ? absaetze.length : STROM_STUECKE;
   const stub = await startLlmStub({ models: [FAKE_MODEL], takt, nachlaufMs: 3 * takt, standard: grob ? { stuecke: absaetze } : { text: STROM_TEXT, laenge: STROM_LAENGE } });
   try {
-    await chatSenden(c, "SMOKE-STROM lange Antwort", stub.url);
-    const hoehe = await c.cdp.evaluate<number>(`const el = ${MSGS}; return el ? el.clientHeight : -1;`);
-    if (hoehe <= 0) return { grund: "Verlauf nicht sichtbar (Hoehe 0)", ueberlauf: 0, hoehe, stuecke: 0, proben: [] };
-    let start: { ue: number; top: number } | null = null;
-    const frist = Date.now() + 15_000;
-    while (Date.now() < frist && start === null) {
-      start = await c.cdp.evaluate<{ ue: number; top: number } | null>(`
-        const el = ${MSGS};
-        const ue = el.scrollHeight - el.clientHeight;
-        if (ue < 100) return null;
-        ${stoere ? "el.scrollTop = 0;" : ""}
-        return { ue, top: el.scrollTop };
-      `);
-      if (start === null) await sleep(40);
-    }
-    const t = Date.now();
-    if (start === null) return { grund: "Ueberlauf blieb unter 100 px (Strom zu kurz oder Verlauf zu hoch)", ueberlauf: 0, hoehe, stuecke: 0, proben: [] };
-    const chat0 = stub.letzte("chat")?.zeit ?? t;
-    const bis = chat0 + anzahl * takt - takt; // nur bis zum vorletzten Stueck abtasten
-    const proben: { top: number; abstand: number }[] = [];
-    while (Date.now() < bis) {
-      proben.push(await c.cdp.evaluate<{ top: number; abstand: number }>(`
-        const el = ${MSGS};
-        return { top: el.scrollTop, abstand: el.scrollHeight - el.scrollTop - el.clientHeight };
-      `));
-      await sleep(60);
-    }
-    const stuecke = Math.max(0, Math.floor((bis - t) / takt));
+    await chatVorbereiten(c, stub.url);
+    const e = await messeFolge(c.cdp, {
+      ausdruck: MSGS,
+      laeuft: () => stub.zaehler().unterwegs > 0,
+      starte: () => chatAbsenden(c, "SMOKE-STROM lange Antwort"),
+      ...opt,
+    });
     await pollUntil<boolean>(c.cdp, `const s = document.querySelector(".sa-chat-send"); return s && s.textContent === "Send" ? true : null;`, 25_000, 300).catch(() => undefined);
-    return { ueberlauf: start.ue, hoehe, stuecke, proben, grund: stuecke < 2 ? `nur ${stuecke} Stueck(e) nach dem Messbeginn` : undefined };
+    return e;
   } finally {
     await stub.stop();
   }
 }
-const stromZeige = (m: Strom): string => `Hoehe ${m.hoehe} px · Ueberlauf bei Messbeginn ${m.ueberlauf} px · ${m.stuecke} Stuecke danach · ${m.proben.length} Proben`;
 
 async function p20(c: Ctx): Promise<void> {
-  const m = await strommessung(c, false);
-  if (m.grund !== undefined) { unmeasured(pn("P20"), `${m.grund} (${stromZeige(m)})`); return; }
-  const maxAbstand = Math.max(...m.proben.map((x) => x.abstand));
-  record(pn("P20"), maxAbstand < 40, `${stromZeige(m)} · groesster Abstand zum Ende ${maxAbstand} px (soll < 40) · Abstand-Verlauf ${m.proben.filter((_, i) => i % 6 === 0).map((x) => x.abstand).join(",")}`);
+  zeichneFolge({ record, unmeasured }, { kontrolle: P20 }, await strom(c, { kontrolle: true, stoerung: false }));
 }
 
 async function p23(c: Ctx): Promise<void> {
-  const m = await strommessung(c, false, true);
-  if (m.grund !== undefined) { unmeasured(pn("P23"), `${m.grund} (${stromZeige(m)})`); return; }
-  const maxAbstand = Math.max(...m.proben.map((x) => x.abstand));
-  record(pn("P23"), maxAbstand < 40, `${stromZeige(m)} · groesster Abstand zum Ende ${maxAbstand} px (soll < 40) · Abstand-Verlauf ${m.proben.filter((_, i) => i % 6 === 0).map((x) => x.abstand).join(",")}`);
+  zeichneFolge({ record, unmeasured }, { kontrolle: P23 }, await strom(c, { kontrolle: true, stoerung: false }, true));
 }
 
+/** P21 (Folge) und P24 (Wiederaufnahme) teilen sich einen Strom: erst die Stoerung, danach steht der Nutzer wieder unten. */
 async function p21(c: Ctx): Promise<void> {
-  const m = await strommessung(c, true);
-  if (m.grund !== undefined) { unmeasured(pn("P21"), `${m.grund} (${stromZeige(m)})`); return; }
-  const maxTop = Math.max(...m.proben.map((x) => x.top));
-  record(pn("P21"), maxTop < 4, `${stromZeige(m)} · scrollTop nach der Stoerung 0, danach hoechstens ${maxTop} px (soll < 4) · Abstand zum Ende zuletzt ${m.proben[m.proben.length - 1]?.abstand} px`);
+  zeichneFolge({ record, unmeasured }, { folge: P21, wiederaufnahme: P24 }, await strom(c, { kontrolle: false, stoerung: true, wiederaufnahme: true }));
 }
 
 async function p22(c: Ctx): Promise<void> {
@@ -1201,12 +1184,16 @@ async function main(): Promise<void> {
   const launch = args.has("launch");
   const fake = await startFakeEndpoint();
   let inst: Instanz | null = null;
+  let zustand: { schliesse(): Promise<void> } | null = null;
   let cdp: Cdp | null = null;
   const warnungen: string[] = [];
   try {
     if (launch) {
       const vaultDir = setupVault();
-      inst = startInstanz(vaultDir, port);
+      const gestartet = startInstanz(vaultDir, port);
+      inst = gestartet;
+      // Vor der ersten Messung anmelden: ein Ctrl-C beendet die eigene Zweitinstanz (nur diese PID), statt sie stehen zu lassen.
+      zustand = beimAbbruch(() => stopInstanz(gestartet), "Zweitinstanz beenden");
     }
     cdp = await warteAufFenster(port, launch ? 60_000 : 5000);
     await cdp.mitschnitt((z) => { if (/EXCEPTION/.test(z)) warnungen.push(`Renderer: ${z.slice(0, 300)}`); });
@@ -1236,14 +1223,16 @@ async function main(): Promise<void> {
       // P12 wird in p8p12 mitgemessen; scheitert p8p12 vorher, bleibt es „nichts gemessen“ (siehe Bilanz).
     }
   } finally {
-    if (cdp) {
+    if (cdp && !istAbgebrochen()) {
       await schliesseDialoge(cdp);
       const n = await closeExtraLeaves(cdp).catch(() => 0);
       console.log(`\nAufgeraeumt: ${n} Leaves. Notices: ${await notices(cdp).catch(() => "?")}`);
       cdp.close();
     }
-    await fake.close();
-    if (inst) await stopInstanz(inst);
+    if (!istAbgebrochen()) await fake.close();
+    await zustand?.schliesse();
+    // Nach Ctrl-C druckt das Modul die Bilanz und beendet den Prozess selbst.
+    if (istAbgebrochen()) return;
   }
 
   abschluss();

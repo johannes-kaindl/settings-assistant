@@ -27,7 +27,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { argv, cwd, exit } from "node:process";
 
-import { Cdp, attachTo, bereiteInstanzVor, clearNotices, closeExtraLeaves, openExisting, pollUntil, reopenNote, setAppConfig } from "../../tools/obsidian-cdp/cdp.js";
+import { Cdp, attachTo, bereiteInstanzVor, clearNotices, closeExtraLeaves, openExisting, reopenNote, requireUntil, schliesseDialog, setAppConfig, pollUntil } from "../../tools/obsidian-cdp/cdp.js";
 import { startLlmStub } from "../../tools/obsidian-cdp/llm-stub.js";
 import { boxOf, capture, setWindowSize, writeShot, type Rect } from "../../tools/obsidian-cdp/shot.js";
 import { buildVault, stagingVaultDir } from "../../tools/obsidian-cdp/vault.js";
@@ -185,12 +185,10 @@ async function stelleDemoDatenHer(cdp: Cdp): Promise<void> {
 async function schliesseDialoge(cdp: Cdp): Promise<void> {
   // Ein Dialog, der offen bleibt, steht im naechsten Bild als Geist (gemessen: Anwenden-Dialog ueber dem Chat).
   // Erst per Knopf, dann per Escape; ob wirklich keiner mehr da ist, wird gemessen statt angenommen.
-  await cdp.evaluate(`
-    for (const b of document.querySelectorAll(".modal-container .modal-close-button")) b.click();
-    await new Promise((r) => setTimeout(r, 250));
-    for (const n of document.querySelectorAll(".notice")) n.remove();
-    return { ok: true };
-  `).catch(() => undefined);
+  // `schliesseDialog` kennt beide Knopf-Formen (`.modal-close-button` bis 1.12, `.modal-header-button` ab 1.14.4).
+  await schliesseDialog(cdp, { escapeRueckfall: false }).catch(() => undefined);
+  await sleep(250);
+  await clearNotices(cdp).catch(() => undefined);
   for (let i = 0; i < 5; i++) {
     const offen = await cdp.evaluate<{ n: number }>(`return { n: document.querySelectorAll(".modal-container").length };`).catch(() => ({ n: 0 }));
     if (offen.n === 0) return;
@@ -321,11 +319,8 @@ const SHOTS: Shot[] = [
         if (btn) btn.click();
         return { ok: true };
       `);
-      await pollUntil<{ ok: boolean }>(cdp, `return document.querySelector(".modal-container .modal") ? null : { ok: true };`, 8000, 200);
-      await pollUntil<{ ok: boolean }>(cdp, `
-        const root = app.vault.configDir + ${q(SNAP_ROOT)};
-        return (await app.vault.adapter.exists(root)) && (await app.vault.adapter.list(root)).folders.length > 0 ? { ok: true } : null;
-      `, 10_000, 300);
+      await requireUntil(cdp, `!document.querySelector(".modal-container .modal")`, "Anwenden-Dialog schliesst nicht", 8000, 200);
+      await requireUntil(cdp, `(await app.vault.adapter.exists(app.vault.configDir + ${q(SNAP_ROOT)})) && (await app.vault.adapter.list(app.vault.configDir + ${q(SNAP_ROOT)})).folders.length > 0`, "nach dem Anwenden entsteht kein Schnappschuss", 10_000, 300);
       await sleep(800);
       await clearNotices(cdp);
       await cdp.evaluate(`app.commands.executeCommandById(${q(`${PLUGIN_ID}:undo-last-apply`)}); return { ok: true };`);
