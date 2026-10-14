@@ -1,4 +1,4 @@
-// vendored from obsidian-kit@0.59.1, src/obsidian/version-list.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
+// vendored from obsidian-kit@0.60.1, src/obsidian/version-list.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
 /**
  * Versionsliste (UI-STANDARD §8, Listen-Zeile): der Verlauf mehrerer Stände als klickbare,
  * nummerierte Liste — Rückwahl auf einen früheren Stand.
@@ -26,7 +26,11 @@
  *   der Eingabe; sortiert wird nicht (wer gruppiert, übergibt die Einträge bereits geordnet).
  * - **Zustands-Knopf-Regel (§8).** Jede Zeile ist ein `button` mit `aria-pressed` und der
  *   Klasse `is-active`; die Tastatur bedient sie, weil es echte Knöpfe sind.
- * - **Ein Klick auf die aktive Zeile ruft `onSelect` nicht.** Auswahl des gewählten Standes ist
+ * - **`mode: "select" | "action"` (seit 0.60.1).** `select` (Default) ist die Auswahl eines Standes, jede Zeile ein Zustands-Knopf.
+ *   `action` ist für Listen, deren Klick etwas AUSLÖST (Zurückholen-Dialog öffnen, Version laden): keine Zeile trägt `aria-pressed`
+ *   oder `is-active`, und jeder Klick ruft `onSelect`. Ein Screenreader kündigte sonst einen Umschalter an, wo ein Aktionsknopf ist
+ *   (Befund sa-build 2026-10-03, settings-assistant). `active` ist dort bedeutungslos, `−1` ist der gedachte Wert.
+ * - **Ein Klick auf die aktive Zeile ruft `onSelect` nicht** (nur in `select`). Auswahl des gewählten Standes ist
  *   keine Änderung; der Aufrufer braucht den Vergleich nicht selbst.
  * - **Das Modul zeichnet nicht neu.** Wer den Zustand ändert, leert den Elternknoten und ruft
  *   `buildVersionList` erneut — wie die Plugins ihre Panels ohnehin neu aufbauen.
@@ -57,11 +61,14 @@ export interface VersionListOptions {
   heading?: string;
   /** Ab so vielen Einträgen wird die Liste gebaut. Default 2. */
   minItems?: number;
+  /** `select` (Default): Auswahl eines Standes, §8-Zustands-Knopf. `action`: jede Zeile löst etwas aus, kein `aria-pressed`, kein `is-active`. */
+  mode?: "select" | "action";
 }
 
 /** Baut die Liste in `parent`. Unter `minItems` passiert nichts und der Rückgabewert ist `null`. */
 export function buildVersionList(parent: HTMLElement, opts: VersionListOptions): HTMLElement | null {
   const { items, active } = opts;
+  const action = opts.mode === "action";
   if (items.length < (opts.minItems ?? 2)) return null;
 
   const root = parent.createDiv({ cls: "okit-vlist" });
@@ -75,15 +82,17 @@ export function buildVersionList(parent: HTMLElement, opts: VersionListOptions):
     }
     if (item.group !== undefined) lastGroup = item.group;
 
-    const isActive = index === active;
+    const isActive = !action && index === active;
     const row = list.createEl("button", { cls: "okit-vlist-row", attr: { type: "button" } });
-    row.toggleClass("is-active", isActive);
-    row.setAttribute("aria-pressed", String(isActive));
+    if (!action) {
+      row.toggleClass("is-active", isActive);
+      row.setAttribute("aria-pressed", String(isActive));
+    }
     row.createSpan({ text: `${index + 1}.`, cls: "okit-vlist-no" });
     row.createSpan({ text: item.label, cls: "okit-vlist-label" });
     if (item.meta !== undefined) row.createSpan({ text: item.meta, cls: "okit-vlist-meta" });
     row.addEventListener("click", () => {
-      if (index !== active) opts.onSelect(index);
+      if (action || index !== active) opts.onSelect(index);
     });
   });
   return root;

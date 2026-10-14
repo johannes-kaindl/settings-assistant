@@ -1,9 +1,9 @@
 {
   "source": "code-kit",
-  "version": "0.24.0",
-  "sha": "c3117a3",
+  "version": "0.27.1",
+  "sha": "ac89f10",
   "vendored": "clipboard.ts, sse.ts, endpoint.ts, endpoint_config.ts, endpoint_diagnostics.ts, model-choice.ts, model-list-cache.ts, reasoning.ts, capabilities.ts, think-splitter.ts, timeout.ts, error_body.ts, i18n.ts, settings.ts, sampling-profiles.ts, rotation.ts, backend-probe.ts, redact.ts, safe-markdown.ts, secrets.ts, embeddings-client.ts, model-context.ts",
-  "obsidian_kit_version": "0.59.1",
-  "obsidian_kit_sha": "30c807e",
+  "obsidian_kit_version": "0.60.1",
+  "obsidian_kit_sha": "4dfbd4e",
   "obsidian_kit_vendored": "endpoint-source.ts, endpoint-secret-hook.ts"
 }
