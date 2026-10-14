@@ -938,10 +938,11 @@ async function p17(c: Ctx): Promise<void> {
   const invalid = requests.filter((u) => u.includes("example.invalid") && !u.includes("mess-probe-p17"));
   if (d.turn === 0) { unmeasured(pn("P17"), "die Chat-Antwort wurde nicht gerendert"); return; }
   if (!mitschnittSieht) { unmeasured(pn("P17"), "der Netz-Mitschnitt sah nicht einmal den eigenen Mess-Request — „kein Request“ waere nichts wert"); return; }
-  const linkOk = d.links.every((l) => !/javascript:/i.test(l));
+  // Nicht vakuum: der Anker „click“ muss existieren UND seinen href verloren haben (`links.every` ueber null Elemente waere wahr).
+  const linkOk = d.links.some((l) => l.startsWith("click -> null")) && d.links.every((l) => !/javascript:/i.test(l));
   const sichtbar = d.text.includes("ˋ") && d.text.includes("dataviewjs") && d.text.includes("$= dv.current()") && d.text.includes("<img src=https://example.invalid/x.png>") && d.text.includes("click");
   record(pn("P17"), d.code === 0 && d.preLang === 0 && d.active === 0 && linkOk && sichtbar && invalid.length === 0,
-    `code-Elemente ${d.code}, pre/code mit language-Klasse ${d.preLang}, img/script/iframe/[src] ${d.active}, Links im Antworttext [${d.links.join("; ")}] (kein javascript: ${String(linkOk)}), Requests auf example.invalid ${invalid.length} (Messprobe sah ${String(mitschnittSieht)}; mitgeschnitten ${requests.length}) · Antwort als Text sichtbar (ˋ-Zeichen, Inline-Text, escaped <img>, Linktext): ${String(sichtbar)} · Dataview in der Zweitinstanz installiert: ${String(d.dataview)}${d.dataview ? "" : " — die Aussage ist daher nur „es entsteht kein code-/pre-Element, an dem ein Prozessor haengen koennte“, NICHT „Dataview fuehrt nichts aus“"}`);
+    `code-Elemente ${d.code}, pre/code mit language-Klasse ${d.preLang}, img/script/iframe/[src] ${d.active}, Links im Antworttext [${d.links.join("; ")}] (Anker „click“ ohne href, kein javascript: ${String(linkOk)}), Requests auf example.invalid ${invalid.length} (Messprobe sah ${String(mitschnittSieht)}; mitgeschnitten ${requests.length}) · Antwort als Text sichtbar (ˋ-Zeichen, Inline-Text, escaped <img>, Linktext): ${String(sichtbar)} · Dataview in der Zweitinstanz installiert: ${String(d.dataview)}${d.dataview ? "" : " — die Aussage ist daher nur „es entsteht kein code-/pre-Element, an dem ein Prozessor haengen koennte“, NICHT „Dataview fuehrt nichts aus“"}`);
 }
 
 
