@@ -41,7 +41,8 @@
         "safe-markdown",
         "secrets",
         "embeddings-client",
-        "model-context"
+        "model-context",
+        "local-stamp"
       ]
     },
     {
@@ -50,7 +51,8 @@
       "from": "src/pure",
       "modules": [
         "endpoint-source",
-        "endpoint-secret-hook"
+        "endpoint-secret-hook",
+        "plugin-id"
       ],
       "rewrite": [
         [

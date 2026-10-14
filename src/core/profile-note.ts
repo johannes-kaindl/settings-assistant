@@ -1,3 +1,4 @@
+import { localFileStamp } from "../vendor/kit/local-stamp";
 import { redactFields } from "../vendor/kit/redact";
 import { noteKey, serializeProfile, type ParseResult } from "./profile";
 import { targetKey, type Json, type SettingsProfile } from "./types";
@@ -45,9 +46,7 @@ export function redactedRawBlock(raw: string, result: ParseResult): string | nul
   return JSON.stringify(redactFields(parsed).value, null, 2);
 }
 
-const pad = (n: number): string => String(n).padStart(2, "0");
-
 /** `Settings profile YYYY-MM-DD HH-mm` (Ortszeit), ohne Endung. */
 export function profileNoteName(d: Date): string {
-  return `Settings profile ${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}-${pad(d.getMinutes())}`;
+  return `Settings profile ${localFileStamp(d)}`;
 }

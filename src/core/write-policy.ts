@@ -1,5 +1,5 @@
 // src/core/write-policy.ts
-import { isValidPluginId } from "./profile";
+import { isValidPluginId, samePluginId } from "../vendor/kit/plugin-id";
 import type { ObsidianFile, Target } from "./types";
 
 export type Stage = 1 | 2 | 3;
@@ -9,7 +9,7 @@ export const SELF_PLUGIN_ID = "settings-assistant";
 
 /** Eigene ID in jeder Schreibweise: APFS und NTFS unterscheiden Groß/Klein nicht, `Settings-Assistant/data.json` ist dieselbe Datei. */
 export function isSelfPluginId(id: string): boolean {
-  return id.toLowerCase() === SELF_PLUGIN_ID;
+  return samePluginId(id, SELF_PLUGIN_ID);
 }
 
 const WRITE_STAGE: Record<"plugin" | ObsidianFile, Stage> = {

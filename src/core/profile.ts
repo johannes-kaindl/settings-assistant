@@ -1,14 +1,11 @@
 // src/core/profile.ts
+import { isValidPluginId } from "../vendor/kit/plugin-id";
 import { OBSIDIAN_FILES, isPlainObject, targetKey, type Json, type ObsidianFile, type ProfileEntry, type SettingsProfile, type Target } from "./types";
 
 export const PROFILE_VERSION = 1;
-/** Obsidian-Plugin-IDs: Buchstaben, Ziffern, `-`, `_`, `.`; kein führender Punkt, kein `..`, kein `/`. */
-export const PLUGIN_ID_RE = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
-
-/** Einzige Stelle für die Plugin-ID-Prüfung (Muster plus kein `..`). */
-export function isValidPluginId(id: string): boolean {
-  return PLUGIN_ID_RE.test(id) && !id.includes("..");
-}
+/** Einzige Stelle für die Plugin-ID-Prüfung: die Pfadsicherheits-Prüfung des Kits (`obsidian-kit` `pure/plugin-id`).
+ *  Gegenüber dem früheren Eigenbau lehnt sie zusätzlich IDs über 128 Zeichen, einen Punkt am Ende und Windows-Gerätenamen ab. */
+export { isValidPluginId } from "../vendor/kit/plugin-id";
 
 /**
  * ACHTUNG `detail`: rohe JSON.parse-Meldung. V8 hängt bei "Unexpected token" den Quelltext an,

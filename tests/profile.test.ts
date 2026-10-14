@@ -41,7 +41,7 @@ describe("profile", () => {
     expect(parseProfile("{").ok).toBe(false);
     expect(parseProfile("[]")).toEqual({ ok: false, error: { code: "not-object" } });
   });
-  it.each(["../../x", "a/b", "..", "", ".hidden"])("rejects plugin id %j (no path escape)", (id) => {
+  it.each(["../../x", "a/b", "..", "", ".hidden", "foo.", "con", "NUL.txt", "a".repeat(129)])("rejects plugin id %j (no path escape)", (id) => {
     const r = parseProfile(JSON.stringify({ version: 1, plugins: { [id]: { a: 1 } } }));
     expect(r).toEqual({ ok: false, error: { code: "bad-section", section: `plugins.${id}`, reason: "bad-id" } });
   });

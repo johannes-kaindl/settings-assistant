@@ -10,6 +10,7 @@ All notable changes to this project are documented here. The format follows [Kee
   - **Chat header:** the thinking button now has a visible gap between its icon and its label (the plugin's stylesheet carries the kit rules).
   - **Request section:** a hint about discarded request settings lists them sorted instead of in stored order.
   - **Snapshot list:** the rows are announced as plain buttons that open the restore dialog, no longer as toggles.
+- **Plugin IDs:** the check that keeps a profile or a snapshot from writing outside `plugins/<id>/` now comes from the kit. Besides what it rejected before, it refuses IDs longer than 128 characters, IDs ending in a dot and Windows device names (`con`, `nul`, `com1` …). None of the 8912 IDs of the Community store is affected. The note name `Settings profile YYYY-MM-DD HH-mm` is unchanged.
 - **Chat:** the running answer is built once and then only updated, instead of being torn down and rebuilt with every streamed piece. Scrolling, text selection and the open thinking block stay where they are while the answer grows.
 
 ## [0.4.1] — 2026-10-12
