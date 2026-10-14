@@ -1203,6 +1203,9 @@ async function main(): Promise<void> {
     const v = await cdp.evaluate<{ name: string; basePath: string; configDir: string; ver: string }>(`return { name: app.vault.getName(), basePath: app.vault.adapter.basePath, configDir: app.vault.configDir, ver: (document.title.match(/Obsidian ([\\d.]+)/) || [])[1] || "?" };`);
     console.log(`Vault: ${v.name} (${v.basePath}), Obsidian ${v.ver}`);
     requireEigenerBuild(join(v.basePath, v.configDir, "plugins", PLUGIN_ID, "main.js"), join(REPO_ROOT, "main.js"), (m) => warnungen.push(m));
+    // Vorzustand: Schnappschuesse frueherer Laeufe zaehlt P13 sonst mit (7 statt 1, gemessen Welle 22; CORE-TEST-21). Nur der
+    // Ordner des Plugins im Staging-Vault, im Prozess des Treibers (der Vault ist Wegwerfware, `setupVault` raeumt ihn ebenso).
+    rmSync(join(v.basePath, v.configDir, "plugins", PLUGIN_ID, "snapshots"), { recursive: true, force: true });
     // Die Oberflaeche muss Englisch sein, sonst messen die Textvergleiche die Sprache statt das Plugin.
     const lang = await cdp.evaluate<{ l: string }>(`return { l: (window.moment ? window.moment.locale() : "?") };`);
     if (lang.l !== "en") warnungen.push(`Oberflaechensprache ist „${lang.l}“, nicht „en“ — Textvergleiche koennen rot werden`);
