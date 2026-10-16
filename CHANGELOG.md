@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.6.0] — 2026-10-16
+
 ### Fixed
 
 - **Gemma 4 on LM Studio: the model's thinking no longer shows up as the answer in the chat.** It writes its thinking into the answer text without an opening marker and closes it with `<channel|>`; the chat now moves that text into the collapsible thinking block and shows only the answer.
