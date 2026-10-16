@@ -135,6 +135,20 @@ describe("ChatSession", () => {
     expect(s.turns).toHaveLength(0);
   });
 
+  it("resetContent leert den gestreamten Antworttext, das Denken bleibt (Gemma 4 ohne Öffner)", async () => {
+    const seen: string[] = [];
+    const s = make(async (_m, _s, onDelta) => {
+      onDelta({ content: "Ich denke." }); seen.push(s.turns[1].content);
+      onDelta({ resetContent: true }); seen.push(s.turns[1].content);
+      onDelta({ reasoning: "Ich denke." }); onDelta({ content: "Antwort" }); seen.push(s.turns[1].content);
+      return { ok: true, content: "Antwort", reasoning: "Ich denke." };
+    });
+    s.selected = ["alpha"];
+    await s.ask("x", new AbortController().signal, () => {});
+    expect(seen).toEqual(["Ich denke.", "", "Antwort"]);
+    expect(s.turns[1].reasoning).toBe("Ich denke.");
+  });
+
   it("nicht lesbare Einstellungsdatei: Fehler beim Lesen wird zu 'keine Datei', kein Wurf", async () => {
     const s = make(ok("x"), { readSettings: async () => { throw new Error("EACCES /secret/path"); } });
     s.selected = ["alpha"];

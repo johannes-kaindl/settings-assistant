@@ -4,7 +4,7 @@ import { t } from "../vendor/kit/i18n";
 
 export type SendResult = { ok: true; content: string; reasoning?: string } | { ok: false; error: string };
 export type ChatSend = (
-  messages: ChatWireMessage[], signal: AbortSignal, onDelta: (d: { content?: string; reasoning?: string }) => void,
+  messages: ChatWireMessage[], signal: AbortSignal, onDelta: (d: { content?: string; reasoning?: string; resetContent?: boolean }) => void,
 ) => Promise<SendResult>;
 
 /** Fehlertext für die Oberfläche: nur Art und Status — nie `detail`/`body` des Servers (könnten Eingaben spiegeln). */
@@ -23,6 +23,8 @@ export function createChatSend(llm: Pick<LlmConnection, "complete">): ChatSend {
         signal,
         onToken: (text) => { onDelta({ content: text }); },
         onReasoning: (text) => { onDelta({ reasoning: text }); },
+        // Gemma 4 ohne Öffner: der bisher gezeigte Antworttext war das Denken (kommt über `onReasoning`) — die Anzeige wird geleert.
+        onContentReset: () => { onDelta({ resetContent: true }); },
       });
       return resultToSend(r);
     } catch (e) {

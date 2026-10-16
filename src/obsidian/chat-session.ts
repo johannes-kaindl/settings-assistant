@@ -26,7 +26,7 @@ export interface ChatTurn {
 
 export interface ChatSessionDeps {
   send(
-    messages: ChatWireMessage[], signal: AbortSignal, onDelta: (d: { content?: string; reasoning?: string }) => void,
+    messages: ChatWireMessage[], signal: AbortSignal, onDelta: (d: { content?: string; reasoning?: string; resetContent?: boolean }) => void,
   ): Promise<{ ok: true; content: string; reasoning?: string } | { ok: false; error: string }>;
   readSettings(id: string): Promise<string | null>;
   installed(): PluginInfo[];
@@ -82,6 +82,7 @@ export class ChatSession {
     onUpdate();
     try {
       const res = await this.deps.send(messages, signal, (d) => {
+        if (d.resetContent) answer.content = "";
         if (d.content) answer.content += d.content;
         if (d.reasoning) answer.reasoning = (answer.reasoning ?? "") + d.reasoning;
         onUpdate();

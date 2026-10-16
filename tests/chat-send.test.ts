@@ -37,6 +37,14 @@ describe("createChatSend", () => {
     expect((complete.mock.calls[0]?.[1] as { signal: AbortSignal }).signal).toBe(ac.signal);
     expect(deltas).toEqual([{ content: "hi" }, { reasoning: "th" }]);
   });
+  it("onContentReset der Verbindung wird zum Delta resetContent (Gemma 4 ohne Öffner)", async () => {
+    const complete = vi.fn(async (_req: unknown, h?: { onToken?: (t: string) => void; onReasoning?: (t: string) => void; onContentReset?: () => void }) => {
+      h?.onToken?.("Ich denke."); h?.onContentReset?.(); h?.onReasoning?.("Ich denke."); h?.onToken?.("Antwort"); return okRes("Antwort");
+    });
+    const deltas: unknown[] = [];
+    await createChatSend({ complete } as unknown as Pick<LlmConnection, "complete">)([], new AbortController().signal, (d) => deltas.push(d));
+    expect(deltas).toEqual([{ content: "Ich denke." }, { resetContent: true }, { reasoning: "Ich denke." }, { content: "Antwort" }]);
+  });
   it("ein Wurf der Verbindung wird zum Fehlerergebnis, ein AbortError zu „aborted“", async () => {
     const boom = createChatSend({ complete: async () => { throw new Error("kaputt"); } } as unknown as Pick<LlmConnection, "complete">);
     expect(await boom([], new AbortController().signal, () => {})).toEqual({ ok: false, error: "kaputt" });

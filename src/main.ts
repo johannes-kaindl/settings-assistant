@@ -96,6 +96,7 @@ export default class SettingsAssistantPlugin extends Plugin {
       saveNote: (name, text) => this.saveProfileNote(name, text),
       thinking: {
         family: () => this.llm.source().family,
+        backend: () => this.llm.source().backend,
         current: () => thinkingFor(this.settings.request, CHAT_MODE),
         onLevel: () => onLevelFor(this.settings.request, CHAT_MODE),
         setLevel: (l) => this.setChatThinking(l),

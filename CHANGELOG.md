@@ -4,9 +4,15 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Fixed
+
+- **Gemma 4 on LM Studio: the model's thinking no longer shows up as the answer in the chat.** It writes its thinking into the answer text without an opening marker and closes it with `<channel|>`; the chat now moves that text into the collapsible thinking block and shows only the answer.
+- The chat's thinking button shows "lowest level" for Gemma 4 on LM Studio, where thinking cannot be switched off completely (LM Studio ignores `none` for that model, so "off" sends the lowest effort and the model thinks a little).
+
 ### Changed
 
 - **In the chat, Enter sends the message and Shift+Enter starts a new line,** as in the other chat windows. Ctrl+Enter and Cmd+Enter still send. Before, only Ctrl/Cmd+Enter sent.
+- **Kit pins raised to `obsidian-kit` 0.61.0 and `code-kit` 0.28.0** (from 0.60.1 and 0.27.1). Visible effects of the skipped releases (obsidian-kit 0.60.2, 0.60.3, 0.61.0; code-kit 0.27.2, 0.28.0): Gemma 4 on LM Studio sends the lowest thinking effort for "thinking off" (see above); the request section names a backend or model family the plugin does not know yet instead of failing; if the LLM Endpoint Manager is switched on after this plugin, the endpoint subscription now catches up instead of staying silent for the session; the snapshot list no longer needs a placeholder for the active entry. Nothing else in the copied building blocks reaches this plugin.
 
 ## [0.5.0] — 2026-10-14
 
