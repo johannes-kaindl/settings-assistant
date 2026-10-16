@@ -1,5 +1,5 @@
 /**
- * GUI-Smoke — faehrt die Pruefpunkte P1-P24 gegen ein LAUFENDES Obsidian (CORE-TEST-02 b).
+ * GUI-Smoke — faehrt die Pruefpunkte P1-P25 gegen ein LAUFENDES Obsidian (CORE-TEST-02 b).
  *
  * Gemessen wird die SACHE: Dateiinhalt auf Platte (`sa-probe/data.json`, `hotkeys.json`, Schnappschuss-
  * Manifest), Dialogtext, Notice — nicht die Existenz eines Elements. Das Testplugin `sa-probe`
@@ -88,6 +88,7 @@ const PUNKTE = [
   "P22 Denkblock live: der Reasoning-Text ist waehrend des Stroms sichtbar und waechst",
   "P23 Strom mit absatzgrossen Stuecken: der Chat-Verlauf folgt dem Ende auch bei Spruengen ueber die Folge-Schwelle (Kit 0.59.0, withFollow)",
   "P24 Folge-Regel, zweite Haelfte: steht der Nutzer wieder unten, folgt der Chat-Verlauf dem Strom wieder",
+  "P25 Gemma 4 ohne Oeffner (Denken in content, <channel|>, Antwort): der Denktext steht im Denkblock, die Antwort zeigt nur die Antwort",
 ] as const;
 type PunktName = (typeof PUNKTE)[number];
 const pn = (prefix: string): PunktName => {
@@ -1142,6 +1143,32 @@ async function p21(c: Ctx): Promise<void> {
   zeichneFolge({ record, unmeasured }, { folge: P21, wiederaufnahme: P24 }, await strom(c, { kontrolle: false, stoerung: true, wiederaufnahme: true }));
 }
 
+/** Gemma 4 auf LM Studio (Welle 23): das Denken steht OHNE Oeffner in `content`, `<channel|>` schliesst es, die Antwort folgt.
+ *  Der Stub streamt genau das und haelt die Verbindung danach offen, damit der Anzeigetext vor dem Schluss-Draw lesbar bleibt.
+ *  Gemessen wird der ANZEIGETEXT der Antwort (`.okit-stream-body`): ohne Kanal-Leser und `onContentReset` bliebe der Denktext samt
+ *  `<channel|>` darin stehen; das Denken gehoert in den Block `.okit-stream-reasoning`. Der Server nennt das Modell in der Antwort. */
+async function p25(c: Ctx): Promise<void> {
+  const GEDANKE = "Ich waege erst die Quellen ab und pruefe dann den Kontext.";
+  const stub = await startLlmStub({
+    models: [FAKE_MODEL], takt: 150, nachlaufMs: 4000,
+    antwort: () => ({ stuecke: [GEDANKE.slice(0, 20), GEDANKE.slice(20) + "<channel|>", "Die fertige ", "Antwort."], model: "google/gemma-4-e4b" }),
+  });
+  try {
+    await chatSenden(c, "SMOKE-GEMMA bitte antworten", stub.url);
+    const g = await pollUntil<{ antwort: string; denken: string; block: boolean }>(c.cdp, `
+      const body = document.querySelector(".sa-chat-turn.is-assistant .okit-stream-body");
+      if (!body || !(body.textContent || "").includes("Antwort.")) return null;
+      const pre = document.querySelector(".sa-chat-turn.is-assistant .okit-stream-reasoning pre");
+      return { antwort: (body.textContent || "").trim(), denken: pre ? pre.textContent || "" : "", block: !!pre };`, 20_000, 100).catch(() => null);
+    if (g === null) { unmeasured(pn("P25"), "die Antwort kam im Anzeigetext nicht an (20 s)"); return; }
+    record(pn("P25"), g.block && g.antwort === "Die fertige Antwort." && g.denken.includes("waege") && !g.antwort.includes("waege") && !g.antwort.includes("channel"),
+      `Anzeigetext „${g.antwort.slice(0, 80)}“ · Denkblock ${g.block ? `„${g.denken.slice(0, 40)}“` : "fehlt"}`);
+  } finally {
+    await pollUntil<boolean>(c.cdp, `const s = document.querySelector(".sa-chat-send"); return s && s.textContent === "Send" ? true : null;`, 25_000, 300).catch(() => undefined);
+    await stub.stop();
+  }
+}
+
 async function p22(c: Ctx): Promise<void> {
   const stub = await startLlmStub({
     models: [FAKE_MODEL], takt: 250, nachlaufMs: 750,
@@ -1218,7 +1245,7 @@ async function main(): Promise<void> {
       const reihe: Array<[PunktName, (c: Ctx) => Promise<void>]> = [
         [pn("P1"), p1], [pn("P2"), p2], [pn("P13"), p13], [pn("P7"), p7], [pn("P14"), p14],
         [pn("P3"), p3], [pn("P4"), p4], [pn("P5"), p5], [pn("P11"), p11], [pn("P6"), p6],
-        [pn("P9"), p9], [pn("P10"), p10], [pn("P8"), p8p12], [pn("P15"), p15], [pn("P16"), p16], [pn("P17"), p17], [pn("P18"), p18], [pn("P19"), p19], [pn("P20"), p20], [pn("P21"), p21], [pn("P22"), p22], [pn("P23"), p23],
+        [pn("P9"), p9], [pn("P10"), p10], [pn("P8"), p8p12], [pn("P15"), p15], [pn("P16"), p16], [pn("P17"), p17], [pn("P18"), p18], [pn("P19"), p19], [pn("P20"), p20], [pn("P21"), p21], [pn("P22"), p22], [pn("P23"), p23], [pn("P25"), p25],
       ];
       for (const [name, fn] of reihe) {
         await schliesseDialoge(cdp);
