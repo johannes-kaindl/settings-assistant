@@ -9,7 +9,7 @@ The chat needs an endpoint with a chat model. Under **Settings → Settings Assi
 ## Ask
 
 1. Run **Open settings chat**, or use the ribbon icon. The chat opens in the right sidebar.
-2. Type your question and send with **Send** or Ctrl+Enter (Cmd+Enter on macOS). Name the plugin in the question, for example "Why does my-plugin stop after twenty rounds?". Plugins whose id or name appears in your message are picked as chips above the input.
+2. Type your question and send with **Send** or Enter; Shift+Enter starts a new line. Name the plugin in the question, for example "Why does my-plugin stop after twenty rounds?". Plugins whose id or name appears in your message are picked as chips above the input.
 3. Correct the chips before you send: remove one with its **x**, add one with the **Add a plugin…** dropdown. Only these plugins' settings go with the question. A list of all installed plugins (id and name) always goes along.
 4. **Stop** cancels a running answer. **New chat** clears the conversation. The history is kept in memory only; close Obsidian and it is gone.
 

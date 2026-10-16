@@ -103,7 +103,11 @@ export class SettingsChatView extends ItemView {
     input.placeholder = t("chat.placeholder");
     input.addEventListener("keydown", (e: KeyboardEvent) => {
       if (e.isComposing || e.key === "Process" || e.key !== "Enter") return;
-      if (e.metaKey || e.ctrlKey) { e.preventDefault(); void this.submit(); }
+      // Enter sendet, Umschalt+Enter macht eine neue Zeile (wie in den anderen Chat-Fenstern, Entscheidung Johannes 2026-10-15);
+      // Strg/Cmd+Enter sendet weiter, damit die alte Gewohnheit nicht ins Leere läuft. Alt+Enter bleibt dem Browser.
+      if (e.shiftKey || e.altKey) return;
+      e.preventDefault();
+      void this.submit();
     });
     this.inputEl = input;
     this.actionBtn = row.createEl("button", { cls: "sa-chat-send mod-cta", text: t("chat.send") });

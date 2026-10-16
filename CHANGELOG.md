@@ -4,6 +4,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Changed
+
+- **In the chat, Enter sends the message and Shift+Enter starts a new line,** as in the other chat windows. Ctrl+Enter and Cmd+Enter still send. Before, only Ctrl/Cmd+Enter sent.
+
 ## [0.5.0] — 2026-10-14
 
 ### Changed

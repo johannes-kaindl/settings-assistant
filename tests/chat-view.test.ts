@@ -39,6 +39,26 @@ const ask = async (v: SettingsChatView, text = "koda-agent rounds") => {
 describe("chat-view", () => {
   it("Typ-Konstante", () => { expect(VIEW_TYPE_SA_CHAT).toBe("settings-assistant-chat"); });
 
+  it("Enter sendet, Umschalt+Enter macht eine neue Zeile, Strg/Cmd+Enter sendet weiter; eine Eingabe per IME sendet nie", async () => {
+    const taste = async (mods: { shiftKey?: boolean; metaKey?: boolean; ctrlKey?: boolean; altKey?: boolean; isComposing?: boolean; key?: string }) => {
+      const { view, deps } = setup({ answer: "ok" });
+      await view.onOpen();
+      const input = (view.contentEl as any).querySelectorAll("textarea")[0];
+      input.value = "koda-agent rounds";
+      const ev = { type: "keydown", key: "Enter", shiftKey: false, metaKey: false, ctrlKey: false, altKey: false, isComposing: false, defaultPrevented: false, preventDefault() { this.defaultPrevented = true; }, ...mods };
+      input.dispatchEvent(ev);
+      await Promise.resolve(); await Promise.resolve();
+      return { sent: input.value === "" || (view.contentEl as any).textContent.includes("You"), prevented: ev.defaultPrevented, deps };
+    };
+    expect((await taste({})).prevented).toBe(true);
+    expect((await taste({ metaKey: true })).prevented).toBe(true);
+    expect((await taste({ ctrlKey: true })).prevented).toBe(true);
+    expect((await taste({ shiftKey: true })).prevented).toBe(false);   // neue Zeile
+    expect((await taste({ altKey: true })).prevented).toBe(false);
+    expect((await taste({ isComposing: true })).prevented).toBe(false);   // Enter bestätigt die Umwandlung
+    expect((await taste({ key: "a" })).prevented).toBe(false);
+  });
+
   it("Empty-State ohne Endpunkt: genau ein mod-cta, der die Einstellungen öffnet", async () => {
     const { view, deps } = setup({ endpoint: false });
     await view.onOpen();
