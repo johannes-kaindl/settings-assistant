@@ -2,7 +2,7 @@
 
 Orientierung für KI-Agenten (Claude Code, Codex, …) und Mitwirkende an diesem Repository.
 
-Workspace-weite Standards (comply-or-explain): [`../../_docs/CONVENTIONS.md`](../../_docs/CONVENTIONS.md). Dach-Regeln (Kit-first, Zuständigkeit, UI-STANDARD): [`../AGENTS.md`](../AGENTS.md).
+Workspace-weite Standards (comply-or-explain): [`../../workspace/_docs/CONVENTIONS.md`](../../workspace/_docs/CONVENTIONS.md). Dach-Regeln (Kit-first, Zuständigkeit, UI-STANDARD): [`../AGENTS.md`](../AGENTS.md).
 
 **Profil:** `ts-node` · `obsidian-plugin`.
 
