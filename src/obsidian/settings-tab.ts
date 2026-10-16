@@ -102,7 +102,6 @@ export class SettingsAssistantSettingTab extends PluginSettingTab {
       heading: t("snap.heading"),
       minItems: 1,
       mode: "action",   // Klick öffnet den Zurückholen-Dialog: kein aria-pressed an den Zeilen
-      active: -1,       // der Typ verlangt `active` noch (Kit 0.60.1); in `action` ohne Wirkung
       items: all.map((s) => ({
         label: new Date(s.manifest.at).toLocaleString(getLang()),
         meta: `${s.manifest.origin} · ${tn("snap.files", s.manifest.files.length)}`,

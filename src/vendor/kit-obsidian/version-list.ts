@@ -1,4 +1,4 @@
-// vendored from obsidian-kit@0.60.1, src/obsidian/version-list.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
+// vendored from obsidian-kit@0.61.0, src/obsidian/version-list.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
 /**
  * Versionsliste (UI-STANDARD §8, Listen-Zeile): der Verlauf mehrerer Stände als klickbare,
  * nummerierte Liste — Rückwahl auf einen früheren Stand.
@@ -29,7 +29,8 @@
  * - **`mode: "select" | "action"` (seit 0.60.1).** `select` (Default) ist die Auswahl eines Standes, jede Zeile ein Zustands-Knopf.
  *   `action` ist für Listen, deren Klick etwas AUSLÖST (Zurückholen-Dialog öffnen, Version laden): keine Zeile trägt `aria-pressed`
  *   oder `is-active`, und jeder Klick ruft `onSelect`. Ein Screenreader kündigte sonst einen Umschalter an, wo ein Aktionsknopf ist
- *   (Befund sa-build 2026-10-03, settings-assistant). `active` ist dort bedeutungslos, `−1` ist der gedachte Wert.
+ *   (Befund sa-build 2026-10-03, settings-assistant). `active` ist dort bedeutungslos und seit 0.61.0 weglassbar (der Typ ist eine
+ *   diskriminierte Union über `mode`: ohne `mode` oder mit `select` bleibt `active` Pflicht, damit eine vergessene Markierung nicht still bleibt).
  * - **Ein Klick auf die aktive Zeile ruft `onSelect` nicht** (nur in `select`). Auswahl des gewählten Standes ist
  *   keine Änderung; der Aufrufer braucht den Vergleich nicht selbst.
  * - **Das Modul zeichnet nicht neu.** Wer den Zustand ändert, leert den Elternknoten und ruft
@@ -51,24 +52,36 @@ export interface VersionListItem {
   group?: string;
 }
 
-export interface VersionListOptions {
+interface VersionListBase {
   items: readonly VersionListItem[];
-  /** Index in `items` des gewählten Standes; −1 oder außerhalb markiert keine Zeile. */
-  active: number;
-  /** Wird mit dem Index der geklickten Zeile gerufen — nicht für die aktive. */
+  /** Wird mit dem Index der geklickten Zeile gerufen — nicht für die aktive (nur in `select`). */
   onSelect(index: number): void;
   /** Überschrift über der Liste. Ohne sie liest sich die Liste wie Teil des Ergebnisses. */
   heading?: string;
   /** Ab so vielen Einträgen wird die Liste gebaut. Default 2. */
   minItems?: number;
-  /** `select` (Default): Auswahl eines Standes, §8-Zustands-Knopf. `action`: jede Zeile löst etwas aus, kein `aria-pressed`, kein `is-active`. */
-  mode?: "select" | "action";
 }
+
+/** `select` (Default): Auswahl eines Standes, §8-Zustands-Knopf; `active` ist Pflicht. */
+export interface VersionListSelectOptions extends VersionListBase {
+  mode?: "select";
+  /** Index in `items` des gewählten Standes; −1 oder außerhalb markiert keine Zeile. */
+  active: number;
+}
+
+/** `action`: jede Zeile löst etwas aus, kein `aria-pressed`, kein `is-active`. `active` entfällt (seit 0.61.0); ein übergebener Wert wird ignoriert. */
+export interface VersionListActionOptions extends VersionListBase {
+  mode: "action";
+  active?: number;
+}
+
+export type VersionListOptions = VersionListSelectOptions | VersionListActionOptions;
 
 /** Baut die Liste in `parent`. Unter `minItems` passiert nichts und der Rückgabewert ist `null`. */
 export function buildVersionList(parent: HTMLElement, opts: VersionListOptions): HTMLElement | null {
-  const { items, active } = opts;
+  const { items } = opts;
   const action = opts.mode === "action";
+  const active = opts.active ?? -1;
   if (items.length < (opts.minItems ?? 2)) return null;
 
   const root = parent.createDiv({ cls: "okit-vlist" });

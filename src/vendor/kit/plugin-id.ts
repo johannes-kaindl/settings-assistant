@@ -1,4 +1,4 @@
-// vendored from obsidian-kit@0.60.1, src/pure/plugin-id.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
+// vendored from obsidian-kit@0.61.0, src/pure/plugin-id.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
 /** Höchstlänge einer Plugin-ID. Keine Obsidian-Regel, sondern eine Schranke für Ordnernamen,
  *  Meldungen und Oberflächenzeilen: gemessen 2026-10-14 an der Store-Liste (8912 IDs) ist die längste ID
  *  55 Zeichen lang, 128 lässt reichlich Luft und weist trotzdem einen Megabyte-String aus einer
@@ -31,8 +31,9 @@ const WINDOWS_RESERVED_RE = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\.|$)/i;
  *  Dazu die reservierten Gerätenamen von Windows (`con`, `nul`, `com1` …, mit und ohne Endung): als Ordnername unbrauchbar.
  *
  *  **Die Prüfung faltet keine Groß-/Kleinschreibung, `samePluginId` tut es.** APFS und NTFS unterscheiden sie nicht, `Foo` und `foo`
- *  sind dort derselbe Ordner. anysource-sideloader bekam die Kleinschreibung bisher unbeabsichtigt mit seiner Grammatik; wer IDs
- *  vergleicht (schon installiert? gebunden an? eigene ID?), nimmt `samePluginId`, nicht `===`.
+ *  sind dort derselbe Ordner. anysource-sideloader bekam die Kleinschreibung bisher unbeabsichtigt mit seiner Grammatik; wer fragt „liegt dieser
+ *  Ordner schon da?“ (schon installiert? gebunden an? eigene ID?), nimmt `samePluginId`, nicht `===`. Wer fragt „ist das noch dieselbe ID?“
+ *  (ein Wechsel soll auffallen), vergleicht mit `===` — Begründung an `samePluginId`.
  *
  *  Die Funktion nimmt auch Nicht-Strings entgegen und lehnt sie ab (die Aufrufer lesen die ID aus fremdem JSON). */
 export function isValidPluginId(id: string): boolean {
@@ -40,7 +41,13 @@ export function isValidPluginId(id: string): boolean {
     && !id.includes("..") && !id.endsWith(".") && !WINDOWS_RESERVED_RE.test(id);
 }
 
-/** Dieselbe Plugin-ID, wie das Dateisystem sie sieht: ohne Rücksicht auf Groß-/Kleinschreibung (APFS, NTFS). */
+/** Dieselbe Plugin-ID, wie das Dateisystem sie sieht: ohne Rücksicht auf Groß-/Kleinschreibung (APFS, NTFS).
+ *
+ *  **Falten nur für „ist das schon da?“ (liegt dort schon ein Ordner, ist das schon installiert, woran ist es gebunden), nie für „ist das noch
+ *  dasselbe?“.** Ein Guard, der einen ID-**Wechsel** erkennen soll (`expectedId` in einem Update, `applyUpdate`), vergleicht mit `===`: mit
+ *  `samePluginId` ging in anysource-sideloader ein Release durch, das die ID nur in der Schreibweise änderte (`Demo` statt `demo`) —
+ *  für das Dateisystem derselbe Ordner, für Obsidian (`manifest.id`, `enabledPlugins`) eine andere ID (Sicherheitsreview an `dd49d3d`,
+ *  Welle 22). Merkregel: Frage nach dem **Ort** → `samePluginId`; Frage nach der **Identität** → `===`. */
 export function samePluginId(a: string, b: string): boolean {
   return a.toLowerCase() === b.toLowerCase();
 }
