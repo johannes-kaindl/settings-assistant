@@ -1,0 +1,19 @@
+# Architektur im Detail — Module und Adapter
+
+Ausgelagert aus der `AGENTS.md` (CORE-AGENT-15: Kontext wohnt nach seinem Auslöser). Lies sie, wenn du einen Kern- oder Adapter-Baustein anfasst.
+
+Der reine Kern liegt in `src/core/` (kein `obsidian`-Import, `npm run check:pure` nagelt das fest):
+
+- `types.ts` — `Json`, `Target` (`plugin` oder `obsidian`-Datei), `leaves`, `getAt`, `deepEqual`, `targetKey`.
+- `profile.ts` — `parseProfile`/`serializeProfile`, `ProfileError` (Codes `invalid-json`, `not-object`, `missing-version`, `bad-version`, `future-version`, `bad-section`), Plugin-ID-Prüfung `isValidPluginId`.
+- `reconcile.ts` — `reconcile()` macht aus Profil und Dateizustand die Prüfzeilen (`RowStatus`: `change`, `same`, `missing-key`, `not-installed`, `unreadable`, `shape-conflict`, `secret`, `read-only`); die Reihenfolge der Prüfungen ist die Rangfolge.
+- `llm-settings.ts` — `toLlmSettings()`/`applyLlmPatch()`: bildet unser Feld `endpointChoice` auf die Form der Verbindung (`choice`) ab und zurück, synchron. Ein globales Modell gibt es seit 0.3.0 nicht mehr: das Modell lebt nur in der Endpunkt-Zeile, `loadSettings` migriert ein altes `localModel` einmalig in Zeilen ohne Modell (`fillMissingRowModels`), entfernt den Schlüssel, und `main.ts` speichert dann einmal.
+- `patch.ts` — `applyRows()` setzt Werte und erhält unbekannte Felder, Reihenfolge, Einrückung und End-Zeilenumbruch.
+- `write-policy.ts` — `CURRENT_STAGE = 1`, `isWritable()`, `targetPath()`, `SELF_PLUGIN_ID`; eine Datei freizugeben heißt eine Zeile in `WRITE_STAGE`, ihr Schreibweg, ihr Test.
+- `apply-run.ts` — `runApply()` und `runRestore()` über die Ports (`ApplyPorts`): Schnappschuss zuerst, je Datei aus/lesen/prüfen/patchen/schreiben/an, Zurücklesen, Halt bei Fehler ohne Rollback.
+- `snapshot.ts` — Manifest-Typen, `hashText` (FNV-1a mit Längenpräfix), `restoreDecision()` (`restore`, `changed`, `unverified`).
+- `chat-context.ts`, `profile-fence.ts`, `profile-note.ts`, `settings.ts` — Chat-Kontext mit Schwärzung und Block-Extraktion, Erkennung der `settings-profile`-Zäune für Extraktion und `stripProfileBlocks` aus einer Quelle, Profilnotiz und Roh-Anzeige mit Schwärzung, Einstellungen mit Feldprüfung. Schwärzung von Schlüsselwerten (`redactFields`, `isSecretPath`) und `neutralizeModelMarkdown` kommen aus code-kit (`redact`, `safe-markdown`, vendort unter `src/vendor/kit/`); ihre Golden-Tests liegen dort.
+
+Die Adapter in `src/obsidian/` sind dünn: `apply-service.ts` (ein Anwenden zur Zeit, Dialog, Bericht, Aufbewahrung), `snapshots.ts` (Ablage unter `<configDir>/plugins/settings-assistant/snapshots/`, `makePorts`), `config-io.ts` (Dateien nur über `app.vault.adapter`), `plugin-host.ts` (Plugin an/aus, „aktiv“ = geladen ODER gespeichert, schmales Interface auf das undokumentierte `app.plugins`), `profile-block.ts` (Codeblock-Prozessor), `apply-modal.ts`/`restore-modal.ts`/`check-rows-view.ts`, `chat-session.ts` (Verlauf nur im Speicher) und `chat-view.ts` (Ansicht `settings-assistant-chat`), `chat-send.ts` (die Antwort der Kit-Verbindung als Sendeergebnis für `ChatSession`; Fehlertext nur Art und Status, nie die Servermeldung; die Verbindung selbst, `createLlmConnection`, wird in `main.ts` erzeugt und trägt Auflösung, Parameter, Client, Fristen, Schwärzung und die Abschnitte Endpunkt und Anfrage der Einstellungen), `settings-tab.ts` (deklarativ über `getSettingDefinitions()`), `api.ts` (Anbieter-API v1).
+
+Alle UI-Texte stehen in `src/i18n/strings.ts` (en + de; Englisch ist kanonisch und Rückfall, dass beide Wörterbücher dieselben Schlüssel tragen, prüft kein Test — beim Ergänzen beide Sprachen pflegen).
