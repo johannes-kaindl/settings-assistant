@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Changed
+
+- Kit update (obsidian-kit 0.61.0 → 0.63.0, code-kit 0.28.0 → 0.31.0). The thinking block of the chat has a copy button, and long lines in the live answer wrap instead of running off the right edge.
+- The thinking button says "Thinking: lowest level" with a tooltip that gives the reason when "off" is not possible (Gemma 4 on LM Studio, Claude); the text now comes from the kit and is the same in every plugin that has the button.
+- LM Studio: whether a model thinks or sees images now comes from its metadata instead of only its name, so the thinking button can appear for more models.
+- The "Request" settings show a button "Set family in the manager" next to the hint "Model family detected", warn when a request would load another model in LM Studio and push a loaded one out (JIT displacement), and name the Claude field "Thinking effort (effort)".
+
 ### Documentation
 
 - The README describes the Community Store install, and the LLM setup guide links point to the new address.

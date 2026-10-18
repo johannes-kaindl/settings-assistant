@@ -1,6 +1,7 @@
 import { Component, MarkdownRenderer, Notice, Plugin, getLanguage, normalizePath, type WorkspaceLeaf } from "obsidian";
 import "./i18n/strings";
 import { getLang, pickLang, setLang, t } from "./vendor/kit/i18n";
+import { thinkingOffTexts } from "./vendor/kit-obsidian/thinking-control";
 import type { EndpointConfig } from "./vendor/kit/endpoint_config";
 import { onLevelFor, thinkingFor, type RequestSettings, type ThinkingLevel } from "./vendor/kit/sampling-profiles";
 import { createLlmConnection, type LlmConnection } from "./vendor/kit-obsidian/llm-connection";
@@ -102,7 +103,9 @@ export default class SettingsAssistantPlugin extends Plugin {
         setLevel: (l) => this.setChatThinking(l),
         levelPicker: () => this.settings.request.levelPickerInChat,
         strings: {
-          button: (level, offNotPossible) => level !== "off" ? t("chat.think.on", t(`request.level.${level}`)) : offNotPossible ? t("chat.think.min") : t("chat.think.off"),
+          // „aus nicht möglich“ (Gemma 4 auf LM Studio, Claude) kommt als Beschriftung samt Tooltip aus dem Kit; `button` wird dann nicht gerufen.
+          button: (level) => level !== "off" ? t("chat.think.on", t(`request.level.${level}`)) : t("chat.think.off"),
+          offNotPossible: thinkingOffTexts(getLang()),
           level: (l) => t(`request.level.${l}`),
           pickerLabel: t("request.thinkingLevel"),
         },
