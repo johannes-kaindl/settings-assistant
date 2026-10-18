@@ -41,6 +41,7 @@ import { cwd } from "node:process";
 
 import { Cdp, attachTo, beimAbbruch, bereiteInstanzVor, clearNotices, closeExtraLeaves, istAbgebrochen, notices, openExisting, pollUntil, reopenNote, requireVisible, schliesseDialog } from "../../tools/obsidian-cdp/cdp.js";
 import { messeFolge, zeichneFolge } from "../../tools/obsidian-cdp/folge.js";
+import { fokusAufraeumSkript, fokusMutationSkript, gegenprobeFokus, messeFokusFenster, zeichnePflicht } from "../../tools/obsidian-cdp/pflichtpunkte.js";
 import { Vorbedingung, createBilanz, parseArgs, runDriver } from "../../tools/obsidian-cdp/bilanz.js";
 import { startLlmStub, type StubAnfrage } from "../../tools/obsidian-cdp/llm-stub.js";
 import { buildVault, requireEigenerBuild, stagingVaultDir } from "../../tools/obsidian-cdp/vault.js";
@@ -89,6 +90,12 @@ const PUNKTE = [
   "P23 Strom mit absatzgrossen Stuecken: der Chat-Verlauf folgt dem Ende auch bei Spruengen ueber die Folge-Schwelle (Kit 0.59.0, withFollow)",
   "P24 Folge-Regel, zweite Haelfte: steht der Nutzer wieder unten, folgt der Chat-Verlauf dem Strom wieder",
   "P25 Gemma 4 ohne Oeffner (Denken in content, <channel|>, Antwort): der Denktext steht im Denkblock, die Antwort zeigt nur die Antwort",
+  "P26 Denkblock kopierbar: der Knopf schreibt den Denktext in die Zwischenablage und quittiert erst danach",
+  "P27 Denkblock kopierbar (Gegenprobe): lehnt die Zwischenablage ab, bleibt die Quittung aus",
+  "P28 Pflichtpunkt Fokus-Erhalt: ein im Strom getippter Text im Eingabefeld ueberlebt das Ende der Antwort",
+  "P29 Pflichtpunkt Fokus-Erhalt (Gegenprobe): ein Auslöser, der den Fokus nimmt, macht die Messung rot",
+  "P30 Pflichtpunkt Erreichbarkeit: Senden, Eingabefeld und Kopfzeilen-Knoepfe sind bei ueberlaufendem Verlauf erreichbar",
+  "P31 Pflichtpunkt Erreichbarkeit (Gegenprobe): ohne Rollbalken wird etwas unerreichbar",
 ] as const;
 type PunktName = (typeof PUNKTE)[number];
 const pn = (prefix: string): PunktName => {
@@ -1201,6 +1208,67 @@ async function p22(c: Ctx): Promise<void> {
   }
 }
 
+/** Welle 24 — Denkblock kopierbar (Kit 0.63.0) und die §3a-Pflichtpunkte am Chat. EIN Strom mit langem Denken und Text: im Strom wird der
+ *  Kopier-Knopf geprueft (erst ablehnende, dann aufzeichnende Zwischenablage) und ins Eingabefeld getippt; nach dem Ende misst
+ *  `messeFokusFenster`, ob der Schluss-Draw den Fokus liess. Danach, im Ruhezustand, die Gegenprobe zum Fokus; die Erreichbarkeit ist hier nicht
+ *  anwendbar (siehe unten). */
+async function p26(c: Ctx): Promise<void> {
+  const stub = await startLlmStub({
+    models: [FAKE_MODEL], takt: 150, nachlaufMs: 1500,
+    standard: { reasoning: "Ich ueberlege Schritt fuer Schritt, was zu tun ist. ".repeat(12), laenge: 40, text: "Fertig. " + "Noch ein Satz zur Antwort. ".repeat(6) },
+  });
+  try {
+    await chatSenden(c, "SMOKE-KOPIE bitte nachdenken", stub.url);
+    const da = await pollUntil<boolean>(c.cdp, `
+      const pre = document.querySelector(".sa-chat-turn.is-assistant .okit-stream-reasoning pre");
+      return pre && pre.textContent.length > 30 ? true : null;`, 15_000, 100).catch(() => null);
+    if (!da) {
+      for (const n of ["P26", "P27", "P28"] as const) unmeasured(pn(n), "der Denktext erreichte im Strom nie 30 Zeichen");
+    } else {
+      // Mutation JETZT, im Strom: Fokus ins Feld, tippen, Auslöser feuern. Gemessen wird erst nach dem Ende (Schluss-Draw).
+      const m = await c.cdp.evaluate<{ ok: boolean }>(fokusMutationSkript({ selector: ".sa-chat-input", text: "abc" }));
+      type Kopie = { fehlt: boolean; aria: string; n: number; text: string | null; flash: boolean };
+      const probe = async (modus: "ablehnen" | "ok"): Promise<Kopie> => c.cdp.evaluate<Kopie>(`
+        const btn = document.querySelector(".sa-chat-turn.is-assistant .okit-stream-reasoning-copy");
+        if (!btn) return { fehlt: true, aria: "", n: 0, text: null, flash: false };
+        for (let i = 0; i < 40 && btn.classList.contains("is-copied"); i += 1) await new Promise((r) => setTimeout(r, 100));
+        const aufrufe = [];
+        const cb = navigator.clipboard;
+        cb.writeText = (t) => { aufrufe.push(t); return ${modus === "ablehnen" ? 'Promise.reject(new Error("verweigert"))' : "Promise.resolve()"}; };
+        try { btn.click(); await new Promise((r) => setTimeout(r, 250)); } finally { delete cb.writeText; }
+        return { fehlt: false, aria: btn.getAttribute("aria-label") || "", n: aufrufe.length, text: aufrufe[0] ?? null, flash: btn.classList.contains("is-copied") };
+      `);
+      const ablehnen = await probe("ablehnen");
+      const ok = await probe("ok");
+      if (ok.fehlt || ablehnen.fehlt) {
+        record(pn("P26"), false, "kein .okit-stream-reasoning-copy am Denkblock");
+        record(pn("P27"), false, "kein .okit-stream-reasoning-copy am Denkblock");
+      } else {
+        record(pn("P26"), ok.aria !== "" && ok.n === 1 && (ok.text ?? "").includes("ueberlege") && ok.flash,
+          `aria „${ok.aria}“ · ${ok.n} Aufruf(e) von writeText · Text ${(ok.text ?? "").length} Zeichen · Quittung ${ok.flash ? "da" : "fehlt"}`);
+        record(pn("P27"), ablehnen.n === 1 && !ablehnen.flash, `${ablehnen.n} Aufruf(e) von writeText, abgelehnt · Quittung ${ablehnen.flash ? "DA (falsch)" : "bleibt aus"}`);
+      }
+      await pollUntil<boolean>(c.cdp, `const s = document.querySelector(".sa-chat-send"); return s && s.textContent === "Send" ? true : null;`, 25_000, 300).catch(() => undefined);
+      if (!m.ok) unmeasured(pn("P28"), "kein .sa-chat-input im DOM");
+      else {
+        zeichnePflicht({ record, unmeasured }, pn("P28"), await messeFokusFenster(c.cdp, { selector: ".sa-chat-input", text: "abc" }));
+        await c.cdp.evaluate(fokusAufraeumSkript(".sa-chat-input"));
+      }
+    }
+    // Ruhezustand: der Strom ist zu Ende.
+    await pollUntil<boolean>(c.cdp, `const s = document.querySelector(".sa-chat-send"); return s && s.textContent === "Send" ? true : null;`, 25_000, 300).catch(() => undefined);
+    zeichnePflicht({ record, unmeasured }, pn("P29"), await gegenprobeFokus(c.cdp, { selector: ".sa-chat-input", text: "abc" }));
+    // Erreichbarkeit: in dieser Lage nicht anwendbar. Gemessen am 2026-10-18 (Baustein pflichtpunkte, Gegenprobe ohne Rollbalken):
+    // 4 von 4 Elementen blieben erreichbar, weil Eingabefeld, Senden und Kopfzeile ausserhalb des Rollbereichs `.sa-chat-messages` sitzen
+    // (Spalten-Flex). Die Probe koennte nie rot werden (CORE-TEST-01); der Ausgabebereich kann die Bedienelemente nicht verdecken.
+    const grund = "Eingabefeld, Senden und Kopfzeile sitzen ausserhalb des Rollbereichs .sa-chat-messages; die Gegenprobe ohne Rollbalken machte gemessen kein Element unerreichbar (4 von 4 blieben erreichbar), die Probe koennte nie rot werden";
+    skipped(pn("P30"), grund);
+    skipped(pn("P31"), grund);
+  } finally {
+    await stub.stop();
+  }
+}
+
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
   if (args.has("setup")) { setupVault(); console.log("\nDen Vault in der Zweitinstanz oeffnen, dann: npm run smoke:gui -- --port <PORT>"); return; }
@@ -1245,7 +1313,7 @@ async function main(): Promise<void> {
       const reihe: Array<[PunktName, (c: Ctx) => Promise<void>]> = [
         [pn("P1"), p1], [pn("P2"), p2], [pn("P13"), p13], [pn("P7"), p7], [pn("P14"), p14],
         [pn("P3"), p3], [pn("P4"), p4], [pn("P5"), p5], [pn("P11"), p11], [pn("P6"), p6],
-        [pn("P9"), p9], [pn("P10"), p10], [pn("P8"), p8p12], [pn("P15"), p15], [pn("P16"), p16], [pn("P17"), p17], [pn("P18"), p18], [pn("P19"), p19], [pn("P20"), p20], [pn("P21"), p21], [pn("P22"), p22], [pn("P23"), p23], [pn("P25"), p25],
+        [pn("P9"), p9], [pn("P10"), p10], [pn("P8"), p8p12], [pn("P15"), p15], [pn("P16"), p16], [pn("P17"), p17], [pn("P18"), p18], [pn("P19"), p19], [pn("P20"), p20], [pn("P21"), p21], [pn("P22"), p22], [pn("P23"), p23], [pn("P25"), p25], [pn("P26"), p26],
       ];
       for (const [name, fn] of reihe) {
         await schliesseDialoge(cdp);
