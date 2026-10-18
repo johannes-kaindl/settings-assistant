@@ -28,14 +28,18 @@ Settings live in JSON files inside your configuration folder, and changing them 
 ## Requirements
 
 - **Obsidian 1.11.4+** (desktop or mobile; the chat has not been measured on mobile yet). The version is the floor because API keys are kept in Obsidian's secret storage.
-- **For the chat only:** an OpenAI-compatible local server with a chat model loaded, such as [LM Studio](https://lmstudio.ai), [Ollama](https://ollama.com) or MLX — or the LLM Endpoint Manager plugin, which supplies the endpoints. New to local LLMs? The **[local LLM setup guide](https://uplink.jkaindl.de/llm-setup)** walks you through server, model and access end to end. Profiles in notes work without any model.
+- **For the chat only:** an OpenAI-compatible local server with a chat model loaded, such as [LM Studio](https://lmstudio.ai), [Ollama](https://ollama.com) or MLX — or the LLM Endpoint Manager plugin, which supplies the endpoints. New to local LLMs? The **[local LLM setup guide](https://jkaindl.de/uplink/llm-setup/)** walks you through server, model and access end to end. Profiles in notes work without any model.
 - **Not covered in version 1:** appearance and CSS, and writing `app.json`, `appearance.json`, `core-plugins.json` or `community-plugins.json`. See [Known limits](https://github.com/johannes-kaindl/settings-assistant/blob/main/docs/reference-known-limits.md).
 
 ## Install
 
+### Community plugins
+
+Open **Settings → Community plugins → Browse**, search for **Settings Assistant**, install and enable it.
+
 ### Manual
 
-The plugin is not in the Community Store yet. Download `main.js`, `manifest.json` and `styles.css` from the [latest release](https://github.com/johannes-kaindl/settings-assistant/releases) into `<vault>/.obsidian/plugins/settings-assistant/` (use your configuration folder if it is not `.obsidian`), then enable **Settings Assistant** under **Settings → Community plugins**.
+Download `main.js`, `manifest.json` and `styles.css` from the [latest release](https://github.com/johannes-kaindl/settings-assistant/releases) into `<vault>/.obsidian/plugins/settings-assistant/` (use your configuration folder if it is not `.obsidian`), then enable **Settings Assistant** under **Settings → Community plugins**.
 
 ### From source
 

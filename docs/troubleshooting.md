@@ -72,7 +72,7 @@ Each entry starts with what you see — the wording is the plugin's own English 
 
 **Cause:** the chat found no reachable endpoint.
 
-**Fix:** press **Set up a chat model**, then add your server under **Endpoint** and press **Test connection**. The row status says why a server is not reachable: **Connection refused — server not running or wrong port.**, **Unknown host — typo in the address?**, **Timed out — network unreachable.**, **Answers, but is not an OpenAI-compatible endpoint.** or **Access denied — API key missing or invalid.** Local servers usually need a port, for example `http://127.0.0.1:1234`. For server setup see the [local LLM setup guide](https://uplink.jkaindl.de/llm-setup).
+**Fix:** press **Set up a chat model**, then add your server under **Endpoint** and press **Test connection**. The row status says why a server is not reachable: **Connection refused — server not running or wrong port.**, **Unknown host — typo in the address?**, **Timed out — network unreachable.**, **Answers, but is not an OpenAI-compatible endpoint.** or **Access denied — API key missing or invalid.** Local servers usually need a port, for example `http://127.0.0.1:1234`. For server setup see the [local LLM setup guide](https://jkaindl.de/uplink/llm-setup/).
 
 ## Error: No endpoint available / Error: timeout / Error: network / Error: http 404
 

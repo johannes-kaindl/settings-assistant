@@ -28,14 +28,18 @@ Einstellungen liegen als JSON-Dateien im Konfigurationsordner, und sie von Hand 
 ## Voraussetzungen
 
 - **Obsidian 1.11.4+** (Desktop oder Mobil; der Chat ist mobil noch nicht gemessen). Die Version ist die Untergrenze, weil API-Schlüssel im Schlüsselbund von Obsidian liegen.
-- **Nur für den Chat:** ein OpenAI-kompatibler lokaler Server mit geladenem Chat-Modell, etwa [LM Studio](https://lmstudio.ai), [Ollama](https://ollama.com) oder MLX — oder das Plugin LLM Endpoint Manager, das die Endpunkte liefert. Neu bei lokalen LLMs? Der **[Setup-Guide für lokale LLMs](https://uplink.jkaindl.de/llm-setup)** führt dich von Server über Modell bis zum Zugriff. Profile in Notizen funktionieren ohne jedes Modell.
+- **Nur für den Chat:** ein OpenAI-kompatibler lokaler Server mit geladenem Chat-Modell, etwa [LM Studio](https://lmstudio.ai), [Ollama](https://ollama.com) oder MLX — oder das Plugin LLM Endpoint Manager, das die Endpunkte liefert. Neu bei lokalen LLMs? Der **[Setup-Guide für lokale LLMs](https://jkaindl.de/uplink/llm-setup/)** führt dich von Server über Modell bis zum Zugriff. Profile in Notizen funktionieren ohne jedes Modell.
 - **In Version 1 nicht enthalten:** Erscheinungsbild und CSS sowie das Schreiben von `app.json`, `appearance.json`, `core-plugins.json` und `community-plugins.json`. Siehe [Known limits](https://github.com/johannes-kaindl/settings-assistant/blob/main/docs/reference-known-limits.md) (Englisch).
 
 ## Installation
 
+### Community-Plugins
+
+Öffne **Einstellungen → Community-Plugins → Durchsuchen**, suche nach **Settings Assistant**, installiere und aktiviere es.
+
 ### Manuell
 
-Das Plugin ist noch nicht im Community Store. Lade `main.js`, `manifest.json` und `styles.css` aus dem [neuesten Release](https://github.com/johannes-kaindl/settings-assistant/releases) nach `<Vault>/.obsidian/plugins/settings-assistant/` (nimm deinen Konfigurationsordner, falls er nicht `.obsidian` heißt) und aktiviere **Settings Assistant** unter **Einstellungen → Community-Plugins**.
+Lade `main.js`, `manifest.json` und `styles.css` aus dem [neuesten Release](https://github.com/johannes-kaindl/settings-assistant/releases) nach `<Vault>/.obsidian/plugins/settings-assistant/` (nimm deinen Konfigurationsordner, falls er nicht `.obsidian` heißt) und aktiviere **Settings Assistant** unter **Einstellungen → Community-Plugins**.
 
 ### Aus dem Quellcode
 

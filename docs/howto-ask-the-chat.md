@@ -4,7 +4,7 @@ The settings chat lets a local model draft a profile from a question. The model 
 
 ## Before the first question
 
-The chat needs an endpoint with a chat model. Under **Settings → Settings Assistant**, either install the LLM Endpoint Manager (the endpoints come from it) or fill the local list: add the address of your server, for example the one of LM Studio, choose its model in the row, and press **Test connection**. A row that reads **Connected** is usable. If you have no server yet, follow the [local LLM setup guide](https://uplink.jkaindl.de/llm-setup). Without an endpoint the chat shows **No chat model is set up yet.** with a button **Set up a chat model**.
+The chat needs an endpoint with a chat model. Under **Settings → Settings Assistant**, either install the LLM Endpoint Manager (the endpoints come from it) or fill the local list: add the address of your server, for example the one of LM Studio, choose its model in the row, and press **Test connection**. A row that reads **Connected** is usable. If you have no server yet, follow the [local LLM setup guide](https://jkaindl.de/uplink/llm-setup/). Without an endpoint the chat shows **No chat model is set up yet.** with a button **Set up a chat model**.
 
 ## Ask
 
