@@ -64,7 +64,7 @@ describe("String-Abdeckung", () => {
     expect(keys.has("chat.save")).toBe(true);
     expect(keys.has("modal.apply.one")).toBe(true);
     expect(keys.has("error.noEndpoint")).toBe(true);
-    expect(keys.size).toBeGreaterThan(80);
+    expect(keys.size).toBeGreaterThan(75); // Untergrenze gegen einen leeren Parser; 80 Schlüssel ohne chat.think.min (Kit-Text seit 0.63.0)
   });
   it("jeder Literal-Schlüssel aus src/ existiert in beiden Sprachen", () => {
     const en = STRINGS.en as Record<string, string>;
