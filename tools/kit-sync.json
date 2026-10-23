@@ -54,7 +54,8 @@
         "endpoint-secret-hook",
         "plugin-id",
         "anthropic-wire",
-        "override-guard"
+        "override-guard",
+        "tool-provider"
       ],
       "rewrite": [
         [

@@ -6,8 +6,10 @@ import { parseTarget } from "../core/reconcile";
 import { redactFields } from "../vendor/kit/redact";
 import { OBSIDIAN_FILES, isPlainObject, targetKey, type Json, type ObsidianFile, type SettingsProfile } from "../core/types";
 import { CURRENT_STAGE, isSelfPluginId, isWritable, targetPath } from "../core/write-policy";
+import type { ProviderCallOptions, ProviderConfirmPreview, ProviderResult, ToolLang } from "../vendor/kit/tool-provider";
 import { readConfig } from "./config-io";
 import { isInstalled } from "./plugin-host";
+import { snapshotRoot } from "./snapshots";
 
 /** Typen für Konsumenten: kopieren, nicht importieren (docs/API.md). */
 export interface ApiCheckRow { target: string; path: string; status: RowStatus; current?: Json; desired?: Json; note?: string }
@@ -17,12 +19,17 @@ export type ApiError = { error: string };
 
 export interface SettingsAssistantApi {
   apiVersion: 1;
+  /** Vertrag aus der Bibliothek (Kit `tool-provider`, `TOOL_PROVIDER_API_VERSION`); `apiVersion` bleibt der eigene Vertrag des Plugins. */
+  version: 1;
   status(): { busy: boolean; writable: string[]; stage: "v1" };
   readSettings(q: { plugin: string } | { file: ObsidianFile }): Promise<{ settings: Json | null; redacted: string[] } | ApiError>;
   planProfile(profile: unknown): Promise<{ rows: ApiCheckRow[] } | ApiError>;
   applyProfile(profile: unknown, opts: { origin: string }): Promise<ApiApplyResult | { cancelled: true } | { busy: true } | ApiError>;
-  tools(): ApiToolDefinition[];
+  /** Beide Verträge teilen die Liste: `writes` und `confirms` (eigener Vertrag), `name`/`description`/`parameters`/`writes` (Bibliothek). */
+  tools(opts?: { lang?: ToolLang }): ApiToolDefinition[];
   execute(name: string, args: unknown): Promise<unknown>;
+  /** Werkzeugvertrag der Bibliothek: ein Schritt, Fehler sind Werte. Schreibend nur nach `opts.confirm` UND dem eigenen Diff-Dialog. */
+  executeTool(name: string, args: Record<string, unknown>, opts?: ProviderCallOptions): Promise<ProviderResult>;
 }
 
 /** Der Teil des ApplyService, den die API braucht. `applyInteractive` öffnet immer den eigenen Dialog. */
@@ -165,5 +172,70 @@ export function createSettingsAssistantApi(deps: { app: App; service: ApplyApiSe
     } catch { return FAILED; }
   }
 
-  return { apiVersion: 1, status, readSettings, planProfile, applyProfile, tools, execute };
+  // --- Werkzeugvertrag der Bibliothek (Kit `tool-provider`) -------------------------------------------------------------------------------------
+  // Die Sprache nennt der Wirt, den Text liefert das Plugin (Festlegung (b) des Vertrags); ohne Angabe Englisch wie die Werkzeugbeschreibungen.
+  const say = (opts: ProviderCallOptions | undefined, en: string, de: string): string => (opts?.lang === "de" ? de : en);
+  const failed = (message: string): ProviderResult => ({ ok: false, reason: "failed", message });
+  const badArgs = (field: string, message: string): ProviderResult => ({ ok: false, reason: "bad-args", field, message });
+  const needsConfirm = (message: string): ProviderResult => ({ ok: false, reason: "needs-confirm", message });
+
+  async function readTool(args: Record<string, unknown>, opts?: ProviderCallOptions): Promise<ProviderResult> {
+    const r = await readSettings(args);
+    if ("error" in r) {
+      switch (r.error) {
+        case "bad-args": return badArgs("plugin", say(opts, "Give exactly one of `plugin` (a plugin id) or `file` (an Obsidian config file).", "Genau eines von `plugin` (Plugin-ID) oder `file` (Obsidian-Konfigurationsdatei) angeben."));
+        case "own-settings": return failed(say(opts, "The settings of Settings Assistant itself are not readable through the tools.", "Die Einstellungen von Settings Assistant selbst sind über die Werkzeuge nicht lesbar."));
+        case "not-installed": return failed(say(opts, "That plugin is not installed.", "Dieses Plugin ist nicht installiert."));
+        case "unreadable": return failed(say(opts, "The settings file could not be read.", "Die Einstellungsdatei ließ sich nicht lesen."));
+        default: return failed(say(opts, "Reading the settings failed.", "Das Lesen der Einstellungen ist fehlgeschlagen."));
+      }
+    }
+    return { ok: true, content: JSON.stringify(r), data: r };
+  }
+
+  async function proposeTool(args: Record<string, unknown>, opts?: ProviderCallOptions): Promise<ProviderResult> {
+    if (!("profile" in args)) return badArgs("profile", say(opts, "`profile` is required.", "`profile` ist erforderlich."));
+    const p = toProfile(args.profile);
+    if (!("ok" in p)) return badArgs("profile", say(opts, `The profile is not valid (${p.error}).`, `Das Profil ist ungültig (${p.error}).`));
+    if (service.busy) return { ok: false, reason: "unavailable", detail: "busy", message: say(opts, "Settings Assistant is busy with another run.", "Settings Assistant ist mit einem anderen Lauf beschäftigt.") };
+    const confirm = opts?.confirm;
+    if (typeof confirm !== "function") return needsConfirm(say(opts, "Nothing was written: this tool needs the host to confirm first.", "Nichts geschrieben: dieses Werkzeug braucht zuerst die Bestätigung des Wirts."));
+
+    // Nebenwirkungsfreie Vorschau: nur Zielnamen und Pfade, nie Werte (Geheimnisse bleiben so draußen).
+    const writable = (await service.plan(p.profile)).filter((row) => row.selectable);
+    if (writable.length === 0) return { ok: true, content: say(opts, "Nothing to change: every setting in the profile already has the proposed value or cannot be written.", "Nichts zu ändern: jede Einstellung im Profil hat schon den vorgeschlagenen Wert oder ist nicht schreibbar."), data: { results: [], snapshot: null } };
+    const targets = [...new Set(writable.map((row) => targetKey(row.target)))];
+    const paths = [...new Set(writable.map((row) => targetPath(row.target, app.vault.configDir)))];
+    const preview: ProviderConfirmPreview = {
+      // Obergrenze der berührten Pfade: die Zieldateien und der Ordner des Schnappschusses, der vor dem ersten Schreiben angelegt wird.
+      paths: [...paths, snapshotRoot(app)],
+      summary: say(
+        opts,
+        `Change ${writable.length} ${writable.length === 1 ? "setting" : "settings"} in ${targets.join(", ")}. Settings Assistant then shows its own diff dialog; nothing is written unless the user confirms there.`,
+        `${writable.length} ${writable.length === 1 ? "Einstellung" : "Einstellungen"} in ${targets.join(", ")} ändern. Settings Assistant zeigt danach seinen eigenen Diff-Dialog; ohne Bestätigung dort wird nichts geschrieben.`,
+      ),
+    };
+    let granted = false;
+    try { granted = (await confirm(preview)) === true; } catch { granted = false; }
+    if (!granted) return needsConfirm(say(opts, "Nothing was written: the host did not confirm.", "Nichts geschrieben: der Wirt hat nicht bestätigt."));
+
+    // Es gibt keinen Parameter, der den eigenen Dialog überspringt: die Bestätigung des Wirts ersetzt ihn nicht.
+    const r = await service.applyInteractive(p.profile, sanitizeOrigin("propose_settings"));
+    if ("cancelled" in r) return needsConfirm(say(opts, "Nothing was written: the user declined in Settings Assistant's own diff dialog.", "Nichts geschrieben: der Nutzer hat im eigenen Diff-Dialog von Settings Assistant abgelehnt."));
+    if ("busy" in r) return { ok: false, reason: "unavailable", detail: "busy", message: say(opts, "Settings Assistant is busy with another run.", "Settings Assistant ist mit einem anderen Lauf beschäftigt.") };
+    if ("error" in r) return failed(say(opts, "Applying the profile failed.", "Das Anwenden des Profils ist fehlgeschlagen.")); // der Meldungstext des Dienstes bleibt im Plugin
+    const result = toApiResult(r);
+    const lines = result.results.map((x) => `${x.path} — ${x.outcome}`);
+    return { ok: true, content: lines.join("\n"), data: result };
+  }
+
+  async function executeTool(name: string, args: Record<string, unknown>, opts?: ProviderCallOptions): Promise<ProviderResult> {
+    try {
+      if (name !== "read_settings" && name !== "propose_settings") return { ok: false, reason: "unknown-tool", message: say(opts, `Unknown tool: ${name}`, `Unbekanntes Werkzeug: ${name}`) };
+      if (!isPlainObject(args)) return badArgs("args", say(opts, "The arguments must be an object.", "Die Argumente müssen ein Objekt sein."));
+      return name === "read_settings" ? await readTool(args, opts) : await proposeTool(args, opts);
+    } catch { return failed(say(opts, "The tool failed.", "Das Werkzeug ist fehlgeschlagen.")); }
+  }
+
+  return { apiVersion: 1, version: 1, status, readSettings, planProfile, applyProfile, tools, execute, executeTool };
 }

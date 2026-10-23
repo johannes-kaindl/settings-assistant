@@ -25,12 +25,14 @@ if (sa?.apiVersion === 1) {
 
 ```ts
 apiVersion: 1
+version: 1                                     // the library's tool-provider contract, see "Tool contract of the library"
 status(): { busy: boolean; writable: string[]; stage: "v1" }
 readSettings(q: { plugin: string } | { file: ObsidianFile }): Promise<{ settings: Json | null; redacted: string[] } | ApiError>
 planProfile(profile: unknown): Promise<{ rows: ApiCheckRow[] } | ApiError>
 applyProfile(profile: unknown, opts: { origin: string }): Promise<{ results: Array<{ path: string; outcome: RowOutcome; actual?: Json }>; snapshot: string | null } | { cancelled: true } | { busy: true } | ApiError>
-tools(): ApiToolDefinition[]
+tools(opts?: { lang?: "de" | "en" }): ApiToolDefinition[]
 execute(name: string, args: unknown): Promise<unknown>
+executeTool(name: string, args: Record<string, unknown>, opts?: { lang?: "de" | "en"; confirm?: (preview) => Promise<boolean> }): Promise<ProviderResult>
 ```
 
 - `status()` is synchronous and network-free. `writable` names the writable targets as text: `plugins/*/data.json` and the released Obsidian files (in stage 1 only `hotkeys`). `busy` is `true` while a write or restore operation is running.
@@ -48,6 +50,15 @@ execute(name: string, args: unknown): Promise<unknown>
 
 `execute(name, args)` validates the arguments. `propose_settings` calls `applyProfile` with the origin name `propose_settings` and thereby opens the plugin's own dialog.
 
+## Tool contract of the library (`version: 1`, `executeTool`)
+
+Next to its own contract the plugin offers the library's tool-provider contract (obsidian-kit `tool-provider`), so that hosts with an agent loop (Koda) mount the two tools without a special case. The own API stays unchanged (`apiVersion` 1, `execute`). `tools()` serves both: `name`, `description`, `parameters` and `writes` are the library's fields; `confirms` is the plugin's own and does not go to the wire.
+
+- `executeTool(name, args, { lang, confirm })` takes one step and returns a value, never a throw: `{ ok: true, content, data? }` or `{ ok: false, reason, message }` with `reason` one of `unknown-tool`, `bad-args` (with `field`), `failed`, `needs-confirm`, `unavailable` (with `detail`).
+- `read_settings` returns the redacted settings as JSON text in `content` and as an object in `data`. The error words above map to `bad-args` (arguments) or `failed` (`own-settings`, `not-installed`, `unreadable`).
+- `propose_settings` writes only after TWO confirmations. First the host's: the plugin calls `confirm` once with a preview (`summary` and `paths`, the full set of vault paths the call can touch: the target files and the snapshot folder; no values), and without `confirm`, or when it answers `false` or throws, the result is `needs-confirm` and nothing is written. Then the plugin's own diff dialog opens, exactly as for `applyProfile`; if the human dismisses it, the result is `needs-confirm` as well. The host's confirmation never replaces the dialog.
+- If the profile changes nothing, the result is `ok` without a `confirm` call and without a dialog. While another operation runs, the result is `unavailable` with `detail: "busy"`.
+
 ## Error words
 
 - `bad-args`: arguments are missing or have the wrong shape, or a plugin ID is invalid.
@@ -59,15 +70,17 @@ execute(name: string, args: unknown): Promise<unknown>
 - `invalid-profile`: the profile cannot be serialized as JSON.
 - Profile errors, each the parser's word: `invalid-json`, `not-object`, `missing-version`, `bad-version`, `future-version`, `bad-section`.
 
-## Example: Koda (tool calling, the provider confirms)
+## Example: a host with an agent loop (tool contract of the library)
 
 ```ts
-const sa = app.plugins.plugins["settings-assistant"]?.api;
-if (sa?.apiVersion !== 1) return;
-const tools = sa.tools();                      // into the agent loop's tool registry
+import { callProviderTool, isToolProviderApi } from "./vendor/kit/tool-provider";   // the library's module, vendored
+const api = app.plugins.plugins["settings-assistant"]?.api;
+if (!isToolProviderApi(api)) return;
+const tools = api.tools({ lang: "en" });      // into the agent loop's tool registry
 // … the model picks propose_settings and supplies a profile …
-const r = (await sa.execute("propose_settings", { profile })) as { error?: string; cancelled?: true; results?: unknown[] };
-// Settings Assistant shows its diff dialog; Koda does not ask in addition (confirms: "provider").
-if (r.error !== undefined) { /* report the diagnostic word */ }
-else if (r.cancelled) { /* the human dismissed it */ }
+const r = await callProviderTool(api, "propose_settings", { profile }, { lang: "en", confirm: async (preview) => askTheUser(preview) });
+// The host confirms the preview; Settings Assistant then shows its own diff dialog before anything is written.
+if (!r.ok && r.reason === "needs-confirm") { /* declined by the host or the human; nothing was written */ }
 ```
+
+The plugin's own contract still works for consumers that were written against it: `sa.apiVersion === 1`, `sa.execute("propose_settings", { profile })` opens the dialog without a host confirmation.

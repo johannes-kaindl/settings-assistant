@@ -6,6 +6,7 @@ import type { CheckRow } from "../src/core/reconcile";
 import { ApplyService } from "../src/obsidian/apply-service";
 import { createSettingsAssistantApi, type ApplyApiService } from "../src/obsidian/api";
 import { DEFAULT_GFS_POLICY } from "../src/vendor/kit/rotation";
+import { callProviderTool, mountProviderTools, toolProviderRejection, type ProviderConfirmPreview, type ProviderResult } from "../src/vendor/kit/tool-provider";
 
 const FILES = (): Record<string, string> => ({
   ".cfg/plugins/p/data.json": '{"a":1,"apiKey":"SECRET-VALUE","nested":{"token":"T0K"}}',
@@ -199,3 +200,142 @@ describe("Anbieter-API v1", () => {
     expect(await api.execute("read_settings", { plugin: "p" })).toMatchObject({ redacted: ["apiKey", "nested.token"] });
   });
 });
+
+// Welle 25: der Werkzeugvertrag der Bibliothek (Kit `tool-provider`) zusätzlich zur eigenen API. Koda prüft Anbieter mit dem Kit-Guard; ohne `version` und
+// `executeTool` fiel settings-assistant dort mit dem Grund `version` durch.
+describe("Werkzeugvertrag der Bibliothek (tool-provider)", () => {
+  const PROFILE = { version: 1, plugins: { p: { a: 2 } } };
+  const yes = vi.fn(async (_p: ProviderConfirmPreview) => true);
+
+  beforeEach(() => { yes.mockClear(); yes.mockResolvedValue(true); });
+
+  it("der Kit-Guard nimmt die API an; die eigene API (apiVersion, execute) bleibt unverändert", () => {
+    const { api } = setup();
+    expect(toolProviderRejection(api)).toBeNull();
+    expect(api.version).toBe(1);
+    expect(api.apiVersion).toBe(1);
+    expect(typeof api.execute).toBe("function");
+  });
+
+  it("Gegenprobe: ohne version oder ohne executeTool lehnt der Guard ab", () => {
+    const { api } = setup();
+    expect(toolProviderRejection({ ...api, version: undefined })).toEqual({ reason: "version", found: undefined });
+    expect(toolProviderRejection({ ...api, executeTool: undefined })).toEqual({ reason: "missing-method", method: "executeTool" });
+  });
+
+  it("mountProviderTools montiert beide Werkzeuge; das Kennzeichen writes und confirms gehen nicht auf den Draht", () => {
+    const { api } = setup();
+    const m = mountProviderTools([], [{ id: "settings-assistant", tools: api.tools() }]);
+    expect(m.defs.map((d) => d.name)).toEqual(["read_settings", "propose_settings"]);
+    expect(m.writes).toEqual(new Set(["propose_settings"]));
+    for (const d of m.defs) expect(Object.keys(d).sort()).toEqual(["description", "name", "parameters"]);
+  });
+
+  it("read_settings: ok mit geschwärztem Text fürs Modell und den Daten für die Oberfläche", async () => {
+    const { api } = setup();
+    const r = await callProviderTool(api, "read_settings", { plugin: "p" });
+    expect(r).toMatchObject({ ok: true, data: { settings: { a: 1, apiKey: "🔒", nested: { token: "🔒" } }, redacted: ["apiKey", "nested.token"] } });
+    expect((r as { content: string }).content).toContain("🔒");
+    expect(JSON.stringify(r)).not.toContain("SECRET-VALUE");
+  });
+
+  it("read_settings: Fehler sind Werte mit dem passenden Grund", async () => {
+    const { api } = setup();
+    expect(await api.executeTool("read_settings", {})).toMatchObject({ ok: false, reason: "bad-args" });
+    expect(await api.executeTool("read_settings", { plugin: "p", file: "app" })).toMatchObject({ ok: false, reason: "bad-args" });
+    expect(await api.executeTool("read_settings", { plugin: "settings-assistant" })).toMatchObject({ ok: false, reason: "failed" });
+    expect(await api.executeTool("read_settings", { plugin: "gibt-es-nicht" })).toMatchObject({ ok: false, reason: "failed" });
+    expect(await api.executeTool("nope", {})).toMatchObject({ ok: false, reason: "unknown-tool" });
+    expect(await api.executeTool("read_settings", null as never)).toMatchObject({ ok: false, reason: "bad-args" });
+  });
+
+  it("propose_settings ohne confirm: needs-confirm, der Dienst wird nicht gerufen, nichts geschrieben", async () => {
+    const { api, confirm, files } = setup();
+    const before = files[".cfg/plugins/p/data.json"];
+    expect(await api.executeTool("propose_settings", { profile: PROFILE })).toMatchObject({ ok: false, reason: "needs-confirm" });
+    expect(confirm).not.toHaveBeenCalled();
+    expect(files[".cfg/plugins/p/data.json"]).toBe(before);
+  });
+
+  it("propose_settings: confirm liefert false oder wirft → needs-confirm, kein eigener Dialog, nichts geschrieben", async () => {
+    const { api, confirm, files } = setup();
+    const before = files[".cfg/plugins/p/data.json"];
+    yes.mockResolvedValueOnce(false);
+    expect(await api.executeTool("propose_settings", { profile: PROFILE }, { confirm: yes })).toMatchObject({ ok: false, reason: "needs-confirm" });
+    yes.mockRejectedValueOnce(new Error("boom"));
+    expect(await api.executeTool("propose_settings", { profile: PROFILE }, { confirm: yes })).toMatchObject({ ok: false, reason: "needs-confirm" });
+    expect(confirm).not.toHaveBeenCalled();
+    expect(files[".cfg/plugins/p/data.json"]).toBe(before);
+  });
+
+  it("propose_settings: die Vorschau nennt Zusammenfassung und die Obergrenze der berührten Pfade, ohne Werte; danach kommt der eigene Dialog", async () => {
+    const { api, confirm, files } = setup();
+    const r = await api.executeTool("propose_settings", { profile: PROFILE }, { confirm: yes });
+    expect(yes).toHaveBeenCalledTimes(1);
+    const preview = yes.mock.calls[0]![0];
+    expect(preview.paths.sort()).toEqual([".cfg/plugins/p/data.json", ".cfg/plugins/settings-assistant/snapshots"]);
+    expect(preview.summary).toContain("p");
+    expect(JSON.stringify(preview)).not.toContain("SECRET-VALUE");
+    expect(preview.outside ?? []).toEqual([]);
+    // Die Vorschau kam VOR dem Schreiben, und der Dienst öffnet seinen Dialog trotzdem (kein Weg an ihm vorbei).
+    expect(confirm).toHaveBeenCalledTimes(1);
+    expect(r).toMatchObject({ ok: true, data: { results: [{ path: "plugins.p.a", outcome: "written" }] } });
+    expect(JSON.parse(files[".cfg/plugins/p/data.json"] as string).a).toBe(2);
+  });
+
+  it("propose_settings: lehnt der Nutzer im eigenen Dialog ab, endet es mit needs-confirm", async () => {
+    const { api, confirm, files } = setup();
+    confirm.mockResolvedValueOnce(null as never);
+    const before = files[".cfg/plugins/p/data.json"];
+    expect(await api.executeTool("propose_settings", { profile: PROFILE }, { confirm: yes })).toMatchObject({ ok: false, reason: "needs-confirm" });
+    expect(files[".cfg/plugins/p/data.json"]).toBe(before);
+  });
+
+  it("propose_settings: nichts zu ändern → ok ohne confirm und ohne Dialog", async () => {
+    const { api, confirm } = setup();
+    const r = await api.executeTool("propose_settings", { profile: { version: 1, plugins: { p: { a: 1 } } } }, { confirm: yes });
+    expect(r).toMatchObject({ ok: true });
+    expect(yes).not.toHaveBeenCalled();
+    expect(confirm).not.toHaveBeenCalled();
+  });
+
+  it("propose_settings: busy → unavailable, weder confirm noch Dienst", async () => {
+    const { api, confirm } = setup({ busy: true });
+    expect(await api.executeTool("propose_settings", { profile: PROFILE }, { confirm: yes })).toMatchObject({ ok: false, reason: "unavailable", detail: "busy" });
+    expect(yes).not.toHaveBeenCalled();
+    expect(confirm).not.toHaveBeenCalled();
+  });
+
+  it("propose_settings: fehlendes oder ungültiges Profil → bad-args mit Feld", async () => {
+    const { api } = setup();
+    expect(await api.executeTool("propose_settings", {}, { confirm: yes })).toMatchObject({ ok: false, reason: "bad-args", field: "profile" });
+    expect(await api.executeTool("propose_settings", { profile: 5 }, { confirm: yes })).toMatchObject({ ok: false, reason: "bad-args", field: "profile" });
+    expect(yes).not.toHaveBeenCalled();
+  });
+
+  it("propose_settings: wirft der Dienst, kommt failed ohne Dateiinhalt", async () => {
+    const { api } = setup({ plan: async () => { throw new Error("boom SECRET-VALUE"); } });
+    const r = await api.executeTool("propose_settings", { profile: PROFILE }, { confirm: yes });
+    expect(r).toMatchObject({ ok: false, reason: "failed" });
+    expect(JSON.stringify(r)).not.toContain("SECRET-VALUE");
+  });
+
+  it("die Sprache nennt der Wirt: deutsche Vorschau bei lang de", async () => {
+    const { api } = setup();
+    await api.executeTool("propose_settings", { profile: PROFILE }, { confirm: yes, lang: "de" });
+    expect(yes.mock.calls[0]![0].summary).toMatch(/Einstellung/);
+    yes.mockClear();
+    const { api: api2 } = setup();
+    await api2.executeTool("propose_settings", { profile: PROFILE }, { confirm: yes, lang: "en" });
+    expect(yes.mock.calls[0]![0].summary).toMatch(/setting/i);
+  });
+
+  it("execute (eigene API) und executeTool (Bibliothek) teilen die Bestätigung: beide öffnen den Dialog", async () => {
+    const { api, confirm } = setup();
+    await api.execute("propose_settings", { profile: PROFILE });
+    await api.executeTool("propose_settings", { profile: { version: 1, plugins: { p: { a: 3 } } } }, { confirm: yes });
+    expect(confirm).toHaveBeenCalledTimes(2);
+  });
+});
+
+type _Unused = ProviderResult;
