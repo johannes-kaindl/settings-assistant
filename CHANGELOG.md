@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.8.0] — 2026-10-23
+
 ### Added
 
 - Hosts with an agent loop can use the tools through the library's tool contract: the plugin API now carries `version: 1` and `executeTool`, next to the unchanged own contract (`apiVersion` 1, `execute`). Koda lists `read_settings` and `propose_settings` as tools of Settings Assistant. Writing needs two confirmations, the host's (it sees the files the call can touch) and then the plugin's own diff dialog; nothing is written without both. See `docs/API.md`.
