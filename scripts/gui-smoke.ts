@@ -39,9 +39,9 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { cwd } from "node:process";
 
-import { Cdp, attachTo, beimAbbruch, bereiteInstanzVor, clearNotices, closeExtraLeaves, istAbgebrochen, notices, openExisting, pollUntil, reopenNote, requireVisible, schliesseDialog } from "../../tools/obsidian-cdp/cdp.js";
+import { Cdp, attachTo, beimAbbruch, bereiteInstanzVor, clearNotices, closeExtraLeaves, istAbgebrochen, notices, openExisting, pollUntil, reopenNote, requireVisible, schliesseDialog, schliesseEinstellungen } from "../../tools/obsidian-cdp/cdp.js";
 import { messeFolge, zeichneFolge } from "../../tools/obsidian-cdp/folge.js";
-import { fokusAufraeumSkript, fokusMutationSkript, gegenprobeFokus, messeFokusFenster, zeichnePflicht } from "../../tools/obsidian-cdp/pflichtpunkte.js";
+import { fokusAufraeumSkript, fokusMutationSkript, gegenprobeErreichbarkeit, gegenprobeFokus, messeDenkblockKopierbar, messeErreichbarkeit, messeFokusFenster, optOutPflicht, zeichneDenkblock, zeichnePflicht } from "../../tools/obsidian-cdp/pflichtpunkte.js";
 import { Vorbedingung, createBilanz, parseArgs, runDriver } from "../../tools/obsidian-cdp/bilanz.js";
 import { startLlmStub, type StubAnfrage } from "../../tools/obsidian-cdp/llm-stub.js";
 import { buildVault, requireEigenerBuild, stagingVaultDir } from "../../tools/obsidian-cdp/vault.js";
@@ -441,7 +441,7 @@ async function warteAufGeschlosseneSettings(port: number, timeoutMs = 3000): Pro
   }
 }
 async function openSettings(cdp: Cdp, port: number): Promise<SettingsStelle> {
-  await cdp.evaluate(`app.setting.close(); return { ok: true };`).catch(() => undefined);
+  await schliesseEinstellungen(cdp);
   await warteAufGeschlosseneSettings(port);
   await cdp.evaluate(`
     app.setting.open();
@@ -465,7 +465,7 @@ async function openSettings(cdp: Cdp, port: number): Promise<SettingsStelle> {
 function closeSettings(cdp: Cdp, stelle: SettingsStelle | null): void {
   if (!stelle) return;
   if (stelle.eigenesFenster) stelle.cdp.close();
-  void cdp.evaluate(`app.setting.close(); return { ok: true };`).catch(() => undefined);
+  void schliesseEinstellungen(cdp);
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -1214,7 +1214,7 @@ async function p22(c: Ctx): Promise<void> {
  *  anwendbar (siehe unten). */
 async function p26(c: Ctx): Promise<void> {
   const stub = await startLlmStub({
-    models: [FAKE_MODEL], takt: 150, nachlaufMs: 1500,
+    models: [FAKE_MODEL], takt: 150, nachlaufMs: 6000,
     standard: { reasoning: "Ich ueberlege Schritt fuer Schritt, was zu tun ist. ".repeat(12), laenge: 40, text: "Fertig. " + "Noch ein Satz zur Antwort. ".repeat(6) },
   });
   try {
@@ -1227,27 +1227,13 @@ async function p26(c: Ctx): Promise<void> {
     } else {
       // Mutation JETZT, im Strom: Fokus ins Feld, tippen, Auslöser feuern. Gemessen wird erst nach dem Ende (Schluss-Draw).
       const m = await c.cdp.evaluate<{ ok: boolean }>(fokusMutationSkript({ selector: ".sa-chat-input", text: "abc" }));
-      type Kopie = { fehlt: boolean; aria: string; n: number; text: string | null; flash: boolean };
-      const probe = async (modus: "ablehnen" | "ok"): Promise<Kopie> => c.cdp.evaluate<Kopie>(`
-        const btn = document.querySelector(".sa-chat-turn.is-assistant .okit-stream-reasoning-copy");
-        if (!btn) return { fehlt: true, aria: "", n: 0, text: null, flash: false };
-        for (let i = 0; i < 40 && btn.classList.contains("is-copied"); i += 1) await new Promise((r) => setTimeout(r, 100));
-        const aufrufe = [];
-        const cb = navigator.clipboard;
-        cb.writeText = (t) => { aufrufe.push(t); return ${modus === "ablehnen" ? 'Promise.reject(new Error("verweigert"))' : "Promise.resolve()"}; };
-        try { btn.click(); await new Promise((r) => setTimeout(r, 250)); } finally { delete cb.writeText; }
-        return { fehlt: false, aria: btn.getAttribute("aria-label") || "", n: aufrufe.length, text: aufrufe[0] ?? null, flash: btn.classList.contains("is-copied") };
-      `);
-      const ablehnen = await probe("ablehnen");
-      const ok = await probe("ok");
-      if (ok.fehlt || ablehnen.fehlt) {
-        record(pn("P26"), false, "kein .okit-stream-reasoning-copy am Denkblock");
-        record(pn("P27"), false, "kein .okit-stream-reasoning-copy am Denkblock");
-      } else {
-        record(pn("P26"), ok.aria !== "" && ok.n === 1 && (ok.text ?? "").includes("ueberlege") && ok.flash,
-          `aria „${ok.aria}“ · ${ok.n} Aufruf(e) von writeText · Text ${(ok.text ?? "").length} Zeichen · Quittung ${ok.flash ? "da" : "fehlt"}`);
-        record(pn("P27"), ablehnen.n === 1 && !ablehnen.flash, `${ablehnen.n} Aufruf(e) von writeText, abgelehnt · Quittung ${ablehnen.flash ? "DA (falsch)" : "bleibt aus"}`);
-      }
+      // Kopier-Knopf samt Gegenprobe: die Bausteine der Brücke (erst aufzeichnende, dann ablehnende Zwischenablage), Selektoren des Chat-Zugs.
+      zeichneDenkblock({ record, unmeasured }, { kopie: pn("P26"), gegen: pn("P27") }, await messeDenkblockKopierbar(c.cdp, {
+        block: ".sa-chat-turn.is-assistant .okit-stream-reasoning",
+        knopf: ".sa-chat-turn.is-assistant .okit-stream-reasoning-copy",
+        enthaelt: "ueberlege",
+        erwartetKnopf: true,
+      }));
       await pollUntil<boolean>(c.cdp, `const s = document.querySelector(".sa-chat-send"); return s && s.textContent === "Send" ? true : null;`, 25_000, 300).catch(() => undefined);
       if (!m.ok) unmeasured(pn("P28"), "kein .sa-chat-input im DOM");
       else {
@@ -1258,12 +1244,23 @@ async function p26(c: Ctx): Promise<void> {
     // Ruhezustand: der Strom ist zu Ende.
     await pollUntil<boolean>(c.cdp, `const s = document.querySelector(".sa-chat-send"); return s && s.textContent === "Send" ? true : null;`, 25_000, 300).catch(() => undefined);
     zeichnePflicht({ record, unmeasured }, pn("P29"), await gegenprobeFokus(c.cdp, { selector: ".sa-chat-input", text: "abc" }));
-    // Erreichbarkeit: in dieser Lage nicht anwendbar. Gemessen am 2026-10-18 (Baustein pflichtpunkte, Gegenprobe ohne Rollbalken):
-    // 4 von 4 Elementen blieben erreichbar, weil Eingabefeld, Senden und Kopfzeile ausserhalb des Rollbereichs `.sa-chat-messages` sitzen
-    // (Spalten-Flex). Die Probe koennte nie rot werden (CORE-TEST-01); der Ausgabebereich kann die Bedienelemente nicht verdecken.
-    const grund = "Eingabefeld, Senden und Kopfzeile sitzen ausserhalb des Rollbereichs .sa-chat-messages; die Gegenprobe ohne Rollbalken machte gemessen kein Element unerreichbar (4 von 4 blieben erreichbar), die Probe koennte nie rot werden";
-    skipped(pn("P30"), grund);
-    skipped(pn("P31"), grund);
+    // Erreichbarkeit: Messung mit gefülltem Verlauf, Gegenprobe zuerst mit `wachsen` (der Verlauf wächst statt zu rollen und drückt Eingabefeld und
+    // Senden aus dem Panel). Bleibt auch sie blind, ist das Opt-out begründet; wird sie einmal wirksam, zählen P30 und P31 wieder.
+    const erreichbar = {
+      selektoren: [".sa-chat-send", ".sa-chat-input", ".sa-chat-head button"],
+      fuelle: { in: ".sa-chat-messages" },
+      erforderlich: [".sa-chat-send", ".sa-chat-input"],
+    };
+    const messung = await messeErreichbarkeit(c.cdp, erreichbar);
+    const gegen = await gegenprobeErreichbarkeit(c.cdp, { ...erreichbar, scrollen: false, art: "wachsen" });
+    if (messung.urteil === "gruen" && gegen.urteil === "rot" && gegen.detail.includes("die Probe sieht den Defekt nicht")) {
+      const grund = `Eingabefeld, Senden und Kopfzeile sitzen ausserhalb des Rollbereichs .sa-chat-messages; auch mit der Bauart wachsen macht die Gegenprobe kein Element unerreichbar, die Probe koennte nie rot werden. Messung: ${messung.detail}. Gegenprobe: ${gegen.detail}`;
+      optOutPflicht({ record, unmeasured, skipped }, pn("P30"), grund);
+      optOutPflicht({ record, unmeasured, skipped }, pn("P31"), grund);
+    } else {
+      zeichnePflicht({ record, unmeasured }, pn("P30"), messung);
+      zeichnePflicht({ record, unmeasured }, pn("P31"), gegen);
+    }
   } finally {
     await stub.stop();
   }

@@ -27,7 +27,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { argv, cwd, exit } from "node:process";
 
-import { Cdp, attachTo, bereiteInstanzVor, clearNotices, closeExtraLeaves, openExisting, reopenNote, requireUntil, schliesseDialog, setAppConfig, pollUntil } from "../../tools/obsidian-cdp/cdp.js";
+import { Cdp, attachTo, bereiteInstanzVor, clearNotices, closeExtraLeaves, openExisting, reopenNote, requireUntil, schliesseDialog, schliesseEinstellungen, setAppConfig, pollUntil } from "../../tools/obsidian-cdp/cdp.js";
 import { startLlmStub } from "../../tools/obsidian-cdp/llm-stub.js";
 import { boxOf, capture, setWindowSize, writeShot, type Rect } from "../../tools/obsidian-cdp/shot.js";
 import { buildVault, stagingVaultDir } from "../../tools/obsidian-cdp/vault.js";
@@ -334,7 +334,7 @@ const SHOTS: Shot[] = [
     klasse: "detail",
     async run(cdp, port) {
       await schliesseDialoge(cdp);
-      await cdp.evaluate(`app.setting.close(); return { ok: true };`).catch(() => undefined);
+      await schliesseEinstellungen(cdp);
       await sleep(600);
       await cdp.evaluate(`
         app.setting.open();
@@ -370,7 +370,7 @@ const SHOTS: Shot[] = [
         console.log(`  ✓ ${await writeShot(fenster, "settings.png", png, { outDir: OUT_DIR, captureWidth: CAPTURE_WIDTH, thumbWidth: THUMB_WIDTH, thumb: true })}`);
       } finally {
         if (!alsModal) { await fenster.evaluate("window.close(); return true;").catch(() => undefined); fenster.close(); }
-        else await cdp.evaluate(`app.setting.close(); return { ok: true };`).catch(() => undefined);
+        else await schliesseEinstellungen(cdp);
       }
       return null;
     },
