@@ -12,11 +12,9 @@ import { ApplyService } from "./obsidian/apply-service";
 import { createSettingsAssistantApi, type SettingsAssistantApi } from "./obsidian/api";
 import { openPluginSettings } from "./obsidian/apply-modal";
 import { renderProfileBlock } from "./obsidian/profile-block";
-import { createChatSend, type ChatSend } from "./obsidian/chat-send";
 import { CHAT_MODE, SettingsAssistantSettingTab } from "./obsidian/settings-tab";
 import { listSnapshots, pickUndoTarget } from "./obsidian/snapshots";
-import { ChatSession } from "./obsidian/chat-session";
-import { SettingsChatView, VIEW_TYPE_SA_CHAT, refreshChatViews } from "./obsidian/chat-view";
+import { SettingsChatHost, VIEW_TYPE_SA_CHAT, newChatState, refreshChatViews } from "./obsidian/chat-host";
 import { readConfig } from "./obsidian/config-io";
 import { installedPlugins } from "./obsidian/plugin-host";
 import { targetPath } from "./core/write-policy";
@@ -33,7 +31,8 @@ export default class SettingsAssistantPlugin extends Plugin {
   /** Die LLM-Anbindung: Endpunkt-Quelle, Auflösung, Parameter, Client, Prüfung der Antwort und die Settings-Abschnitte. */
   llm!: LlmConnection;
   private unsubscribeManager: () => void = () => {};
-  private chatSession!: ChatSession;
+  /** Verlauf und Plugin-Auswahl des Chats: nur im Speicher, überleben das Schließen und Öffnen der Ansicht. */
+  private readonly chatState = newChatState();
   private readonly markdownHost = new Component();
 
   async onload(): Promise<void> {
@@ -58,7 +57,8 @@ export default class SettingsAssistantPlugin extends Plugin {
       // Erst in die Settings schreiben, dann speichern: die Endpunkt-Liste liest ihre Zeilen danach zurück.
       persist: (patch) => {
         applyLlmPatch(this.settings, patch);
-        return patch.request !== undefined ? this.saveSettings().then(() => this.refreshChatViews()) : this.saveSettings();
+        // Die Modellzeile des Chats zeigt Endpunkt und Modell: ändern sich die Zeilen oder die Wahl, lädt sie auch die Modell-Liste neu.
+        return this.saveSettings().then(() => this.refreshChatViews({ models: patch.request === undefined }));
       },
     });
     this.applyService = new ApplyService(this.app, () => this.settings);
@@ -80,16 +80,14 @@ export default class SettingsAssistantPlugin extends Plugin {
     });
 
     this.addChild(this.markdownHost);
-    this.chatSession = new ChatSession({
-      send: this.chatSend(),
-      describeEndpoint: () => this.describeEndpoint(),
-      installed: () => installedPlugins(this.app),
-      readSettings: (id) => readConfig(this.app, targetPath({ kind: "plugin", id }, this.app.vault.configDir)),
-    });
-    this.registerView(VIEW_TYPE_SA_CHAT, (leaf: WorkspaceLeaf) => new SettingsChatView(leaf, {
-      session: this.chatSession,
+    this.registerView(VIEW_TYPE_SA_CHAT, (leaf: WorkspaceLeaf) => new SettingsChatHost(leaf, {
+      app: this.app,
+      llm: this.llm,
+      state: this.chatState,
       service: this.applyService,
       installed: () => installedPlugins(this.app),
+      readSettings: (id) => readConfig(this.app, targetPath({ kind: "plugin", id }, this.app.vault.configDir)),
+      describeEndpoint: () => this.describeEndpoint(),
       resolveEndpoint: async () => (await this.resolveEndpoint()) !== null,
       openOwnSettings: () => { openPluginSettings(this.app, this.manifest.id); },
       openPluginSettings: (id) => { openPluginSettings(this.app, id); },
@@ -116,13 +114,13 @@ export default class SettingsAssistantPlugin extends Plugin {
     this.addRibbonIcon("sliders-horizontal", t("cmd.chat"), () => { void this.openChat(); });
 
     void this.llm.resolve().catch(() => undefined);
-    this.unsubscribeManager = onEndpointManagerChanged(this.app, () => { this.llm.invalidate(); void this.llm.resolve().then(() => this.refreshChatViews()).catch(() => undefined); });
-    this.registerEvent(this.app.workspace.on("active-leaf-change", (leaf) => { if (leaf?.view instanceof SettingsChatView) void leaf.view.reload(); }));
+    this.unsubscribeManager = onEndpointManagerChanged(this.app, () => { this.llm.invalidate(); void this.llm.resolve().then(() => this.refreshChatViews({ models: true })).catch(() => undefined); });
+    this.registerEvent(this.app.workspace.on("active-leaf-change", (leaf) => { if (leaf?.view instanceof SettingsChatHost) void leaf.view.reload(); }));
   }
 
-  /** Alle offenen Chat-Ansichten neu auflösen (Endpunkt oder Denkstufe geändert). */
-  async refreshChatViews(): Promise<void> {
-    await refreshChatViews(this.app.workspace.getLeavesOfType(VIEW_TYPE_SA_CHAT));
+  /** Alle offenen Chat-Ansichten neu auflösen (Endpunkt, Modell oder Denkstufe geändert); `models`: auch die Modell-Liste neu laden. */
+  async refreshChatViews(opts: { models?: boolean } = {}): Promise<void> {
+    await refreshChatViews(this.app.workspace.getLeavesOfType(VIEW_TYPE_SA_CHAT), opts);
   }
 
   private async openChat(): Promise<void> {
@@ -182,10 +180,5 @@ export default class SettingsAssistantPlugin extends Plugin {
       const r = await this.llm.resolve();
       return { endpoint: r.config?.url ?? "", model: r.sentModel || r.model };
     } catch { return { endpoint: "", model: "" }; }
-  }
-
-  /** `send` für die Chat-Sitzung: ein Aufruf der Verbindung. */
-  chatSend(): ChatSend {
-    return createChatSend(this.llm);
   }
 }

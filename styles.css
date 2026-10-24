@@ -293,8 +293,8 @@
 .okit-stream-status:empty, .okit-stream-reasoning-slot:empty { display: none; }
 
 /* Chat-Ansicht */
-.sa-chat { display: flex; flex-direction: column; gap: var(--size-4-2); height: 100%; }
-.sa-chat .sa-empty { display: flex; flex-direction: column; align-items: flex-start; gap: var(--size-4-2); padding: var(--size-4-3); }
+/* Der Wirt des Kit-Chatfensters braucht eine begrenzte Höhe, sonst rollt der Verlauf nicht (obsidian-kit chat-window, Fallen beim Übernehmen). */
+.sa-chat-host { height: 100%; }
 /* uebernommen aus src/vendor/kit-obsidian/thinking-control.ts (THINKING_CONTROL_CSS), obsidian-kit 0.60.1 */
 .okit-thinking-control { display: inline-flex; align-items: center; }
 .okit-thinking-toggle {
@@ -305,10 +305,6 @@
 .okit-thinking-toggle:disabled { opacity: 0.4; cursor: not-allowed; }
 .okit-thinking-toggle svg { width: var(--icon-xs); height: var(--icon-xs); }
 .okit-thinking-control select { font-size: var(--font-ui-small); }
-.sa-chat-head { display: flex; align-items: center; justify-content: space-between; gap: var(--size-4-2); flex: 0 0 auto; }
-.sa-chat-messages { flex: 1 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: var(--size-4-3); }
-.sa-chat-role { color: var(--text-muted); font-size: var(--font-ui-smaller); margin-bottom: var(--size-2-1); }
-.sa-chat-turn.is-user .sa-chat-msg { background: var(--background-secondary); border-radius: var(--radius-m); padding: var(--size-4-2); white-space: pre-wrap; font-size: var(--font-ui-small); }
 .sa-chat-block { display: flex; flex-direction: column; gap: var(--size-4-1); margin-top: var(--size-4-2); }
 .sa-chat-block-note { display: flex; flex-direction: column; align-items: flex-start; gap: var(--size-4-1); }
 .sa-chat-block-info { color: var(--text-muted); font-size: var(--font-ui-smaller); }
@@ -320,14 +316,10 @@
 .sa-chat-sent > summary { cursor: var(--cursor); color: var(--text-faint); }
 .sa-chat-sent-label { margin-top: var(--size-4-1); color: var(--text-faint); }
 .sa-chat-prompt { max-height: 16em; overflow: auto; white-space: pre-wrap; background: var(--background-secondary); padding: var(--size-4-2); }
-.sa-chat-composer { flex: 0 0 auto; display: flex; flex-direction: column; gap: var(--size-4-2); }
 .sa-chat-chips { display: flex; flex-wrap: wrap; align-items: center; gap: var(--size-4-1); }
 .sa-chat-chips:empty { display: none; }
 .sa-chip { display: inline-flex; align-items: center; gap: var(--size-4-1); padding: 0 var(--size-4-1) 0 var(--size-4-2); border-radius: var(--radius-m); background: var(--background-modifier-hover); font-size: var(--font-ui-smaller); }
 .sa-chip-remove { padding: 0; }
-.sa-chat-input-row { display: flex; gap: var(--size-4-2); align-items: flex-end; }
-.sa-chat-input { flex: 1 1 auto; resize: vertical; max-height: 12em; }
-.sa-chat-send { flex: 0 0 auto; }
 
 /* uebernommen aus src/vendor/kit-obsidian/chat-window.ts (CHAT_WINDOW_CSS), obsidian-kit 0.67.0 */
 .okit-chat { display: flex; flex-direction: column; min-height: 0; height: 100%; gap: var(--size-4-2); }

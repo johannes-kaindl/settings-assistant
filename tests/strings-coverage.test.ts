@@ -63,8 +63,10 @@ describe("String-Abdeckung", () => {
     const keys = usedKeys();
     expect(keys.has("chat.save")).toBe(true);
     expect(keys.has("modal.apply.one")).toBe(true);
-    expect(keys.has("error.noEndpoint")).toBe(true);
-    expect(keys.size).toBeGreaterThan(75); // Untergrenze gegen einen leeren Parser; 80 Schlüssel ohne chat.think.min (Kit-Text seit 0.63.0)
+    expect(keys.has("chat.modelLabel")).toBe(true);
+    // Untergrenze gegen einen leeren Parser. 70 Schlüssel seit dem Umstieg auf das Kit-Chatfenster (vorher 80): zehn Chat-Texte (Senden, Stopp, Neuer Chat,
+    // Rollenköpfe, Arbeitsanzeige, Denkblock, Abbruch, Fehler, kein Endpunkt) kommen jetzt aus dem Kit-Bündel; `chat.modelLabel` ist neu.
+    expect(keys.size).toBeGreaterThan(65);
   });
   it("jeder Literal-Schlüssel aus src/ existiert in beiden Sprachen", () => {
     const en = STRINGS.en as Record<string, string>;
