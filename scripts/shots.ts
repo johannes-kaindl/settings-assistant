@@ -277,31 +277,31 @@ const SHOTS: Shot[] = [
       if (!(await oeffneProfilNotiz(cdp))) return null;
       if (!(await setzeEndpunkt(cdp, fake))) return null;
       await cdp.evaluate(`app.workspace.detachLeavesOfType("settings-assistant-chat"); await new Promise((r) => setTimeout(r, 300)); app.commands.executeCommandById(${q(`${PLUGIN_ID}:open-chat`)}); return { ok: true };`);
-      const da = await pollUntil<{ ok: boolean }>(cdp, `return document.querySelector(".sa-chat-input") ? { ok: true } : null;`, 10_000, 250);
+      const da = await pollUntil<{ ok: boolean }>(cdp, `return document.querySelector(".okit-chat-input") ? { ok: true } : null;`, 10_000, 250);
       if (!da) return null;
       await cdp.evaluate(`
-        const nb = Array.from(document.querySelectorAll(".sa-chat-head button")).find((b) => b.textContent === "New chat");
+        const nb = document.querySelector(".okit-chat-new");
         if (nb) nb.click();
         await new Promise((r) => setTimeout(r, 300));
-        const i = document.querySelector(".sa-chat-input");
+        const i = document.querySelector(".okit-chat-input");
         i.value = "Quick Capture saves too rarely. Can you make it save every 15 seconds and stop opening the new note?";
         i.dispatchEvent(new Event("input", { bubbles: true }));
-        document.querySelector(".sa-chat-send").click();
+        document.querySelector(".okit-chat-send").click();
         return { ok: true };
       `);
       const fertig = await pollUntil<{ ok: boolean }>(cdp, `
-        const send = document.querySelector(".sa-chat-send");
+        const send = document.querySelector(".okit-chat-send");
         return send && send.textContent === "Send" && document.querySelector(".sa-chat-block .sa-apply") ? { ok: true } : null;
       `, 30_000, 300);
       if (!fertig) return null;
       await sleep(2000);
       // Nur die rechte Seitenleiste: ein Ausschnitt mit einem Stueck Notiz davor zeigt abgeschnittenen Text.
       // Ein Hochformat-Streifen ist ein detail-Bild (keine Hoehengrenze).
-      // Unten auf die Sende-Zeile begrenzen: darunter fuellt der Container bis zum Fensterrand und faengt ein OS-Artefakt ein.
+      // Unten auf die Statuszeile (Zustand und Dauer der Antwort) begrenzen: darunter fuellt der Container bis zum Fensterrand und faengt ein OS-Artefakt ein.
       const seite = await boxOf(cdp, ".mod-right-split", 0);
-      const senden = await boxOf(cdp, ".sa-chat-send", 0);
-      if (!seite || !senden) return null;
-      return { ...seite, height: senden.y + senden.height + 8 - seite.y };
+      const unten = await boxOf(cdp, ".okit-chat-statusbar", 0);
+      if (!seite || !unten) return null;
+      return { ...seite, height: unten.y + unten.height + 8 - seite.y };
     },
   },
   {

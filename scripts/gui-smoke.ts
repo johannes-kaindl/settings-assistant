@@ -55,6 +55,7 @@ const PROBE_FIXTURE = join(REPO_ROOT, "fixtures/plugins", PROBE_ID);
 const PROFILE_BASE = "/tmp/obs-test-settings-assistant";
 const OBSIDIAN_BIN = "/Applications/Obsidian.app/Contents/MacOS/Obsidian";
 const FAKE_MODEL = "smoke-model";
+const FAKE_MODEL_2 = "smoke-model-2";
 const FAKE_ENDPOINT_KEY = "sk-FAKE-SMOKE";
 const PROBE_API_KEY = "sk-FAKE-PROBE";
 const PROBE_DATA = "/plugins/sa-probe/data.json";
@@ -94,8 +95,14 @@ const PUNKTE = [
   "P27 Denkblock kopierbar (Gegenprobe): lehnt die Zwischenablage ab, bleibt die Quittung aus",
   "P28 Pflichtpunkt Fokus-Erhalt: ein im Strom getippter Text im Eingabefeld ueberlebt das Ende der Antwort",
   "P29 Pflichtpunkt Fokus-Erhalt (Gegenprobe): ein Auslöser, der den Fokus nimmt, macht die Messung rot",
-  "P30 Pflichtpunkt Erreichbarkeit: Senden, Eingabefeld und Kopfzeilen-Knoepfe sind bei ueberlaufendem Verlauf erreichbar",
+  "P30 Pflichtpunkt Erreichbarkeit: Senden, Neu, Eingabefeld und Modellzeile sind bei ueberlaufendem Verlauf erreichbar",
   "P31 Pflichtpunkt Erreichbarkeit (Gegenprobe): ohne Rollbalken wird etwas unerreichbar",
+  "P32 Modellzeile: im Kopf des Chats, listet beide Modelle des Endpunkts, ein Wechsel schreibt das Modell in die Zeile und die naechste Anfrage traegt es",
+  "P33 Modellzeile sperrt sich waehrend eines Laufs (Dropdown und Neu-laden gesperrt) und gibt sich danach frei",
+  "P34 Escape bricht den laufenden Lauf ab: der Server sieht den Abbruch, die Antwort traegt „Stopped.“, Senden ist wieder frei",
+  "P35 Fehlerzeile nennt bei einem HTTP-Fehler die Begruendung des Servers; „Send again“ sendet dieselbe Frage, die gescheiterte Runde geht nicht ans Modell",
+  "P36 Denkblock ist im Strom offen und klappt nach der Antwort zu",
+  "P37 Linkschutz: javascript:-, data:-, obsidian://- und file:-Links einer Antwort verlieren ihr href, ein https-Link behaelt es",
 ] as const;
 type PunktName = (typeof PUNKTE)[number];
 const pn = (prefix: string): PunktName => {
@@ -155,6 +162,11 @@ const NEUTRAL_ANSWER = [
   "",
   "[click](javascript:alert(1))",
 ].join("\n");
+const LINKS_ANSWER = [
+  "Links:",
+  "",
+  "[a-js](javascript:alert(1)) [b-data](data:text/html,x) [c-obs](obsidian://open?vault=x) [d-file](file:///etc/passwd) [e-ok](https://example.org/ok)",
+].join("\n");
 function antwortFuer(body: string): string {
   let last = "";
   try {
@@ -164,6 +176,7 @@ function antwortFuer(body: string): string {
   } catch { last = ""; }
   if (last.includes("SMOKE-RAW")) return RAW_ANSWER;
   if (last.includes("SMOKE-NEUTRAL")) return NEUTRAL_ANSWER;
+  if (last.includes("SMOKE-LINKS")) return LINKS_ANSWER;
   if (last.includes("SMOKE-REDACT")) {
     // Spiegelt die Platzhalter der Anfrage zurueck (so, wie ein Modell sie wiederholt) — samt einem Bild mit Platzhalter in der URL.
     const ph = last.match(/\[redacted-[a-z0-9-]+-\d+\]/g) ?? [];
@@ -177,7 +190,7 @@ interface FakeEndpoint { url: string; close: () => Promise<void>; readonly bodie
  *  nach `antwortFuer`. `bodies` und `auth` sind Getter ueber den Mitschnitt der Chat-Anfragen (wie der alte Server). */
 async function startFakeEndpoint(): Promise<FakeEndpoint> {
   const stub = await startLlmStub({
-    models: [FAKE_MODEL],
+    models: [FAKE_MODEL, FAKE_MODEL_2],
     antwort: (anfrage) => ({ text: antwortFuer(anfrage.body), teile: 2, model: FAKE_MODEL }),
   });
   const chat = (): StubAnfrage[] => stub.anfragen().filter((a) => a.route === "chat");
@@ -777,20 +790,20 @@ async function p8p12(c: Ctx): Promise<void> {
   `);
   const mitschnittSieht = requests.some((u) => u.includes("mess-probe.png"));
   await c.cdp.evaluate(`app.workspace.detachLeavesOfType("settings-assistant-chat"); await new Promise((r) => setTimeout(r, 300)); app.commands.executeCommandById(${q(`${PLUGIN_ID}:open-chat`)}); return { ok: true };`);
-  const da = await pollUntil<{ ok: boolean }>(c.cdp, `return document.querySelector(".sa-chat-input") ? { ok: true } : null;`, 10_000, 250);
-  if (!da) throw new Vorbedingung("Chat-Ansicht oeffnet sich nicht (kein .sa-chat-input)");
+  const da = await pollUntil<{ ok: boolean }>(c.cdp, `return document.querySelector(".okit-chat-input") ? { ok: true } : null;`, 10_000, 250);
+  if (!da) throw new Vorbedingung("Chat-Ansicht oeffnet sich nicht (kein .okit-chat-input)");
   await clearNotices(c.cdp);
   await c.cdp.evaluate(`
-    const i = document.querySelector(".sa-chat-input");
+    const i = document.querySelector(".okit-chat-input");
     i.value = "Please set sa-probe maxRounds to 33";
     i.dispatchEvent(new Event("input", { bubbles: true }));
-    document.querySelector(".sa-chat-send").click();
+    document.querySelector(".okit-chat-send").click();
     return { ok: true };
   `);
   const block = await pollUntil<{ ok: boolean }>(c.cdp, `return document.querySelector(".sa-chat-block .sa-apply") ? { ok: true } : null;`, 30_000, 300);
   await sleep(2000); // Markdown-Rendering und Nachbearbeitung laufen asynchron
   const dom = await c.cdp.evaluate<{ imgs: number; active: number; text: string; sent: string; ctx: string }>(`
-    const msgs = document.querySelector(".sa-chat-messages");
+    const msgs = document.querySelector(".okit-chat-log");
     const sent = document.querySelector(".sa-chat-sent");
     return {
       imgs: msgs ? msgs.querySelectorAll("img").length : -1,
@@ -853,10 +866,10 @@ async function chatVorbereiten(c: Ctx, url: string = c.fake.url): Promise<void> 
   `);
   if (pre.url !== url) throw new Vorbedingung(`Chat-Endpunkt laesst sich nicht aufloesen (${String(pre.url)})`);
   await c.cdp.evaluate(`app.workspace.detachLeavesOfType("settings-assistant-chat"); await new Promise((r) => setTimeout(r, 300)); app.commands.executeCommandById(${q(`${PLUGIN_ID}:open-chat`)}); return { ok: true };`);
-  const da = await pollUntil<{ ok: boolean }>(c.cdp, `return document.querySelector(".sa-chat-input") ? { ok: true } : null;`, 10_000, 250);
-  if (!da) throw new Vorbedingung("Chat-Ansicht oeffnet sich nicht (kein .sa-chat-input)");
+  const da = await pollUntil<{ ok: boolean }>(c.cdp, `return document.querySelector(".okit-chat-input") ? { ok: true } : null;`, 10_000, 250);
+  if (!da) throw new Vorbedingung("Chat-Ansicht oeffnet sich nicht (kein .okit-chat-input)");
   await c.cdp.evaluate(`
-    const nb = Array.from(document.querySelectorAll(".sa-chat-head button")).find((b) => b.textContent === "New chat");
+    const nb = document.querySelector(".okit-chat-new");
     if (nb) nb.click();
     await new Promise((r) => setTimeout(r, 300));
     return { ok: true };
@@ -866,10 +879,10 @@ async function chatVorbereiten(c: Ctx, url: string = c.fake.url): Promise<void> 
 
 async function chatAbsenden(c: Ctx, frage: string): Promise<void> {
   await c.cdp.evaluate(`
-    const i = document.querySelector(".sa-chat-input");
+    const i = document.querySelector(".okit-chat-input");
     i.value = ${q(frage)};
     i.dispatchEvent(new Event("input", { bubbles: true }));
-    document.querySelector(".sa-chat-send").click();
+    document.querySelector(".okit-chat-send").click();
     return { ok: true };
   `);
 }
@@ -883,9 +896,9 @@ async function chatSenden(c: Ctx, frage: string, url: string = c.fake.url): Prom
 async function chatRunde(c: Ctx, frage: string): Promise<void> {
   await chatSenden(c, frage);
   const fertig = await pollUntil<{ ok: boolean }>(c.cdp, `
-    const send = document.querySelector(".sa-chat-send");
-    const turns = document.querySelectorAll(".sa-chat-turn.is-assistant").length;
-    return send && send.textContent === "Send" && turns === 1 && document.querySelector(".sa-chat-turn.is-assistant .okit-stream-block, .sa-chat-turn.is-assistant .sa-chat-block") ? { ok: true } : null;
+    const send = document.querySelector(".okit-chat-send");
+    const turns = document.querySelectorAll(".okit-chat-turn.is-assistant").length;
+    return send && send.textContent === "Send" && turns === 1 && document.querySelector(".okit-chat-turn.is-assistant .okit-stream-block, .okit-chat-turn.is-assistant .sa-chat-block") ? { ok: true } : null;
   `, 30_000, 300);
   if (!fertig) throw new Vorbedingung("die Chat-Antwort kommt nicht zu Ende (kein Block/Text nach 30 s)");
   await sleep(2000); // Markdown-Rendering und Nachbearbeitung laufen asynchron
@@ -894,7 +907,7 @@ async function chatRunde(c: Ctx, frage: string): Promise<void> {
 async function p16(c: Ctx): Promise<void> {
   await chatRunde(c, "SMOKE-RAW please propose a profile");
   const d = await c.cdp.evaluate<{ blocks: number; details: number; summary: string; below: boolean; pre1: string; pre2: string; all: string; root: string; sentTxt: string }>(`
-    const msgs = document.querySelector(".sa-chat-messages");
+    const msgs = document.querySelector(".okit-chat-log");
     const blocks = Array.from(msgs.querySelectorAll(".sa-chat-block"));
     const dets = blocks.map((b) => b.querySelector(":scope > details.sa-chat-raw"));
     return {
@@ -931,15 +944,15 @@ async function p17(c: Ctx): Promise<void> {
   const mitschnittSieht = requests.some((u) => u.includes("mess-probe-p17.png"));
   await chatRunde(c, "SMOKE-NEUTRAL please explain");
   const d = await c.cdp.evaluate<{ code: number; preLang: number; active: number; links: string[]; text: string; dataview: boolean; turn: number }>(`
-    const msgs = document.querySelector(".sa-chat-messages");
-    const turn = msgs.querySelector(".sa-chat-turn.is-assistant");
+    const msgs = document.querySelector(".okit-chat-log");
+    const turn = msgs.querySelector(".okit-chat-turn.is-assistant");
     return {
       turn: turn ? 1 : 0,
       code: msgs.querySelectorAll("code").length,
       preLang: msgs.querySelectorAll("pre[class*='language-'], code[class*='language-'], [class*='block-language-']").length,
       active: msgs.querySelectorAll("img, script, iframe, embed, object, video, audio, [src], [srcset]").length,
       links: Array.from(msgs.querySelectorAll(".okit-stream-block a")).map((a) => (a.textContent || "") + " -> " + String(a.getAttribute("href"))),
-      text: turn ? turn.querySelector(".okit-stream-block")?.textContent ?? "" : "",
+      text: turn ? Array.from(turn.querySelectorAll(".okit-stream-block")).map((b) => b.textContent ?? "").join(" ") : "",
       dataview: !!(app.plugins.plugins && app.plugins.plugins.dataview),
     };
   `);
@@ -971,8 +984,8 @@ async function p18(c: Ctx): Promise<void> {
   const vor = c.fake.bodies.length;
   await chatRunde(c, `SMOKE-REDACT please check ${P18_TOKEN} and -----BEGIN PRIVATE KEY----- ${P18_PEM_BODY} -----END PRIVATE KEY-----`);
   const d = await c.cdp.evaluate<{ turn: number; text: string; imgs: number; active: number }>(`
-    const msgs = document.querySelector(".sa-chat-messages");
-    const turn = msgs.querySelector(".sa-chat-turn.is-assistant");
+    const msgs = document.querySelector(".okit-chat-log");
+    const turn = msgs.querySelector(".okit-chat-turn.is-assistant");
     return {
       turn: turn ? 1 : 0,
       text: turn ? turn.textContent ?? "" : "",
@@ -1030,13 +1043,13 @@ async function p15(c: Ctx): Promise<void> {
   // (b) Chat senden: der Server muss weiter genau den hydrierten Schluessel sehen.
   const vorher = c.fake.auth.length;
   await c.cdp.evaluate(`app.workspace.detachLeavesOfType("settings-assistant-chat"); await new Promise((r) => setTimeout(r, 300)); app.commands.executeCommandById(${q(`${PLUGIN_ID}:open-chat`)}); return { ok: true };`);
-  const da = await pollUntil<{ ok: boolean }>(c.cdp, `return document.querySelector(".sa-chat-input") ? { ok: true } : null;`, 10_000, 250);
-  if (!da) throw new Vorbedingung("Chat-Ansicht oeffnet sich nicht (kein .sa-chat-input)");
+  const da = await pollUntil<{ ok: boolean }>(c.cdp, `return document.querySelector(".okit-chat-input") ? { ok: true } : null;`, 10_000, 250);
+  if (!da) throw new Vorbedingung("Chat-Ansicht oeffnet sich nicht (kein .okit-chat-input)");
   await c.cdp.evaluate(`
-    const i = document.querySelector(".sa-chat-input");
+    const i = document.querySelector(".okit-chat-input");
     i.value = "Hello for the keychain check";
     i.dispatchEvent(new Event("input", { bubbles: true }));
-    document.querySelector(".sa-chat-send").click();
+    document.querySelector(".okit-chat-send").click();
     return { ok: true };
   `);
   const bis = Date.now() + 30_000;
@@ -1105,7 +1118,7 @@ async function p19(c: Ctx): Promise<void> {
 // ---------------------------------------------------------------------------------------------
 // Strom im Chat (Welle 20, zentraler Stub): Folge-Regel und Denkblock live
 // ---------------------------------------------------------------------------------------------
-// Bisher ohne Modell nicht messbar. Scrollender Container ist `.sa-chat-messages` (`scrollEl` von `buildStreamArea`,
+// Bisher ohne Modell nicht messbar. Scrollender Container ist `.okit-chat-log` (`scrollEl` von `buildStreamArea`,
 // Spalten-Flex mit `min-height: 0`, begrenzte Hoehe). Gueltigkeit (CORE-TEST-22): Ueberlauf >= 80 px zum Stoerungszeitpunkt
 // (Folge-Schwelle 40 px + 40 px Spielraum), mindestens zwei Stuecke nach der Stoerung, abgetastet nur bis zum vorletzten
 // Stueck; der Stub haelt danach drei Takte offen. Sonst „nichts gemessen“. Tokengrosse Stuecke (10 Zeichen).
@@ -1113,7 +1126,7 @@ const STROM_TAKT = 40;
 const STROM_LAENGE = 10;
 const STROM_TEXT = Array.from({ length: 26 }, (_, i) => `Absatz ${i + 1}: Der Strom laeuft weiter, Wort fuer Wort, damit der Verlauf waechst und das Ende wandert.\n\n`).join("");
 const STROM_STUECKE = Math.ceil(STROM_TEXT.length / STROM_LAENGE);
-const MSGS = `document.querySelector(".sa-chat-messages")`;
+const MSGS = `document.querySelector(".okit-chat-log")`;
 const P20 = pn("P20"), P21 = pn("P21"), P23 = pn("P23"), P24 = pn("P24");
 
 /** Folge-Messung: zentral (`messeFolge`, tools/obsidian-cdp/README § Folge-Messung). Hier bleibt das Wissen ueber den Chat:
@@ -1130,7 +1143,7 @@ async function strom(c: Ctx, opt: { kontrolle: boolean; stoerung: boolean; wiede
       starte: () => chatAbsenden(c, "SMOKE-STROM lange Antwort"),
       ...opt,
     });
-    await pollUntil<boolean>(c.cdp, `const s = document.querySelector(".sa-chat-send"); return s && s.textContent === "Send" ? true : null;`, 25_000, 300).catch(() => undefined);
+    await pollUntil<boolean>(c.cdp, `const s = document.querySelector(".okit-chat-send"); return s && s.textContent === "Send" ? true : null;`, 25_000, 300).catch(() => undefined);
     return e;
   } finally {
     await stub.stop();
@@ -1163,15 +1176,15 @@ async function p25(c: Ctx): Promise<void> {
   try {
     await chatSenden(c, "SMOKE-GEMMA bitte antworten", stub.url);
     const g = await pollUntil<{ antwort: string; denken: string; block: boolean }>(c.cdp, `
-      const body = document.querySelector(".sa-chat-turn.is-assistant .okit-stream-body");
+      const body = document.querySelector(".okit-chat-turn.is-assistant .okit-stream-body");
       if (!body || !(body.textContent || "").includes("Antwort.")) return null;
-      const pre = document.querySelector(".sa-chat-turn.is-assistant .okit-stream-reasoning pre");
+      const pre = document.querySelector(".okit-chat-turn.is-assistant .okit-stream-reasoning pre");
       return { antwort: (body.textContent || "").trim(), denken: pre ? pre.textContent || "" : "", block: !!pre };`, 20_000, 100).catch(() => null);
     if (g === null) { unmeasured(pn("P25"), "die Antwort kam im Anzeigetext nicht an (20 s)"); return; }
     record(pn("P25"), g.block && g.antwort === "Die fertige Antwort." && g.denken.includes("waege") && !g.antwort.includes("waege") && !g.antwort.includes("channel"),
       `Anzeigetext „${g.antwort.slice(0, 80)}“ · Denkblock ${g.block ? `„${g.denken.slice(0, 40)}“` : "fehlt"}`);
   } finally {
-    await pollUntil<boolean>(c.cdp, `const s = document.querySelector(".sa-chat-send"); return s && s.textContent === "Send" ? true : null;`, 25_000, 300).catch(() => undefined);
+    await pollUntil<boolean>(c.cdp, `const s = document.querySelector(".okit-chat-send"); return s && s.textContent === "Send" ? true : null;`, 25_000, 300).catch(() => undefined);
     await stub.stop();
   }
 }
@@ -1188,15 +1201,15 @@ async function p22(c: Ctx): Promise<void> {
     const frist = Date.now() + 8_000;
     while (Date.now() < frist && proben.length < 12) {
       const pr = await c.cdp.evaluate<Probe | null>(`
-        const pre = document.querySelector(".sa-chat-turn.is-assistant .okit-stream-reasoning pre");
+        const pre = document.querySelector(".okit-chat-turn.is-assistant .okit-stream-reasoning pre");
         if (!pre) return null;
         const det = pre.closest("details");
-        return { len: pre.textContent.length, offen: det.open, sichtbar: pre.getBoundingClientRect().height > 0, body: (document.querySelector(".sa-chat-turn.is-assistant .okit-stream-body")?.textContent ?? "").trim().length };
+        return { len: pre.textContent.length, offen: det.open, sichtbar: pre.getBoundingClientRect().height > 0, body: (document.querySelector(".okit-chat-turn.is-assistant .okit-stream-body")?.textContent ?? "").trim().length };
       `);
       if (pr !== null) proben.push(pr);
       await sleep(250);
     }
-    await pollUntil<boolean>(c.cdp, `const s = document.querySelector(".sa-chat-send"); return s && s.textContent === "Send" ? true : null;`, 25_000, 300).catch(() => undefined);
+    await pollUntil<boolean>(c.cdp, `const s = document.querySelector(".okit-chat-send"); return s && s.textContent === "Send" ? true : null;`, 25_000, 300).catch(() => undefined);
     if (proben.length < 3) { unmeasured(pn("P22"), `nur ${proben.length} Probe(n) mit Denkblock im Strom`); return; }
     const langen = proben.map((x) => x.len);
     const waechst = langen.every((l, i) => i === 0 || l >= langen[i - 1]!) && langen[langen.length - 1]! > langen[0]!;
@@ -1220,41 +1233,41 @@ async function p26(c: Ctx): Promise<void> {
   try {
     await chatSenden(c, "SMOKE-KOPIE bitte nachdenken", stub.url);
     const da = await pollUntil<boolean>(c.cdp, `
-      const pre = document.querySelector(".sa-chat-turn.is-assistant .okit-stream-reasoning pre");
+      const pre = document.querySelector(".okit-chat-turn.is-assistant .okit-stream-reasoning pre");
       return pre && pre.textContent.length > 30 ? true : null;`, 15_000, 100).catch(() => null);
     if (!da) {
       for (const n of ["P26", "P27", "P28"] as const) unmeasured(pn(n), "der Denktext erreichte im Strom nie 30 Zeichen");
     } else {
       // Mutation JETZT, im Strom: Fokus ins Feld, tippen, Auslöser feuern. Gemessen wird erst nach dem Ende (Schluss-Draw).
-      const m = await c.cdp.evaluate<{ ok: boolean }>(fokusMutationSkript({ selector: ".sa-chat-input", text: "abc" }));
+      const m = await c.cdp.evaluate<{ ok: boolean }>(fokusMutationSkript({ selector: ".okit-chat-input", text: "abc" }));
       // Kopier-Knopf samt Gegenprobe: die Bausteine der Brücke (erst aufzeichnende, dann ablehnende Zwischenablage), Selektoren des Chat-Zugs.
       zeichneDenkblock({ record, unmeasured }, { kopie: pn("P26"), gegen: pn("P27") }, await messeDenkblockKopierbar(c.cdp, {
-        block: ".sa-chat-turn.is-assistant .okit-stream-reasoning",
-        knopf: ".sa-chat-turn.is-assistant .okit-stream-reasoning-copy",
+        block: ".okit-chat-turn.is-assistant .okit-stream-reasoning",
+        knopf: ".okit-chat-turn.is-assistant .okit-stream-reasoning-copy",
         enthaelt: "ueberlege",
         erwartetKnopf: true,
       }));
-      await pollUntil<boolean>(c.cdp, `const s = document.querySelector(".sa-chat-send"); return s && s.textContent === "Send" ? true : null;`, 25_000, 300).catch(() => undefined);
-      if (!m.ok) unmeasured(pn("P28"), "kein .sa-chat-input im DOM");
+      await pollUntil<boolean>(c.cdp, `const s = document.querySelector(".okit-chat-send"); return s && s.textContent === "Send" ? true : null;`, 25_000, 300).catch(() => undefined);
+      if (!m.ok) unmeasured(pn("P28"), "kein .okit-chat-input im DOM");
       else {
-        zeichnePflicht({ record, unmeasured }, pn("P28"), await messeFokusFenster(c.cdp, { selector: ".sa-chat-input", text: "abc" }));
-        await c.cdp.evaluate(fokusAufraeumSkript(".sa-chat-input"));
+        zeichnePflicht({ record, unmeasured }, pn("P28"), await messeFokusFenster(c.cdp, { selector: ".okit-chat-input", text: "abc" }));
+        await c.cdp.evaluate(fokusAufraeumSkript(".okit-chat-input"));
       }
     }
     // Ruhezustand: der Strom ist zu Ende.
-    await pollUntil<boolean>(c.cdp, `const s = document.querySelector(".sa-chat-send"); return s && s.textContent === "Send" ? true : null;`, 25_000, 300).catch(() => undefined);
-    zeichnePflicht({ record, unmeasured }, pn("P29"), await gegenprobeFokus(c.cdp, { selector: ".sa-chat-input", text: "abc" }));
+    await pollUntil<boolean>(c.cdp, `const s = document.querySelector(".okit-chat-send"); return s && s.textContent === "Send" ? true : null;`, 25_000, 300).catch(() => undefined);
+    zeichnePflicht({ record, unmeasured }, pn("P29"), await gegenprobeFokus(c.cdp, { selector: ".okit-chat-input", text: "abc" }));
     // Erreichbarkeit: Messung mit gefülltem Verlauf, Gegenprobe zuerst mit `wachsen` (der Verlauf wächst statt zu rollen und drückt Eingabefeld und
     // Senden aus dem Panel). Bleibt auch sie blind, ist das Opt-out begründet; wird sie einmal wirksam, zählen P30 und P31 wieder.
     const erreichbar = {
-      selektoren: [".sa-chat-send", ".sa-chat-input", ".sa-chat-head button"],
-      fuelle: { in: ".sa-chat-messages" },
-      erforderlich: [".sa-chat-send", ".sa-chat-input"],
+      selektoren: [".okit-chat-send", ".okit-chat-input", ".okit-chat-new", ".okit-model-bar-select"],
+      fuelle: { in: ".okit-chat-log" },
+      erforderlich: [".okit-chat-send", ".okit-chat-input"],
     };
     const messung = await messeErreichbarkeit(c.cdp, erreichbar);
     const gegen = await gegenprobeErreichbarkeit(c.cdp, { ...erreichbar, scrollen: false, art: "wachsen" });
     if (messung.urteil === "gruen" && gegen.urteil === "rot" && gegen.detail.includes("die Probe sieht den Defekt nicht")) {
-      const grund = `Eingabefeld, Senden und Kopfzeile sitzen ausserhalb des Rollbereichs .sa-chat-messages; auch mit der Bauart wachsen macht die Gegenprobe kein Element unerreichbar, die Probe koennte nie rot werden. Messung: ${messung.detail}. Gegenprobe: ${gegen.detail}`;
+      const grund = `Eingabefeld, Senden, Neu und Modellzeile sitzen ausserhalb des Rollbereichs .okit-chat-log; auch mit der Bauart wachsen macht die Gegenprobe kein Element unerreichbar, die Probe koennte nie rot werden. Messung: ${messung.detail}. Gegenprobe: ${gegen.detail}`;
       optOutPflicht({ record, unmeasured, skipped }, pn("P30"), grund);
       optOutPflicht({ record, unmeasured, skipped }, pn("P31"), grund);
     } else {
@@ -1264,6 +1277,159 @@ async function p26(c: Ctx): Promise<void> {
   } finally {
     await stub.stop();
   }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Welle 26: Chat-Fenster und Modellzeile des Kits (obsidian-kit 0.67.0)
+// ---------------------------------------------------------------------------------------------
+
+const ANTWORT_FERTIG = `const s = document.querySelector(".okit-chat-send"); return s && s.textContent === "Send" ? true : null;`;
+const warteAufFertig = (c: Ctx): Promise<boolean | null> => pollUntil<boolean>(c.cdp, ANTWORT_FERTIG, 25_000, 300).catch(() => null);
+
+/** Das Modell der ersten Endpunkt-Zeile aus der data.json auf Platte (die Zeile, die die Modellzeile schreibt). */
+async function zeilenModell(c: Ctx): Promise<string | null> {
+  const r = await c.cdp.evaluate<{ m: string | null }>(`
+    try {
+      const d = JSON.parse(await app.vault.adapter.read(app.vault.configDir + "/plugins/" + ${q(PLUGIN_ID)} + "/data.json"));
+      return { m: d.endpoints && d.endpoints[0] ? (d.endpoints[0].model ?? "") : null };
+    } catch { return { m: null }; }
+  `);
+  return r.m;
+}
+
+async function p32(c: Ctx): Promise<void> {
+  await chatVorbereiten(c);
+  const ok = await pollUntil<{ ok: boolean }>(c.cdp, `const s = document.querySelector(".okit-chat-header .okit-model-bar-select"); return s && s.options.length >= 3 ? { ok: true } : null;`, 10_000, 250).catch(() => null);
+  if (!ok) { unmeasured(pn("P32"), "die Modellzeile im Kopf des Chats zeigt nach 10 s keine Modell-Liste (weniger als drei Eintraege: Automatisch und zwei Modelle)"); return; }
+  const zeile = await c.cdp.evaluate<{ label: string; opts: Array<{ v: string; t: string }>; denk: boolean; warn: boolean; alt: number }>(`
+    const bar = document.querySelector(".okit-chat-header .okit-model-bar");
+    const sel = bar.querySelector(".okit-model-bar-select");
+    return {
+      label: (bar.querySelector(".okit-model-bar-label") || {}).textContent || "",
+      opts: Array.from(sel.options).map((o) => ({ v: o.value, t: o.textContent || "" })),
+      denk: !!bar.querySelector(".okit-thinking-control"),
+      warn: !!bar.querySelector(".okit-model-bar-warn:not(.is-hidden)"),
+      alt: document.querySelectorAll(".okit-chat-header button").length,
+    };
+  `);
+  const beide = [FAKE_MODEL, FAKE_MODEL_2].every((m) => zeile.opts.some((o) => o.v === m));
+  const vorher = await zeilenModell(c);
+  // Wechsel im Dropdown, wie ein Nutzer: Wert setzen, change melden.
+  await c.cdp.evaluate(`const sel = document.querySelector(".okit-chat-header .okit-model-bar-select"); sel.value = ${q(FAKE_MODEL_2)}; sel.dispatchEvent(new Event("change", { bubbles: true })); return { ok: true };`);
+  const geschrieben = await pollUntil<{ m: string }>(c.cdp, `
+    const d = JSON.parse(await app.vault.adapter.read(app.vault.configDir + "/plugins/" + ${q(PLUGIN_ID)} + "/data.json"));
+    const m = d.endpoints && d.endpoints[0] ? d.endpoints[0].model : "";
+    return m === ${q(FAKE_MODEL_2)} ? { m } : null;`, 8000, 300).catch(() => null);
+  const vor = c.fake.bodies.length;
+  await chatAbsenden(c, "Which model answers?");
+  const bis = Date.now() + 20_000;
+  while (c.fake.bodies.length <= vor && Date.now() < bis) await sleep(250);
+  await warteAufFertig(c);
+  let gesendet = "";
+  try { gesendet = String((JSON.parse(c.fake.bodies[c.fake.bodies.length - 1] ?? "{}") as { model?: string }).model ?? ""); } catch { gesendet = ""; }
+  // Zurueck auf das erste Modell, damit spaetere Punkte vom Ausgangszustand ausgehen (sie setzen die Zeile ohnehin selbst).
+  await c.cdp.evaluate(`const sel = document.querySelector(".okit-chat-header .okit-model-bar-select"); if (sel) { sel.value = ${q(FAKE_MODEL)}; sel.dispatchEvent(new Event("change", { bubbles: true })); } return { ok: true };`);
+  record(pn("P32"), zeile.label === "Chat" && beide && zeile.denk && !zeile.warn && vorher === FAKE_MODEL && geschrieben !== null && gesendet === FAKE_MODEL_2,
+    `Zeile „${zeile.label}“, Eintraege [${zeile.opts.map((o) => `${o.v === "" ? "<leer>" : o.v}=„${o.t}“`).join("; ")}] · beide Modelle da: ${String(beide)} · Denk-Steuerung in der Zeile: ${String(zeile.denk)} (Knoepfe im Kopf insgesamt ${zeile.alt}) · Warnzeichen: ${String(zeile.warn)} · Zeile vorher „${String(vorher)}“, nach dem Wechsel auf Platte: ${geschrieben ? `„${geschrieben.m}“` : "NICHT geschrieben"} · Anfrage am Server traegt model „${gesendet}“`);
+}
+
+/** P33 und P34 teilen sich einen langsamen Strom: erst die Sperre messen, dann mit Escape abbrechen. */
+async function p33p34(c: Ctx): Promise<void> {
+  const stub = await startLlmStub({ models: [FAKE_MODEL, FAKE_MODEL_2], takt: STROM_TAKT * 4, nachlaufMs: 0, standard: { text: STROM_TEXT, laenge: STROM_LAENGE } });
+  try {
+    await chatSenden(c, "SMOKE-ESCAPE lange Antwort", stub.url);
+    const laeuft = await pollUntil<boolean>(c.cdp, `const b = document.querySelector(".okit-chat-turn.is-assistant .okit-stream-body"); return b && (b.textContent || "").length > 20 ? true : null;`, 20_000, 150).catch(() => null);
+    if (!laeuft) { for (const n of ["P33", "P34"] as const) unmeasured(pn(n), "der Strom kam nicht in Gang (kein Antworttext nach 20 s)"); return; }
+    const im = await c.cdp.evaluate<{ select: boolean; reload: boolean; senden: string }>(`
+      const bar = document.querySelector(".okit-chat-header .okit-model-bar");
+      const knoepfe = Array.from(bar.querySelectorAll("button"));
+      return { select: bar.querySelector(".okit-model-bar-select").disabled === true, reload: knoepfe.length > 0 && knoepfe.some((b) => b.disabled === true), senden: document.querySelector(".okit-chat-send").textContent };
+    `);
+    // Escape in der Eingabe, wie ein Nutzer.
+    const vorGeschlossen = stub.zaehler().clientGeschlossen;
+    await c.cdp.evaluate(`document.querySelector(".okit-chat-input").dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true })); return { ok: true };`);
+    const frei = await warteAufFertig(c);
+    await sleep(500);
+    const nach = await c.cdp.evaluate<{ select: boolean; aborted: string; senden: string; status: string }>(`
+      const bar = document.querySelector(".okit-chat-header .okit-model-bar");
+      const a = document.querySelector(".okit-chat-turn.is-assistant .okit-chat-aborted");
+      return { select: bar.querySelector(".okit-model-bar-select").disabled === true, aborted: a ? a.textContent : "", senden: document.querySelector(".okit-chat-send").textContent, status: (document.querySelector(".okit-chat-status") || {}).textContent || "" };
+    `);
+    const serverSahAbbruch = stub.zaehler().clientGeschlossen > vorGeschlossen;
+    record(pn("P33"), im.select && im.reload && im.senden === "Stop" && !nach.select,
+      `im Lauf: Dropdown gesperrt ${String(im.select)}, Neu-laden gesperrt ${String(im.reload)}, Knopf „${im.senden}“ · nach dem Abbruch: Dropdown gesperrt ${String(nach.select)}`);
+    record(pn("P34"), frei === true && nach.aborted === "Stopped." && nach.senden === "Send" && serverSahAbbruch,
+      `Senden nach Escape wieder „${nach.senden}“ (frei ${String(frei)}), Zeile unter der Antwort „${nach.aborted}“, Statuszeile „${nach.status}“ · Server sah die geschlossene Verbindung: ${String(serverSahAbbruch)} (${vorGeschlossen} → ${stub.zaehler().clientGeschlossen})`);
+  } finally {
+    await stub.stop();
+  }
+}
+
+async function p35(c: Ctx): Promise<void> {
+  const GRUND = "model crashed in smoke";
+  const stub = await startLlmStub({
+    models: [FAKE_MODEL],
+    antwort: (_a, n) => (n === 1 ? { status: 500, fehler: GRUND } : { text: "Wieder da.", teile: 2, model: FAKE_MODEL }),
+  });
+  try {
+    await chatSenden(c, "SMOKE-FEHLER erste Frage", stub.url);
+    const fehler = await pollUntil<{ text: string; retry: string }>(c.cdp, `
+      const e = document.querySelector(".okit-chat-turn.is-assistant .okit-chat-error, .okit-chat-note .okit-chat-error");
+      const r = document.querySelector(".okit-chat-retry");
+      return e && r ? { text: e.textContent || "", retry: r.textContent || "" } : null;`, 20_000, 250).catch(() => null);
+    if (!fehler) { unmeasured(pn("P35"), "nach 20 s keine Fehlerzeile mit „Send again“"); return; }
+    const vor = stub.anfragen().filter((a) => a.route === "chat").length;
+    await c.cdp.evaluate(`document.querySelector(".okit-chat-retry").click(); return { ok: true };`);
+    const wieder = await pollUntil<{ text: string; fehler: number; retry: number }>(c.cdp, `
+      const t = Array.from(document.querySelectorAll(".okit-chat-turn.is-assistant")).map((x) => x.textContent || "").join(" ");
+      return t.includes("Wieder da.") ? { text: t, fehler: document.querySelectorAll(".okit-chat-error").length, retry: document.querySelectorAll(".okit-chat-retry").length } : null;`, 20_000, 250).catch(() => null);
+    const chat = stub.anfragen().filter((a) => a.route === "chat");
+    const zweite = chat[1];
+    let nutzer = -1;
+    try { nutzer = ((JSON.parse(zweite?.body ?? "{}") as { messages?: Array<{ role: string }> }).messages ?? []).filter((m) => m.role === "user").length; } catch { nutzer = -1; }
+    record(pn("P35"), fehler.text.includes("HTTP 500") && fehler.text.includes(GRUND) && fehler.retry === "Send again" && wieder !== null && wieder.fehler === 0 && wieder.retry === 0 && chat.length === vor + 1 && nutzer === 1,
+      `Fehlerzeile „${fehler.text.slice(0, 160)}“ (HTTP 500 ${String(fehler.text.includes("HTTP 500"))}, Begruendung des Servers ${String(fehler.text.includes(GRUND))}) · Knopf „${fehler.retry}“ · nach dem Klick: Antwort ${wieder ? "da" : "FEHLT"}, Fehlerzeile weg ${String(wieder?.fehler === 0)}, Knopf weg ${String(wieder?.retry === 0)} · Server sah ${chat.length} Anfrage(n), die zweite mit ${nutzer} Nutzernachricht(en)`);
+  } finally {
+    await stub.stop();
+  }
+}
+
+async function p36(c: Ctx): Promise<void> {
+  const stub = await startLlmStub({
+    models: [FAKE_MODEL], takt: 200, nachlaufMs: 400,
+    standard: { reasoning: "Ich ueberlege Schritt fuer Schritt, was zu tun ist. ".repeat(6), laenge: 40, text: "Fertig. Und noch ein Satz." },
+  });
+  try {
+    await chatSenden(c, "SMOKE-ZUKLAPPEN bitte nachdenken", stub.url);
+    const offen = await pollUntil<boolean>(c.cdp, `
+      const d = document.querySelector(".okit-chat-turn.is-assistant details.okit-stream-reasoning");
+      return d && d.open && (d.textContent || "").length > 20 ? true : null;`, 15_000, 100).catch(() => null);
+    if (!offen) { unmeasured(pn("P36"), "kein offener Denkblock im Strom gesehen — „klappt zu“ waere ohne Ausgangslage nichts wert"); return; }
+    await warteAufFertig(c);
+    await sleep(600);
+    const nach = await c.cdp.evaluate<{ da: boolean; offen: boolean; summary: string; text: string }>(`
+      const d = document.querySelector(".okit-chat-turn.is-assistant details.okit-stream-reasoning");
+      return { da: !!d, offen: !!(d && d.open), summary: d ? (d.querySelector("summary") || {}).textContent || "" : "", text: d ? (d.querySelector("pre") || {}).textContent || "" : "" };
+    `);
+    record(pn("P36"), nach.da && !nach.offen && nach.text.includes("ueberlege"),
+      `im Strom offen: ${String(offen)} · nach der Antwort: Block da ${String(nach.da)}, offen ${String(nach.offen)}, Zeile „${nach.summary.slice(0, 40)}“, Denktext erhalten ${String(nach.text.includes("ueberlege"))}`);
+  } finally {
+    await stub.stop();
+  }
+}
+
+async function p37(c: Ctx): Promise<void> {
+  await chatRunde(c, "SMOKE-LINKS please list links");
+  const links = await c.cdp.evaluate<Array<{ t: string; h: string | null }>>(`
+    return Array.from(document.querySelectorAll(".okit-chat-turn.is-assistant .okit-stream-block a")).map((a) => ({ t: a.textContent || "", h: a.getAttribute("href") }));
+  `);
+  const von = (t: string) => links.find((l) => l.t === t);
+  const gekappt = ["a-js", "b-data", "c-obs", "d-file"].map((t) => ({ t, link: von(t) }));
+  // Nicht vakuum: jeder Anker muss existieren (sonst waere „ohne href“ ein Bild, das die Antwort nie hatte), der https-Link seinen href behalten.
+  const alleDa = gekappt.every((x) => x.link !== undefined);
+  const ok = von("e-ok");
+  record(pn("P37"), alleDa && gekappt.every((x) => x.link?.h === null || x.link?.h === undefined) && ok?.h === "https://example.org/ok",
+    `Anker im Antworttext: ${links.map((l) => `${l.t} -> ${String(l.h)}`).join("; ")} · alle vier Anker da: ${String(alleDa)}`);
 }
 
 async function main(): Promise<void> {
@@ -1311,6 +1477,7 @@ async function main(): Promise<void> {
         [pn("P1"), p1], [pn("P2"), p2], [pn("P13"), p13], [pn("P7"), p7], [pn("P14"), p14],
         [pn("P3"), p3], [pn("P4"), p4], [pn("P5"), p5], [pn("P11"), p11], [pn("P6"), p6],
         [pn("P9"), p9], [pn("P10"), p10], [pn("P8"), p8p12], [pn("P15"), p15], [pn("P16"), p16], [pn("P17"), p17], [pn("P18"), p18], [pn("P19"), p19], [pn("P20"), p20], [pn("P21"), p21], [pn("P22"), p22], [pn("P23"), p23], [pn("P25"), p25], [pn("P26"), p26],
+        [pn("P32"), p32], [pn("P33"), p33p34], [pn("P35"), p35], [pn("P36"), p36], [pn("P37"), p37],
       ];
       for (const [name, fn] of reihe) {
         await schliesseDialoge(cdp);
