@@ -362,7 +362,7 @@
    unsichtbar, im echten Renderer blieb der Verlauf unter dem Leerzustand stehen (Pilot, 2026-10-23). */
 .okit-chat .okit-chat-hidden { display: none; }
 
-/* uebernommen aus src/vendor/kit-obsidian/model-bar.ts (MODEL_BAR_CSS), obsidian-kit 0.67.0 */
+/* uebernommen aus src/vendor/kit-obsidian/model-bar.ts (MODEL_BAR_CSS), obsidian-kit 0.67.1 */
 .okit-model-bar { position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: var(--size-2-2) var(--size-4-1); min-width: 0; }
 .okit-model-bar-label { flex: 0 0 auto; color: var(--text-muted); font-size: var(--font-ui-small); white-space: nowrap; }
 .okit-model-bar select { flex: 1 1 12em; min-width: 0; max-width: 100%; font-size: var(--font-ui-small); text-overflow: ellipsis; }
@@ -377,4 +377,4 @@
 @keyframes okit-model-bar-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .okit-model-bar-refresh.is-loading svg { animation: none; } .okit-model-bar-refresh.is-loading { opacity: 0.5; } }
 .okit-model-bar .okit-thinking-control { flex: 0 0 auto; }
-.okit-model-bar-status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.okit-model-bar-status { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0; overflow: hidden; white-space: nowrap; }
