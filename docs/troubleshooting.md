@@ -74,15 +74,15 @@ Each entry starts with what you see — the wording is the plugin's own English 
 
 **Fix:** press **Set up a chat model**, then add your server under **Endpoint** and press **Test connection**. The row status says why a server is not reachable: **Connection refused — server not running or wrong port.**, **Unknown host — typo in the address?**, **Timed out — network unreachable.**, **Answers, but is not an OpenAI-compatible endpoint.** or **Access denied — API key missing or invalid.** Local servers usually need a port, for example `http://127.0.0.1:1234`. For server setup see the [local LLM setup guide](https://jkaindl.de/uplink/llm-setup/).
 
-## Error: No endpoint available / Error: timeout / Error: network / Error: http 404
+## A red error line under the answer
 
-**Cause:** a chat request failed. **No endpoint available — set one up in the plugin settings.** means no endpoint could be resolved; `timeout` and `network` mean the server did not answer; `http <status>` is the server's answer, for example 404 for a wrong address or model name, 401 for a missing key. `overflow` and `truncated` mean the answer did not fit the context or the token budget.
+**Cause:** a chat request failed, and the line says how. **No endpoint reachable. Check the endpoint list in the settings — the test button says which one answers.** means no endpoint could be resolved. **No answer from the model for 600 s — it may still be loading or is stuck. Try again.** (the number is the wait) and **Could not reach the endpoint — server down, wrong address, or network/VPN not connected.** mean the server did not answer. An HTTP error names its status, for example **Chat path not found (HTTP 404) — check the endpoint address.** for a wrong address, or **Access denied (HTTP 401) — API key missing, invalid or expired.** for a missing key; the line then ends with **— server:** and the server's own reason in one line. **The conversation is too long for the model.**, **The answer was cut off before the first word — thinking used up the token limit.** and **Empty response from the model — check the endpoint and model in the settings.** mean the answer did not fit the context or the token budget, or nothing came back.
 
-**Fix:** check the endpoint and the model of its row under **Settings → Settings Assistant**, and the details under **Request**. The row **Last request** shows what was sent and **deviation(s) this session** lists what the server did differently.
+**Fix:** check the endpoint and the model of its row under **Settings → Settings Assistant**, and the details under **Request**. The row **Last request** shows what was sent and **deviation(s) this session** lists what the server did differently. **Send again** under the answer repeats the question once the cause is gone.
 
 ## Stopped.
 
-You pressed **Stop**. The text that had arrived stays.
+You pressed **Stop** or Escape. The text that had arrived stays, and the round is not sent to the model with your next question.
 
 ## Secret storage is not available in this Obsidian version.
 

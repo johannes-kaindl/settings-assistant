@@ -11,9 +11,13 @@ The chat needs an endpoint with a chat model. Under **Settings → Settings Assi
 1. Run **Open settings chat**, or use the ribbon icon. The chat opens in the right sidebar.
 2. Type your question and send with **Send** or Enter; Shift+Enter starts a new line. Name the plugin in the question, for example "Why does my-plugin stop after twenty rounds?". Plugins whose id or name appears in your message are picked as chips above the input.
 3. Correct the chips before you send: remove one with its **x**, add one with the **Add a plugin…** dropdown. Only these plugins' settings go with the question. A list of all installed plugins (id and name) always goes along.
-4. **Stop** cancels a running answer. **New chat** clears the conversation. The history is kept in memory only; close Obsidian and it is gone.
+4. **Stop** (the Send button turns into Stop while an answer runs) or Escape cancels a running answer. **New**, under the input, clears the conversation and also stops a running answer. The history is kept in memory only; close Obsidian and it is gone.
 
-The thinking button in the header switches the model's reasoning between off and its preferred level. The meaning of the levels is in the settings under **Request**.
+## Choose the model
+
+The row at the top of the chat, **Chat**, shows which model answers and switches it: a dropdown with the models of the active endpoint, **Automatic** (the endpoint decides) and a reload button. It is the same choice as the model in the endpoint's row under **Settings → Settings Assistant**. A model you chose that the endpoint no longer lists stays selected and is marked **(saved)**; it is never changed silently. While an answer runs the row is locked. **Other endpoint …** appears when the LLM Endpoint Manager is installed and opens its settings.
+
+The thinking button sits in the same row. It switches the model's reasoning between off and its preferred level; the meaning of the levels is in the settings under **Request**.
 
 ## Read what was sent
 
@@ -21,7 +25,9 @@ Under each of your questions a fold-out **Sent context** shows the plugins, the 
 
 ## Read the answer
 
-The answer streams in. The model's own reasoning, if the endpoint sends it, is folded under **Thoughts**. Because the answer comes from a model, it is treated as untrusted text: images and embeds are not loaded, they appear as plain text or code, and HTML is shown escaped. Links stay and need a click.
+The answer streams in. The model's own reasoning, if the endpoint sends it, is open while it arrives and folds shut under **Thoughts** when the answer is done; a button next to it copies the thinking. A status line under the input says what the model is doing (thinking, writing, done) and, next to it, how long the answer took. Question and answer each have a copy button.
+
+If the request fails, a red line under the answer says why; with an HTTP error it ends with the server's own reason. **Send again** under the last failed answer asks the same question again. A failed or stopped round is not sent to the model with your next question. Because the answer comes from a model, it is treated as untrusted text: images and embeds are not loaded, they appear as plain text or code, and HTML is shown escaped. Links stay and need a click.
 
 A `settings-profile` block in the answer is drawn like a profile note: check rows, the model's reasons as `Reason: …`, and an apply button. The model knows a key only by its name, so it can invent keys (shown as **key not found in file**) and misjudge what a key does. The rows catch the first; you are the check for the second.
 
