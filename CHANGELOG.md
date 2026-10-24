@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.9.0] — 2026-10-24
+
 ### Added
 
 - Claude can be used as an endpoint of the LLM Endpoint Manager: an endpoint with the provider "anthropic" now shows up in the chat (the plugin did not ask the manager for it before).
