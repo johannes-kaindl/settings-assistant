@@ -4,6 +4,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+
+- Claude can be used as an endpoint of the LLM Endpoint Manager: an endpoint with the provider "anthropic" now shows up in the chat (the plugin did not ask the manager for it before).
+
 ### Changed
 
 - The chat now uses the library's chat window (the same building block as the chats of the other plugins). What you will notice: Escape stops a running answer; when the server rejects a request, its reason appears in the error line (until now only the kind and status did); the last failed round offers "Send again"; question and answer have copy buttons; the thinking block folds shut after the answer; a timer shows how long the answer took and a status line ("thinking", "writing", "done") is announced to screen readers; the empty state ("No chat model is set up yet.") has a title.

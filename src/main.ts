@@ -53,6 +53,9 @@ export default class SettingsAssistantPlugin extends Plugin {
       lang: () => getLang(),
       // Der Chat zeigt die Stufenwahl, wenn die Einstellung an ist.
       levelPicker: true,
+      // Claude als Endpunkt des Managers (`provider: "anthropic"`): ohne den Opt-in fragt die Verbindung ihn nie danach. Die Chat-Sendung selbst
+      // ist transportneutral (`llm.complete`), `anthropic-transport` und `anthropic-wire` sind vendort.
+      transports: { anthropic: true },
       getSettings: () => toLlmSettings(this.settings),
       // Erst in die Settings schreiben, dann speichern: die Endpunkt-Liste liest ihre Zeilen danach zurück.
       persist: (patch) => {
