@@ -4,6 +4,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Changed
+
+- Kit update (obsidian-kit 0.63.0 → 0.67.0, code-kit 0.31.0 → 0.36.0). In a narrow sidebar the snapshot list in the settings no longer lets the details column ("3 days ago · 14 changes") push the label out: the details are capped at 45 % of the row and cut with an ellipsis (the full text is in the tooltip), the label keeps its room.
+
 ## [0.8.0] — 2026-10-23
 
 ### Added

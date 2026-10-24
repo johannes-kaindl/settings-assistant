@@ -1,4 +1,4 @@
-// vendored from obsidian-kit@0.63.0, src/obsidian/version-list.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
+// vendored from obsidian-kit@0.67.0, src/obsidian/version-list.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
 /**
  * Versionsliste (UI-STANDARD §8, Listen-Zeile): der Verlauf mehrerer Stände als klickbare,
  * nummerierte Liste — Rückwahl auf einen früheren Stand.
@@ -102,8 +102,9 @@ export function buildVersionList(parent: HTMLElement, opts: VersionListOptions):
       row.setAttribute("aria-pressed", String(isActive));
     }
     row.createSpan({ text: `${index + 1}.`, cls: "okit-vlist-no" });
-    row.createSpan({ text: item.label, cls: "okit-vlist-label" });
-    if (item.meta !== undefined) row.createSpan({ text: item.meta, cls: "okit-vlist-meta" });
+    // `title` mit dem vollen Text: in einer schmalen Leiste kürzt das CSS beide Spalten mit einer Ellipse.
+    row.createSpan({ text: item.label, cls: "okit-vlist-label", attr: { title: item.label } });
+    if (item.meta !== undefined) row.createSpan({ text: item.meta, cls: "okit-vlist-meta", attr: { title: item.meta } });
     row.addEventListener("click", () => {
       if (action || index !== active) opts.onSelect(index);
     });
@@ -163,14 +164,27 @@ export const VERSION_LIST_CSS = `
   color: var(--text-normal);
 }
 
-.okit-vlist-no,
-.okit-vlist-meta {
+.okit-vlist-no {
   color: var(--text-faint);
   flex-shrink: 0;
 }
 
+/* Schmale Seitenleiste (Befund Diachronic, 2026-10-22): die Meta-Spalte war starr und verdrängte das Label. Jetzt ist die Meta auf 45 %
+   der Zeile gedeckelt und wird mit einer Ellipse gekürzt (der volle Text steht im title); das Label darf unter seinen Inhalt schrumpfen
+   (min-width: 0), sonst ließe die automatische Mindestgröße von Flex-Items die Zeile überlaufen. */
+.okit-vlist-meta {
+  color: var(--text-faint);
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 45%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .okit-vlist-label {
-  flex-grow: 1;
+  flex: 1 1 auto;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
