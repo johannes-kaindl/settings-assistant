@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.9.1] — 2026-10-25
+
 ### Changed
 
 - **Links in answers are checked by the shared chat window.** A link that could run a script or open a file (`javascript:`, `data:`, `vbscript:`, `file:`, `app:`) never works, and an `obsidian://` link loses its target; it still looks like a link, but a click does nothing (obsidian-kit 0.70.0; the plugin's own check is gone).
