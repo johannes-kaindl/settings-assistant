@@ -1526,7 +1526,7 @@ interface DvLauf { block: string; inline: string; geladen: boolean; version: str
 
 /** Marker leeren, Markdown mit dem NACKTEN Renderer in ein angehaengtes Element rendern (so laufen die Prozessoren aller Plugins), Marker lesen.
  *  `require("obsidian")` gibt es im Renderer nicht; den nackten Renderer des Plugins (`MarkdownRenderer.render(app, md, el, "", host)`, ohne
- *  Neutralisierer und ohne stripActiveContent) liefert die Chat-Ansicht als `deps.renderMarkdown`. */
+ *  Neutralisierer und ohne den domGuard des Kit-Fensters) liefert die Chat-Ansicht als `deps.renderMarkdown`. */
 async function dvRendere(c: Ctx, md: string): Promise<DvLauf> {
   return c.cdp.evaluate<DvLauf>(`
     delete window.${DV_BLOCK}; delete window.${DV_INLINE};
