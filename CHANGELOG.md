@@ -4,6 +4,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Changed
+
+- The documentation now says what was measured on mobile: the chat was tried in Obsidian's mobile emulation on the desktop (controls reachable with a long history on a 390 × 844 and a 320 × 568 screen, no console errors, the key from the secret storage), not on a device. The on-screen keyboard, touch scrolling and the network path to an endpoint on your local network are still open.
+
 ## [0.9.0] — 2026-10-24
 
 ### Added

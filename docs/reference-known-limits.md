@@ -12,7 +12,7 @@
 
 - The chat history lives in memory only. To keep a proposal, use **Save as profile note**.
 - The model knows a key only by its name. The rows catch invented keys, not misunderstood ones. The plugin's documentation is not part of the context.
-- The chat needs a reachable endpoint. It is built to run on mobile, but it has not been measured there.
+- The chat needs a reachable endpoint. It is built to run on mobile. It was measured in Obsidian's mobile emulation on the desktop: the controls stay reachable with a long history on a 390 × 844 and a 320 × 568 screen, the plugin loads without console errors, and the key comes from the secret storage. It has not been measured on a device: the on-screen keyboard, touch scrolling, the network path to an endpoint on your local network and the secret storage on the phone are still open.
 
 ## Applying
 
