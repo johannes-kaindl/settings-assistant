@@ -6,7 +6,14 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Changed
 
+- **Links in answers are checked by the shared chat window.** A link that could run a script or open a file (`javascript:`, `data:`, `vbscript:`, `file:`, `app:`) never works, and an `obsidian://` link loses its target; it still looks like a link, but a click does nothing (obsidian-kit 0.70.0; the plugin's own check is gone).
+- **The question looks like the answer.** It has the same type size as the answer (it was larger) and a thin border, so it stands out in a narrow sidebar (obsidian-kit 0.70.0).
+- **A network error names its technical reason.** The error line adds the message in brackets, with keys and tokens masked and cut to one line; a time-out names the seconds as a whole number.
 - The documentation now says what was measured on mobile: the chat was tried in Obsidian's mobile emulation on the desktop (controls reachable with a long history on a 390 × 844 and a 320 × 568 screen, no console errors, the key from the secret storage), not on a device. The on-screen keyboard, touch scrolling and the network path to an endpoint on your local network are still open.
+
+### Fixed
+
+- **The settings tab rebuilds every time it opens.** The hook that refreshes the snapshot list on opening was removed when the tab closed, so only the first opening showed an up-to-date list; it now stays until the plugin unloads.
 
 ## [0.9.0] — 2026-10-24
 
