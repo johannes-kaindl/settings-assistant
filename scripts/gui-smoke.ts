@@ -27,6 +27,13 @@
  * `<profil>-w1` aus (nie beenden). Ohne `--launch` haengt sich der Treiber an eine bereits laufende
  * Instanz auf `--port` (Vault muss dann schon gebaut und geoeffnet sein: `--setup`).
  *
+ * ## Dataview-Messung (`--dataview`, Welle 27)
+ *
+ * `npm run smoke:gui -- --launch --dataview --port <PORT>` fuehrt NUR drei eigene Punkte (D1-D3, eigener Nenner) und legt Dataview in den
+ * Vault: die drei Dateien werden aus einer vorhandenen Installation unter ~/Documents/*\/.obsidian/plugins/dataview LESEND kopiert (oder
+ * aus `DATAVIEW_QUELLE=<Ordner>`), JS-Abfragen und Inline-JS stehen an. D2 ist die Gegenprobe und laeuft zuerst: schlaegt sie nicht an
+ * (kein Marker am nackten Renderer), sind D1 und D3 „nichts gemessen“, nicht „sicher“. Der Nenner ohne den Schalter bleibt bei P1-P37.
+ *
  * Der erste Lauf nach Profilanlage ist ein Aufwaermlauf und zaehlt nicht. Die regulaere Instanz auf 9222
  * wird nicht angefasst. Gemessen wird im eigenen Staging-Vault (`stagingVaultDir()`), nie im
  * Arbeits-Vault; der Ort steht in obsidian-plugins/AGENTS.md § Staging-Vaults.
@@ -42,6 +49,7 @@ import { cwd } from "node:process";
 import { Cdp, attachTo, beimAbbruch, bereiteInstanzVor, clearNotices, closeExtraLeaves, istAbgebrochen, notices, openExisting, pollUntil, reopenNote, requireVisible, schliesseDialog, schliesseEinstellungen } from "../../tools/obsidian-cdp/cdp.js";
 import { messeFolge, zeichneFolge } from "../../tools/obsidian-cdp/folge.js";
 import { fokusAufraeumSkript, fokusMutationSkript, gegenprobeErreichbarkeit, gegenprobeFokus, messeDenkblockKopierbar, messeErreichbarkeit, messeFokusFenster, optOutPflicht, zeichneDenkblock, zeichnePflicht } from "../../tools/obsidian-cdp/pflichtpunkte.js";
+import { neutralizeModelMarkdown } from "../src/vendor/kit/safe-markdown";
 import { Vorbedingung, createBilanz, parseArgs, runDriver } from "../../tools/obsidian-cdp/bilanz.js";
 import { startLlmStub, type StubAnfrage } from "../../tools/obsidian-cdp/llm-stub.js";
 import { buildVault, requireEigenerBuild, stagingVaultDir } from "../../tools/obsidian-cdp/vault.js";
@@ -49,6 +57,7 @@ import { buildVault, requireEigenerBuild, stagingVaultDir } from "../../tools/ob
 const REPO_NAME = "settings-assistant";
 const PLUGIN_ID = "settings-assistant";
 const PROBE_ID = "sa-probe";
+const DATAVIEW_ID = "dataview";
 const REPO_ROOT = cwd();
 const FIXTURE_DIR = join(REPO_ROOT, "fixtures/vault");
 const PROBE_FIXTURE = join(REPO_ROOT, "fixtures/plugins", PROBE_ID);
@@ -111,8 +120,21 @@ const pn = (prefix: string): PunktName => {
   return hit;
 };
 
+// Dataview-Messung (`--dataview`): drei eigene Punkte mit eigenem Nenner. Ohne den Schalter bleibt die Bilanz bei den 37 Punkten oben.
+const DV_PUNKTE = [
+  "D1 Dataview-Kette: dataviewjs-Zaun und $=-Ausdruck einer Chat-Antwort laufen durch das echte Chat-Fenster, beide Marker bleiben leer",
+  "D2 Dataview-Gegenprobe: derselbe Text ohne Neutralisierung am nackten Renderer setzt beide Marker (Dataview-JS laeuft in dieser Instanz)",
+  "D3 Dataview, Neutralisierer allein: derselbe Text durch neutralizeModelMarkdown und den nackten Renderer setzt keinen Marker",
+] as const;
+const MIT_DATAVIEW = process.argv.includes("--dataview");
+const dn = (prefix: string): (typeof DV_PUNKTE)[number] => {
+  const hit = DV_PUNKTE.find((p) => p.startsWith(`${prefix} `));
+  if (!hit) throw new Error(`Unbekannter Punkt ${prefix}`);
+  return hit;
+};
+
 // Erfasser, Soll-Liste (Nenner) und Abschlusszeile kommen aus der zentralen Bruecke (`bilanz.ts`); dieser Treiber war ihre Vorlage.
-const { record, skipped, unmeasured, punkt, abschluss } = createBilanz({ punkte: PUNKTE });
+const { record, skipped, unmeasured, punkt, abschluss } = createBilanz({ punkte: MIT_DATAVIEW ? [...DV_PUNKTE] : [...PUNKTE] });
 
 const q = (s: string): string => JSON.stringify(s);
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
@@ -162,6 +184,18 @@ const NEUTRAL_ANSWER = [
   "",
   "[click](javascript:alert(1))",
 ].join("\n");
+// Dataview-Messung: die Marker sind Fenster-Variablen, gelesen wird per CDP nach dem Rendern.
+const DV_BLOCK = "__saDvBlock";
+const DV_INLINE = "__saDvInline";
+const DV_ANSWER = [
+  "Dataview probe.",
+  "",
+  "```dataviewjs",
+  `window.${DV_BLOCK} = 1`,
+  "```",
+  "",
+  `Inline: \`$= window.${DV_INLINE} = 1\``,
+].join("\n");
 const LINKS_ANSWER = [
   "Links:",
   "",
@@ -177,6 +211,7 @@ function antwortFuer(body: string): string {
   if (last.includes("SMOKE-RAW")) return RAW_ANSWER;
   if (last.includes("SMOKE-NEUTRAL")) return NEUTRAL_ANSWER;
   if (last.includes("SMOKE-LINKS")) return LINKS_ANSWER;
+  if (last.includes("SMOKE-DATAVIEW")) return DV_ANSWER;
   if (last.includes("SMOKE-REDACT")) {
     // Spiegelt die Platzhalter der Anfrage zurueck (so, wie ein Modell sie wiederholt) — samt einem Bild mit Platzhalter in der URL.
     const ph = last.match(/\[redacted-[a-z0-9-]+-\d+\]/g) ?? [];
@@ -220,7 +255,28 @@ function setupVault(): string {
   for (const f of ["manifest.json", "main.js"]) copyFileSync(join(PROBE_FIXTURE, f), join(probeDir, f));
   writeFileSync(join(probeDir, "data.json"), JSON.stringify({ maxRounds: 50, clamp: 10, saveOnUnload: false, apiKey: PROBE_API_KEY }, null, 2));
   console.log(`  · ${PROBE_ID} nach .obsidian/plugins/${PROBE_ID}/ deployt`);
+  if (MIT_DATAVIEW) console.log(`  · ${installiereDataview(vaultDir)}`);
   return vaultDir;
+}
+
+/** Dataview nur LESEND aus einer vorhandenen Installation kopieren (`DATAVIEW_QUELLE` oder die erste unter ~/Documents/*), JS-Abfragen und Inline-JS einschalten. */
+function installiereDataview(vaultDir: string): string {
+  const kandidaten: string[] = [];
+  if (process.env.DATAVIEW_QUELLE) kandidaten.push(process.env.DATAVIEW_QUELLE);
+  const docs = join(homedir(), "Documents");
+  for (const v of readdirSync(docs)) kandidaten.push(join(docs, v, ".obsidian/plugins", DATAVIEW_ID));
+  const quelle = kandidaten.find((k) => { try { return readdirSync(k).includes("main.js"); } catch { return false; } });
+  if (!quelle) throw new Error("Keine Dataview-Installation gefunden — DATAVIEW_QUELLE=<Ordner mit main.js, manifest.json, styles.css> setzen.");
+  const ziel = join(vaultDir, ".obsidian/plugins", DATAVIEW_ID);
+  rmSync(ziel, { recursive: true, force: true });
+  mkdirSync(ziel, { recursive: true });
+  for (const f of ["main.js", "manifest.json", "styles.css"]) copyFileSync(join(quelle, f), join(ziel, f));
+  writeFileSync(join(ziel, "data.json"), JSON.stringify({ enableDataviewJs: true, enableInlineDataviewJs: true }, null, 2));
+  const liste = join(vaultDir, ".obsidian/community-plugins.json");
+  let ids: string[] = [];
+  try { ids = JSON.parse(readFileSync(liste, "utf8")) as string[]; } catch { ids = []; }
+  if (!ids.includes(DATAVIEW_ID)) writeFileSync(liste, JSON.stringify([...ids, DATAVIEW_ID]));
+  return `${DATAVIEW_ID} ${(JSON.parse(readFileSync(join(ziel, "manifest.json"), "utf8")) as { version: string }).version} nach .obsidian/plugins/${DATAVIEW_ID}/ kopiert (JS-Abfragen und Inline-JS an)`;
 }
 
 function pgrepProfile(ud: string): string {
@@ -286,7 +342,7 @@ async function warteAufFenster(port: number, timeoutMs: number): Promise<Cdp> {
 
 /** Vertrauensdialog (frisches Profil), Restricted Mode, beide Plugins laden — aus der zentralen Bruecke (`bereiteInstanzVor`). */
 async function bereiteVor(cdp: Cdp): Promise<string> {
-  return (await bereiteInstanzVor(cdp, { pluginIds: [PROBE_ID, PLUGIN_ID] })).hinweis;
+  return (await bereiteInstanzVor(cdp, { pluginIds: MIT_DATAVIEW ? [PROBE_ID, PLUGIN_ID, DATAVIEW_ID] : [PROBE_ID, PLUGIN_ID] })).hinweis;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -1432,6 +1488,75 @@ async function p37(c: Ctx): Promise<void> {
     `Anker im Antworttext: ${links.map((l) => `${l.t} -> ${String(l.h)}`).join("; ")} · alle vier Anker da: ${String(alleDa)}`);
 }
 
+interface DvLauf { block: string; inline: string; geladen: boolean; version: string; js: boolean; inlineJs: boolean; html: string }
+
+/** Marker leeren, Markdown mit dem NACKTEN Renderer in ein angehaengtes Element rendern (so laufen die Prozessoren aller Plugins), Marker lesen.
+ *  `require("obsidian")` gibt es im Renderer nicht; den nackten Renderer des Plugins (`MarkdownRenderer.render(app, md, el, "", host)`, ohne
+ *  Neutralisierer und ohne stripActiveContent) liefert die Chat-Ansicht als `deps.renderMarkdown`. */
+async function dvRendere(c: Ctx, md: string): Promise<DvLauf> {
+  return c.cdp.evaluate<DvLauf>(`
+    delete window.${DV_BLOCK}; delete window.${DV_INLINE};
+    const dv = app.plugins.plugins[${q(DATAVIEW_ID)}];
+    const typ = ${q("settings-assistant-chat")};
+    if (!app.workspace.getLeavesOfType(typ).length) {
+      app.commands.executeCommandById(${q(`${PLUGIN_ID}:open-chat`)});
+      await new Promise((r) => setTimeout(r, 1500));
+    }
+    const view = app.workspace.getLeavesOfType(typ)[0]?.view;
+    if (!view || !view.deps || typeof view.deps.renderMarkdown !== "function") throw new Error("keine Chat-Ansicht mit deps.renderMarkdown");
+    const host = document.body.createDiv();
+    await view.deps.renderMarkdown(host, ${q(md)});
+    await new Promise((r) => setTimeout(r, 2500));
+    const r = {
+      block: String(window.${DV_BLOCK}), inline: String(window.${DV_INLINE}),
+      geladen: !!dv, version: dv ? dv.manifest.version : "", js: !!(dv && dv.settings.enableDataviewJs), inlineJs: !!(dv && dv.settings.enableInlineDataviewJs),
+      html: host.innerHTML.replace(/\\s+/g, " ").slice(0, 160),
+    };
+    host.remove();
+    return r;
+  `);
+}
+
+let dvGegenprobeAn: boolean | null = null;
+
+async function d2(c: Ctx): Promise<void> {
+  const r = await dvRendere(c, DV_ANSWER);
+  dvGegenprobeAn = r.geladen && r.block === "1" && r.inline === "1";
+  record(dn("D2"), dvGegenprobeAn,
+    `Dataview ${r.geladen ? r.version : "NICHT geladen"} (JS-Abfragen ${String(r.js)}, Inline-JS ${String(r.inlineJs)}) · Marker Block ${r.block}, Inline ${r.inline} (verlangt: beide 1) · Rendering: ${r.html}`);
+}
+
+function dvVoraussetzung(): void {
+  if (dvGegenprobeAn !== true) throw new Vorbedingung("die Gegenprobe D2 schlug nicht an: Dataview-JS laeuft in dieser Instanz nicht, die Messung waere blind");
+}
+
+async function d1(c: Ctx): Promise<void> {
+  dvVoraussetzung();
+  await c.cdp.evaluate(`delete window.${DV_BLOCK}; delete window.${DV_INLINE}; return { ok: true };`);
+  await chatRunde(c, "SMOKE-DATAVIEW please");
+  const d = await c.cdp.evaluate<{ block: string; inline: string; text: string; aktiv: number }>(`
+    const turn = document.querySelector(".okit-chat-log .okit-chat-turn.is-assistant");
+    return {
+      block: String(window.${DV_BLOCK}), inline: String(window.${DV_INLINE}),
+      text: turn ? turn.textContent ?? "" : "",
+      aktiv: document.querySelectorAll(".okit-chat-log [class*='block-language-'], .okit-chat-log .dataview").length,
+    };
+  `);
+  // Nicht vakuum: die Antwort muss gerendert dastehen (als Text), sonst waere „Marker leer“ nur eine leere Seite.
+  const sichtbar = d.text.includes("dataviewjs") && d.text.includes("$=") && d.text.includes("ˋ");
+  record(dn("D1"), d.block === "undefined" && d.inline === "undefined" && d.aktiv === 0 && sichtbar,
+    `Marker Block ${d.block}, Inline ${d.inline} (verlangt: beide undefined) · Dataview-Elemente im Chat ${d.aktiv} · Antwort als Text sichtbar ${String(sichtbar)}`);
+}
+
+async function d3(c: Ctx): Promise<void> {
+  dvVoraussetzung();
+  const neutral = neutralizeModelMarkdown(DV_ANSWER);
+  const ohneZaun = !neutral.includes("`");
+  const r = await dvRendere(c, neutral);
+  record(dn("D3"), ohneZaun && r.block === "undefined" && r.inline === "undefined",
+    `Text ohne Backtick ${String(ohneZaun)} · Marker Block ${r.block}, Inline ${r.inline} (verlangt: beide undefined) · Rendering: ${r.html}`);
+}
+
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
   if (args.has("setup")) { setupVault(); console.log("\nDen Vault in der Zweitinstanz oeffnen, dann: npm run smoke:gui -- --port <PORT>"); return; }
@@ -1473,7 +1598,7 @@ async function main(): Promise<void> {
       console.log("\nGrundlage fehlt — kein Punkt kann gemessen werden.");
     } else {
       await closeExtraLeaves(cdp).catch(() => 0);
-      const reihe: Array<[PunktName, (c: Ctx) => Promise<void>]> = [
+      const reihe: Array<[PunktName | (typeof DV_PUNKTE)[number], (c: Ctx) => Promise<void>]> = MIT_DATAVIEW ? [[dn("D2"), d2], [dn("D1"), d1], [dn("D3"), d3]] : [
         [pn("P1"), p1], [pn("P2"), p2], [pn("P13"), p13], [pn("P7"), p7], [pn("P14"), p14],
         [pn("P3"), p3], [pn("P4"), p4], [pn("P5"), p5], [pn("P11"), p11], [pn("P6"), p6],
         [pn("P9"), p9], [pn("P10"), p10], [pn("P8"), p8p12], [pn("P15"), p15], [pn("P16"), p16], [pn("P17"), p17], [pn("P18"), p18], [pn("P19"), p19], [pn("P20"), p20], [pn("P21"), p21], [pn("P22"), p22], [pn("P23"), p23], [pn("P25"), p25], [pn("P26"), p26],
