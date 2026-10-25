@@ -32,7 +32,7 @@
  * `npm run smoke:gui -- --launch --dataview --port <PORT>` fuehrt NUR drei eigene Punkte (D1-D3, eigener Nenner) und legt Dataview in den
  * Vault: die drei Dateien werden aus einer vorhandenen Installation unter ~/Documents/*\/.obsidian/plugins/dataview LESEND kopiert (oder
  * aus `DATAVIEW_QUELLE=<Ordner>`), JS-Abfragen und Inline-JS stehen an. D2 ist die Gegenprobe und laeuft zuerst: schlaegt sie nicht an
- * (kein Marker am nackten Renderer), sind D1 und D3 „nichts gemessen“, nicht „sicher“. Der Nenner ohne den Schalter bleibt bei P1-P37.
+ * (kein Marker am nackten Renderer), sind D1 und D3 „nichts gemessen“, nicht „sicher“. Der Nenner ohne den Schalter bleibt bei P1-P38.
  *
  * Der erste Lauf nach Profilanlage ist ein Aufwaermlauf und zaehlt nicht. Die regulaere Instanz auf 9222
  * wird nicht angefasst. Gemessen wird im eigenen Staging-Vault (`stagingVaultDir()`), nie im
@@ -112,6 +112,7 @@ const PUNKTE = [
   "P35 Fehlerzeile nennt bei einem HTTP-Fehler die Begruendung des Servers; „Send again“ sendet dieselbe Frage, die gescheiterte Runde geht nicht ans Modell",
   "P36 Denkblock ist im Strom offen und klappt nach der Antwort zu",
   "P37 Linkschutz: javascript:-, data:-, obsidian://- und file:-Links einer Antwort verlieren ihr href, ein https-Link behaelt es",
+  "P38 Einstellungs-Tab baut bei jedem Oeffnen neu auf (der Haken haelt nach hide()); Gegenprobe: ohne Haken (dispose) kein Neuaufbau",
 ] as const;
 type PunktName = (typeof PUNKTE)[number];
 const pn = (prefix: string): PunktName => {
@@ -1488,6 +1489,39 @@ async function p37(c: Ctx): Promise<void> {
     `Anker im Antworttext: ${links.map((l) => `${l.t} -> ${String(l.h)}`).join("; ")} · alle vier Anker da: ${String(alleDa)}`);
 }
 
+/** Der Haken `installTabRefreshOnOpen` trägt nur, solange er installiert bleibt (Vertrag in `settings_walker.ts`, Welle 27): `hide()` baut ihn nicht ab, `onunload` über `dispose()`.
+ *  Gemessen wird, wie oft der Tab sich beim Öffnen neu aufbaut (Zähler um `renderImperative`); die Gegenprobe ruft `dispose()` selbst und öffnet erneut, dann darf
+ *  kein Neuaufbau mehr kommen — sonst zählte der Zähler nichts. Danach lädt der Punkt das Plugin neu, damit der Tab wieder einen Haken hat. */
+async function p38(c: Ctx): Promise<void> {
+  const oeffnen = async (): Promise<number> => {
+    await schliesseEinstellungen(c.cdp);
+    await warteAufGeschlosseneSettings(c.port);
+    return c.cdp.evaluate<number>(`
+      const tab = app.setting.pluginTabs.find((t) => t.id === ${q(PLUGIN_ID)});
+      if (!tab) return -1;
+      if (!tab.__zaehler) { tab.__zaehler = { n: 0 }; const orig = tab.renderImperative.bind(tab); tab.renderImperative = (...a) => { tab.__zaehler.n++; return orig(...a); }; }
+      app.setting.open();
+      await new Promise((r) => setTimeout(r, 400));
+      app.setting.openTabById(${q(PLUGIN_ID)});
+      await new Promise((r) => setTimeout(r, 1000));
+      return tab.__zaehler.n;
+    `);
+  };
+  const n1 = await oeffnen();
+  const n2 = await oeffnen();
+  const n3 = await oeffnen();
+  if (n1 < 0) { unmeasured(pn("P38"), "Einstellungs-Tab des Plugins nicht gefunden (app.setting.pluginTabs)"); return; }
+  // Gegenprobe: den Haken abbauen (das tut onunload) und noch einmal öffnen.
+  await c.cdp.evaluate(`app.setting.pluginTabs.find((t) => t.id === ${q(PLUGIN_ID)}).dispose(); return true;`);
+  const n4 = await oeffnen();
+  await schliesseEinstellungen(c.cdp);
+  await c.cdp.evaluate(`await app.plugins.disablePlugin(${q(PLUGIN_ID)}); await app.plugins.enablePlugin(${q(PLUGIN_ID)}); await new Promise((r) => setTimeout(r, 800)); return true;`);
+  const jedesMal = n2 - n1 >= 1 && n3 - n2 >= 1 && n1 >= 1;
+  const gegenprobeOk = n4 === n3;
+  record(pn("P38"), jedesMal && gegenprobeOk,
+    `Neuaufbauten nach dem 1./2./3. Oeffnen: ${n1}/${n2}/${n3}, nach dispose() und erneutem Oeffnen ${n4} (Gegenprobe ${gegenprobeOk ? "wirkt: kein Neuaufbau" : "wirkt NICHT: der Zaehler zaehlt auch ohne Haken"})`);
+}
+
 interface DvLauf { block: string; inline: string; geladen: boolean; version: string; js: boolean; inlineJs: boolean; html: string }
 
 /** Marker leeren, Markdown mit dem NACKTEN Renderer in ein angehaengtes Element rendern (so laufen die Prozessoren aller Plugins), Marker lesen.
@@ -1602,7 +1636,7 @@ async function main(): Promise<void> {
         [pn("P1"), p1], [pn("P2"), p2], [pn("P13"), p13], [pn("P7"), p7], [pn("P14"), p14],
         [pn("P3"), p3], [pn("P4"), p4], [pn("P5"), p5], [pn("P11"), p11], [pn("P6"), p6],
         [pn("P9"), p9], [pn("P10"), p10], [pn("P8"), p8p12], [pn("P15"), p15], [pn("P16"), p16], [pn("P17"), p17], [pn("P18"), p18], [pn("P19"), p19], [pn("P20"), p20], [pn("P21"), p21], [pn("P22"), p22], [pn("P23"), p23], [pn("P25"), p25], [pn("P26"), p26],
-        [pn("P32"), p32], [pn("P33"), p33p34], [pn("P35"), p35], [pn("P36"), p36], [pn("P37"), p37],
+        [pn("P32"), p32], [pn("P33"), p33p34], [pn("P35"), p35], [pn("P36"), p36], [pn("P37"), p37], [pn("P38"), p38],
       ];
       for (const [name, fn] of reihe) {
         await schliesseDialoge(cdp);

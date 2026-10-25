@@ -61,7 +61,11 @@ export class SettingsAssistantSettingTab extends PluginSettingTab {
 
   display(): void { this.renderImperative(); }
 
-  hide(): void { this.host.llm.hideSettings(); this.uninstallRefresh(); }
+  /** Der Haken, der das Öffnen zum Neuaufbau macht, trägt nur, solange er installiert bleibt (Vertrag in `settings_walker.ts`): `hide()` baut ihn nicht ab. */
+  hide(): void { this.host.llm.hideSettings(); }
+
+  /** Baut den Haken ab; das Plugin ruft es in `onunload`. */
+  dispose(): void { this.uninstallRefresh(); this.uninstallRefresh = () => {}; }
 
   getControlValue(_key: string): undefined { return undefined; }
 

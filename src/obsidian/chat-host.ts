@@ -1,6 +1,6 @@
 // Der Wirt des Chat-Fensters (obsidian-kit `buildChatWindow`, UI-STANDARD § 8 Baustein 12) und der Modellzeile (`buildModelBar`, Baustein 15).
 // Hier steht nur, was dieses Plugin selbst sagt: Kontext und Prompt (`prepareAsk`), Chips der Plugin-Auswahl, Vorschlagsblöcke und „Sent context“ unter
-// der Antwort, der Linkschutz nach dem Rendern. Verlauf, Eingabe, Abbruch, Fehlerzeile und Kopieren trägt das Kit.
+// der Antwort. Den Linkschutz trägt der `domGuard` des Kit-Fensters. Verlauf, Eingabe, Abbruch, Fehlerzeile und Kopieren trägt das Kit.
 import { ItemView, setIcon, type App, type WorkspaceLeaf } from "obsidian";
 import { getLang, t } from "../vendor/kit/i18n";
 import { EMPTY_CHAT, type ChatHistory, type ChatModelMessage } from "../vendor/kit/chat-history";
@@ -12,7 +12,6 @@ import type { PluginInfo } from "../core/chat-context";
 import { prepareAsk } from "../core/chat-ask";
 import { stripProfileBlocks } from "../core/profile-fence";
 import { drawAnswerExtras, type ChatAnswerDeps } from "./chat-answer";
-import { stripActiveContent } from "./dom-safety";
 
 export const VIEW_TYPE_SA_CHAT = "settings-assistant-chat";
 
@@ -60,10 +59,9 @@ export class SettingsChatHost extends ItemView {
   }
 
   onClose(): Promise<void> {
+    // `destroy()` ruft die Abmeldung des Kopfs: die Modellzeile gibt sich dabei frei.
     this.win?.destroy();
-    this.bar?.destroy();
     this.win = null;
-    this.bar = null;
     return Promise.resolve();
   }
 
@@ -85,15 +83,8 @@ export class SettingsChatHost extends ItemView {
     if (opts.models === true) void this.bar?.refresh();
   }
 
-  /** Ob eine Antwort läuft: das Kit-Fenster hat kein `running()`, aber `startAnswer` läuft vor `send`, also zeigt der Verlauf den Lauf. */
-  private running(): boolean {
-    return this.win?.history().entries.some((e) => e.kind === "assistant" && e.state === "streaming") ?? false;
-  }
-
   private build(): void {
     this.win?.destroy();
-    this.bar?.destroy();
-    this.bar = null;
     const d = this.deps;
     const root = this.contentEl;
     root.empty();
@@ -103,13 +94,10 @@ export class SettingsChatHost extends ItemView {
       cls: "sa-chat",
       strings: { lang: getLang(), placeholder: t("chat.placeholder") },
       send: (messages, h) => this.send(messages, h),
-      render: async (el, markdown) => {
-        await d.renderMarkdown(el, markdown);
-        // Der Kit-`domGuard` kappt keine Skript-Schemata in Links (code-kit `remote-resources`): das tut `dom-safety`.
-        stripActiveContent(el);
-      },
+      // Aktive Elemente, Quellen und gefährliche Link-Ziele kappt der `domGuard` des Kit-Fensters (seit Kit 0.70.0, `obsidian://` nur mit seiner Option).
+      render: (el, markdown) => d.renderMarkdown(el, markdown),
       answerTransform: stripProfileBlocks,
-      header: (el) => { this.drawHeader(el); },
+      header: (el) => this.drawHeader(el),
       composer: (el) => { this.drawComposer(el); },
       afterAnswer: (el, entry) => { drawAnswerExtras(el, entry, d); },
       empty: {
@@ -121,18 +109,17 @@ export class SettingsChatHost extends ItemView {
       initial: d.state.history,
       onChange: (h) => {
         d.state.history = h;
-        // Die Zeile sperrt sich während eines Laufs und gibt sich danach frei; die Chips folgen der Liste der installierten Plugins.
-        this.bar?.update();
+        // Die Chips folgen der Liste der installierten Plugins.
         this.drawChips();
       },
+      // Die Zeile sperrt sich während eines Laufs und gibt sich danach frei.
+      onRunChange: () => { this.bar?.update(); },
       ...(d.domGuard === undefined ? {} : { domGuard: d.domGuard }),
     });
   }
 
   private async send(messages: readonly ChatModelMessage[], h: ChatSendHandlers): Promise<ChatSendResult> {
     const d = this.deps;
-    // `startAnswer` ist vor `send` gelaufen: ab hier ist der Lauf im Verlauf sichtbar, die Zeile sperrt sich.
-    this.bar?.update();
     const prep = await prepareAsk({
       history: messages,
       selected: d.state.selected,
@@ -150,30 +137,36 @@ export class SettingsChatHost extends ItemView {
     });
   }
 
-  private drawHeader(el: HTMLElement): void {
-    // `refresh()` ruft den Einschub erneut; die alte Zeile gibt das Kit nicht frei (kein Abmelde-Hook), also hier.
-    this.bar?.destroy();
-    this.bar = null;
-    if (!this.endpointOk) return;
+  /** Das Kit ruft die Rückgabe vor der nächsten Zeichnung des Kopfs und bei `destroy()`: die Zeile gibt sich dort frei. */
+  private drawHeader(el: HTMLElement): () => void {
+    if (!this.endpointOk) return () => {};
     const d = this.deps;
-    this.bar = buildModelBar({
+    const bar = buildModelBar({
       app: d.app,
       containerEl: el,
       llm: d.llm,
       label: t("chat.modelLabel"),
       strings: { lang: getLang() },
       thinking: d.thinking,
-      disabled: () => this.running(),
+      disabled: () => this.win?.running() ?? false,
     });
+    this.bar = bar;
+    return () => {
+      bar.destroy();
+      if (this.bar === bar) this.bar = null;
+    };
   }
 
+  /** Der Einschub über dem Textfeld: das Kit ruft ihn beim Bau und bei `refreshComposer()`. */
   private drawComposer(el: HTMLElement): void {
     this.chipsEl = el.createDiv({ cls: "sa-chat-chips", attr: { "aria-label": t("chat.chips") } });
-    this.drawChips();
+    this.fillChips();
   }
 
-  /** Die Chips zeichnen sich selbst neu, ohne `win.refresh()`: das würde die Bereiche unter allen Antworten neu bauen (Zustand „gespeichert“ weg). */
-  private drawChips(): void {
+  /** Die Chips zeichnen sich über `refreshComposer()` neu: nur der Einschub, nicht die Bereiche unter den Antworten (der Zustand „gespeichert“ bleibt). */
+  private drawChips(): void { this.win?.refreshComposer(); }
+
+  private fillChips(): void {
     const el = this.chipsEl;
     if (!el || !this.endpointOk) return;
     const d = this.deps;

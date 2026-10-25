@@ -1,7 +1,7 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import "../src/i18n/strings";
 
-import { makeFakeEl, Notice } from "./vendor/kit/obsidian-mock";
+import { makeFakeEl, Notice, PluginSettingTab } from "./vendor/kit/obsidian-mock";
 import { DEFAULT_SETTINGS } from "../src/core/settings";
 import { SettingsAssistantSettingTab, type SettingsTabHost } from "../src/obsidian/settings-tab";
 import { createLlmConnection, type LlmConnection } from "../src/vendor/kit-obsidian/llm-connection";
@@ -90,6 +90,30 @@ describe("SettingsAssistantSettingTab", () => {
     tab.display();
     await flush();
     expect(el2.querySelectorAll("input").filter((i: FakeEl) => i.getAttribute("aria-label") === "Model")).toHaveLength(0);
+  });
+
+  describe("Haken beim Öffnen (installTabRefreshOnOpen)", () => {
+    // Das Mock hat kein `renderTab`; Obsidian 1.14.5 hat es (Vertrag in settings_walker.ts). Der Haken ersetzt es, nur dann ist die Probe nicht leer.
+    const proto = PluginSettingTab.prototype as unknown as { renderTab?: () => void };
+    const native = (): void => {};
+    beforeEach(() => { proto.renderTab = native; });
+    afterEach(() => { delete proto.renderTab; });
+
+    it("hide() baut den Haken nicht ab: jedes Öffnen baut weiter neu auf", () => {
+      const tab = new SettingsAssistantSettingTab(fakeApp(), PLUGIN, host()) as unknown as SettingsAssistantSettingTab & { renderTab: () => void };
+      expect(tab.renderTab).not.toBe(native);
+      tab.hide();
+      tab.hide();
+      expect(tab.renderTab).not.toBe(native);
+    });
+
+    it("dispose() (aus onunload) stellt die native Funktion zurück, auch zweimal gerufen", () => {
+      const tab = new SettingsAssistantSettingTab(fakeApp(), PLUGIN, host()) as unknown as SettingsAssistantSettingTab & { renderTab: () => void };
+      tab.dispose();
+      expect(tab.renderTab).toBe(native);
+      tab.dispose();
+      expect(tab.renderTab).toBe(native);
+    });
   });
 
   it("hide() schließt die Modell-Listen der Verbindung", async () => {

@@ -2,7 +2,13 @@ import { beforeAll, describe, expect, it, vi } from "vitest";
 import "../src/i18n/strings";
 import { WorkspaceLeaf } from "./vendor/kit/obsidian-mock";
 import { SettingsChatHost, VIEW_TYPE_SA_CHAT, newChatState, refreshChatViews, type ChatHostDeps, type ChatState } from "../src/obsidian/chat-host";
-import type { ChatSendHandlers, ChatSendResult } from "../src/vendor/kit-obsidian/chat-window";
+import { buildChatWindow, type ChatSendHandlers, type ChatSendResult } from "../src/vendor/kit-obsidian/chat-window";
+
+// Durchreichen, mit Zugriff auf die Optionen: das Fake-DOM trägt den Wächter des Kits nicht, ob der Wirt ihn nicht abschaltet, sieht man nur an den Optionen.
+vi.mock("../src/vendor/kit-obsidian/chat-window", async (orig) => {
+  const m = await orig<typeof import("../src/vendor/kit-obsidian/chat-window")>();
+  return { ...m, buildChatWindow: vi.fn(m.buildChatWindow) };
+});
 
 // Das Kit-Fenster nimmt seine Uhr aus `window` (Renderer); die Testumgebung ist Node.
 beforeAll(() => { vi.stubGlobal("window", globalThis); });
@@ -399,27 +405,17 @@ describe("chat-host", () => {
       expect(shown).not.toContain('"version"');
     });
 
-    it("der Renderer-Ausgang wird nach dem Rendern bereinigt (aktive Elemente weg)", async () => {
-      const s = await openWith({ answer: "hello" });
-      (s.deps.renderMarkdown as any).mockImplementation(async (e: any) => { e.createEl("img", { attr: { src: "https://evil/" } }); });
-      await ask(s.view);
-      await vi.waitFor(() => { expect(s.deps.renderMarkdown).toHaveBeenCalled(); });
-      await tick();
-      expect(all(s.view, "img").length).toBe(0);
-    });
-
-    it("Linkschutz: ein javascript:-Link in der gerenderten Antwort verliert sein href, der Linktext bleibt", async () => {
-      const s = await openWith({ answer: "klick" });
-      (s.deps.renderMarkdown as any).mockImplementation(async (e: any) => {
-        e.createEl("a", { text: "böse", attr: { href: "javascript:alert(1)" } });
-        e.createEl("a", { text: "gut", attr: { href: "https://example.org/x" } });
-      });
-      await ask(s.view);
-      await vi.waitFor(() => { expect(all(s.view, "a").length).toBe(2); });
-      await tick();
-      const links = all(s.view, "a");
-      expect(links.find((a) => a.textContent === "böse").getAttribute("href")).toBeNull();
-      expect(links.find((a) => a.textContent === "gut").getAttribute("href")).toBe("https://example.org/x");
+    it("der Wirt lässt den Linkschutz des Kit-Fensters an (kein eigener Durchgang, kein domGuard: false im Betrieb)", async () => {
+      // Im Betrieb setzt kein Wirt `domGuard`; nur der Test schaltet ihn ab, weil das Fake-DOM keinen MutationObserver trägt. Ob der Wächter echte Links kappt,
+      // misst der GUI-Smoke (P37) am echten Fenster.
+      const seen: unknown[] = [];
+      const real = vi.mocked(buildChatWindow).getMockImplementation()!;
+      vi.mocked(buildChatWindow).mockImplementationOnce((parent, o) => { seen.push(o.domGuard); return real(parent, { ...o, domGuard: false }); });
+      const s = setup();
+      delete (s.deps as { domGuard?: boolean }).domGuard;
+      const view = new SettingsChatHost(new WorkspaceLeaf() as never, s.deps);
+      await view.onOpen();
+      expect(seen).toEqual([undefined]);
     });
   });
 });

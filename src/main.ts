@@ -3,7 +3,7 @@ import "./i18n/strings";
 import { getLang, pickLang, setLang, t } from "./vendor/kit/i18n";
 import { thinkingOffTexts } from "./vendor/kit-obsidian/thinking-control";
 import type { EndpointConfig } from "./vendor/kit/endpoint_config";
-import { onLevelFor, thinkingFor, type RequestSettings, type ThinkingLevel } from "./vendor/kit/sampling-profiles";
+import { onLevelFor, thinkingFor, withThinkingLevel, type RequestSettings, type ThinkingLevel } from "./vendor/kit/sampling-profiles";
 import { createLlmConnection, type LlmConnection } from "./vendor/kit-obsidian/llm-connection";
 import { onEndpointManagerChanged } from "./vendor/kit-obsidian/endpoint-source";
 import { loadSettings, type SettingsAssistantSettings } from "./core/settings";
@@ -31,6 +31,7 @@ export default class SettingsAssistantPlugin extends Plugin {
   /** Die LLM-Anbindung: Endpunkt-Quelle, Auflösung, Parameter, Client, Prüfung der Antwort und die Settings-Abschnitte. */
   llm!: LlmConnection;
   private unsubscribeManager: () => void = () => {};
+  private settingTab: SettingsAssistantSettingTab | null = null;
   /** Verlauf und Plugin-Auswahl des Chats: nur im Speicher, überleben das Schließen und Öffnen der Ansicht. */
   private readonly chatState = newChatState();
   private readonly markdownHost = new Component();
@@ -69,12 +70,13 @@ export default class SettingsAssistantPlugin extends Plugin {
     this.registerMarkdownCodeBlockProcessor("settings-profile", (src, el, ctx) =>
       renderProfileBlock(el, src, { service: this.applyService, sourcePath: ctx.sourcePath, openPluginSettings: (id) => { openPluginSettings(this.app, id); } }));
 
-    this.addSettingTab(new SettingsAssistantSettingTab(this.app, this, {
+    this.settingTab = new SettingsAssistantSettingTab(this.app, this, {
       settings: this.settings,
       llm: this.llm,
       saveSettings: () => this.saveSettings(),
       restore: (dir) => this.applyService.restoreInteractive(dir),
-    }));
+    });
+    this.addSettingTab(this.settingTab);
 
     this.addCommand({
       id: "undo-last-apply",
@@ -136,9 +138,7 @@ export default class SettingsAssistantPlugin extends Plugin {
   }
 
   private async setChatThinking(level: ThinkingLevel): Promise<void> {
-    const next: RequestSettings = { ...this.settings.request, thinking: { ...this.settings.request.thinking, [CHAT_MODE]: level } };
-    if (level !== "off") next.lastOnLevel = { ...next.lastOnLevel, [CHAT_MODE]: level };
-    await this.saveRequestSettings(next);
+    await this.saveRequestSettings(withThinkingLevel(this.settings.request, CHAT_MODE, level));
   }
 
   /** Neue Notiz im Ordner der aktiven Notiz (sonst Vault-Wurzel); ein vorhandener Name bekommt ein Suffix. */
@@ -151,7 +151,10 @@ export default class SettingsAssistantPlugin extends Plugin {
     return path;
   }
 
-  onunload(): void { this.unsubscribeManager(); }
+  onunload(): void {
+    this.unsubscribeManager();
+    this.settingTab?.dispose();
+  }
 
   async saveSettings(): Promise<void> { await this.saveData(this.settings); }
 
