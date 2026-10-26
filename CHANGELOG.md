@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.9.2] — 2026-10-26
+
 ### Changed
 
 - **The captions under an answer are easier to read and to tap.** "Raw block (secrets redacted)", "Sent context" and "Full prompt" are no longer pale grey: the contrast against the sidebar is now 6.2:1 in the light theme and 7.0:1 in the dark theme (it was 2.1:1 and 2.6:1). The two lines you open and close are at least 24 px high, and on a phone 44 px, like Obsidian's own buttons.
