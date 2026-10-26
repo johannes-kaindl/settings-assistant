@@ -310,11 +310,14 @@
 .sa-chat-block-info { color: var(--text-muted); font-size: var(--font-ui-smaller); }
 .sa-chat-block-info.is-error { color: var(--text-error); }
 .sa-chat-raw { margin-top: var(--size-4-2); font-size: var(--font-ui-smaller); color: var(--text-muted); }
-.sa-chat-raw > summary { cursor: var(--cursor); color: var(--text-faint); }
+.sa-chat-raw > summary { cursor: var(--cursor); color: var(--text-muted); min-height: var(--size-4-6); padding-block: var(--size-2-2); box-sizing: border-box; }
 .sa-chat-raw-text { max-height: 16em; overflow: auto; white-space: pre-wrap; background: var(--background-secondary); padding: var(--size-4-2); }
 .sa-chat-sent { margin-top: var(--size-4-2); font-size: var(--font-ui-smaller); color: var(--text-muted); }
-.sa-chat-sent > summary { cursor: var(--cursor); color: var(--text-faint); }
-.sa-chat-sent-label { margin-top: var(--size-4-1); color: var(--text-faint); }
+.sa-chat-sent > summary { cursor: var(--cursor); color: var(--text-muted); min-height: var(--size-4-6); padding-block: var(--size-2-2); box-sizing: border-box; }
+.sa-chat-sent-label { margin-top: var(--size-4-1); color: var(--text-muted); }
+/* Mobil ist die Tippfläche so groß wie Obsidians eigene Knöpfe (`--input-height`, 44 px). */
+.is-mobile .sa-chat-raw > summary { min-height: var(--input-height); padding-block: var(--size-4-3); }
+.is-mobile .sa-chat-sent > summary { min-height: var(--input-height); padding-block: var(--size-4-3); }
 .sa-chat-prompt { max-height: 16em; overflow: auto; white-space: pre-wrap; background: var(--background-secondary); padding: var(--size-4-2); }
 .sa-chat-chips { display: flex; flex-wrap: wrap; align-items: center; gap: var(--size-4-1); }
 .sa-chat-chips:empty { display: none; }
