@@ -17,6 +17,12 @@ beforeAll(() => { vi.stubGlobal("window", globalThis); });
  *  aufgelöstes Versprechen), käme sonst nie zu einer Makrotask-Runde, und der Test hinge, statt rot zu werden. */
 const DECKEL = 50;
 
+// Mutationsbefund (Welle 28, nie committen: `onResolved: () => { void this.refreshChatViews({ models: true }); }` in `main.ts`):
+//   Pin 0.70.0: beide Tests rot (Kreis bis zum Deckel, 51 > 50).
+//   Pin 0.72.0: der erste Test bleibt grün (die Wiedereintrittssperre des Kits fängt den synchronen Kreis, es bleibt bei 4 Auflösungen), der zweite rot („expected 4 to be 2“): ein Rückruf löst
+//   weiter auf, endlich, aber er tut es. Mit einem `await` davor (`void (async () => { await Promise.resolve(); await this.refreshChatViews(…); })()`) sind beide Tests auch am Pin 0.72.0 rot (51 > 50):
+//   die Sperre greift nach einem Warten nicht.
+
 const manifest = { id: "settings-assistant", name: "x", version: "0", minAppVersion: "1.11.4", description: "", author: "", authorUrl: "", isDesktopOnly: false, dir: "" };
 
 /** Das Plugin mit einem Manager, der seine `resolve`-Aufrufe zählt, und einer offenen Chat-Ansicht (sonst liefe `refreshChatViews` leer und der Test sähe nie etwas). */

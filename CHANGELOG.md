@@ -7,6 +7,10 @@ All notable changes to this project are documented here. The format follows [Kee
 ### Changed
 
 - **The captions under an answer are easier to read and to tap.** "Raw block (secrets redacted)", "Sent context" and "Full prompt" are no longer pale grey: the contrast against the sidebar is now 6.2:1 in the light theme and 7.0:1 in the dark theme (it was 2.1:1 and 2.6:1). The two lines you open and close are at least 24 px high, and on a phone 44 px, like Obsidian's own buttons.
+- **The question stands out more in a narrow sidebar.** Its border is now `--text-faint` instead of the almost invisible border colour: 2.1:1 in the light theme and 2.6:1 in the dark theme against the sidebar (it was 1.2:1 in both) (obsidian-kit 0.72.0).
+- **A link the chat window disabled now looks like plain text.** A `javascript:`, `data:`, `file:`, `app:` or (while the option is off) `obsidian://` link no longer shows the link colour, underline, pointer and arrow, because it does nothing; a normal link is unchanged (obsidian-kit 0.72.0, replaces "it still looks like a link" from 0.9.1).
+- The shared library moved from obsidian-kit 0.70.0 to 0.72.0 and from code-kit 0.37.5 to 0.38.0. Nothing else changes for you: the guard against an endless re-resolve and the locked thinking button need wiring this plugin does not use, and the live-indexer and line-ending changes belong to other plugins.
+- The README picture of the chat (`docs/images/chat.png`) is recorded again with the new look.
 
 ## [0.9.1] — 2026-10-25
 
