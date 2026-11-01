@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.10.0] — 2026-11-01
+
 ### Added
 
 - **Past chats, off until you switch them on.** With the history on, every conversation is filed as one `.json` file in a vault folder (default `Settings Assistant/Chats`) at the end of each round, and a history button next to **New chat** opens the list: search by title, open a chat to continue it (it writes back into its own file), **Save as note** (a Markdown copy beside it, never read back) and **Delete** (final, with a confirmation). The file holds what the chat window shows, including the **Sent context** (the settings values that were sent to the model); withheld keys stay out, as in the window. Two new rows under **Settings → Settings Assistant → Past chats**: **Folder for past chats** (empty means the default) and **Chats to keep** (0 to 500; **the default is 0, so the history is off after the update** and nothing is written to your vault until you raise it, for example to 50; lowering it later deletes the surplus at the next save). New commands **Start new chat** and **Open past chats…** (only while the chat is open). Chats were kept in memory only until now (obsidian-kit 0.73.0, code-kit 0.40.0).
