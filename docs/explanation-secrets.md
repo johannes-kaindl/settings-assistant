@@ -44,7 +44,7 @@ Be clear about what this does not do.
 - **A secret inside text is not recognised.** A password inside a URL (`https://user:pw@host`) or a JSON document stored as a string is just text.
 - **A secret that is a number is not recognised**, for example a numeric PIN under `pin`.
 - **Snapshots are copies.** A snapshot saves the affected file as it is, secrets included, in the plugin's folder in your configuration folder — the same place those secrets already live, in a copy, and never shown or sent anywhere. Keep that in mind if you sync or publish the configuration folder.
-- **Past chats are files in your vault.** Each filed chat holds the questions, the answers and the **Sent context** — the setting values that went to the model, with withheld keys left out as in the window. These are values that already sit in your plugins' `data.json` files, but now in a second place that a sync or a publish of the vault carries along. Turn the history off with **Chats to keep** 0, or point the folder at a place you do not sync.
+- **Past chats are files in your vault, once you switch them on.** The history is off by default. Each filed chat holds the questions, the answers and the **Sent context** — the setting values that went to the model, with withheld keys left out as in the window. These are values that already sit in your plugins' `data.json` files, but now in a second place that a sync or a publish of the vault carries along. Turn the history off again with **Chats to keep** 0, or point the folder at a place you do not sync.
 
 ## Related
 
