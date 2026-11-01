@@ -185,6 +185,7 @@ interface Messung {
   chipUndDropdownInEinerZeile: boolean | null;
   reihenfolge: string[];
   unterhalb: string;
+  navbar: string;
 }
 
 const MESS_JS = `
@@ -210,6 +211,7 @@ const MESS_JS = `
     tiefster, abstandUnten: +(innerHeight - tiefster).toFixed(1),
     chipUndDropdownInEinerZeile: chip && dd ? (Math.min(chip.bottom, dd.bottom) - Math.max(chip.y, dd.y)) > Math.min(chip.h, dd.h) / 2 : null,
     reihenfolge: reihe,
+    navbar: (() => { const n = document.querySelector(".mobile-navbar"); const b = n ? n.getBoundingClientRect() : null; const h = document.querySelector(".sa-chat-host"); const cs = h ? getComputedStyle(h) : null; const bs = getComputedStyle(document.body); return (b ? "Navbar " + Math.round(b.top) + "-" + Math.round(b.bottom) + " (" + (n.className || "") + ")" : "keine Navbar") + " · --mobile-navbar-height " + bs.getPropertyValue("--mobile-navbar-height").trim() + " · --navbar-height " + bs.getPropertyValue("--navbar-height").trim() + " · safe-bottom " + bs.getPropertyValue("--safe-area-inset-bottom").trim() + " · Host padding-bottom " + (cs ? cs.paddingBottom : "?") + " · Host-Box " + (h ? Math.round(h.getBoundingClientRect().top) + "-" + Math.round(h.getBoundingClientRect().bottom) : "?"); })(),
     unterhalb: (() => { const c = r(".okit-chat"); if (!c) return ""; const y = Math.min(innerHeight - 2, c.bottom + 45); const desc = (n) => n.tagName.toLowerCase() + (typeof n.className === "string" && n.className.trim() ? "." + n.className.trim().split(/\\s+/).slice(0, 3).join(".") : ""); return "y=" + Math.round(y) + ": " + document.elementsFromPoint(200, y).slice(0, 6).map((n) => { const b = n.getBoundingClientRect(); return desc(n) + "[" + Math.round(b.top) + "-" + Math.round(b.bottom) + "]"; }).join(" < "); })(),
   };
 `;
@@ -230,6 +232,7 @@ function kurz(m: Messung): string {
     `  Statuszeile „${m.statustext}“ ${b(m.statuszeile)} · Modellzeile ${b(m.modellzeile)} · Eingabe ${b(m.eingabe)} · Knopfreihe ${b(m.knopfreihe)}`,
     `  Reihenfolge von oben: ${m.reihenfolge.join(" > ")}`,
     `  Unter dem Chat: ${m.unterhalb}`,
+    `  Navigationsleiste: ${m.navbar}`,
   ].join("\n");
 }
 
@@ -243,6 +246,9 @@ async function main(): Promise<void> {
   if (!Number.isInteger(port) || port < 1024 || port > 65535) throw new Error("--port <1024-65535> ist Pflicht (9222 gehoert der regulaeren Instanz).");
   const tag = flag("--tag") ?? "lauf";
   const out = flag("--out") ?? "/tmp/saw-w29";
+  // `befehl` (Standard): der Befehl „Open settings chat“ entscheidet, wo der Chat sitzt (Handy: Tab im Hauptbereich; seit Welle 29). `leiste`: erzwungen in der rechten
+  // Schublade, `tab`: erzwungen als Tab (Vergleichsmessungen).
+  const ort = flag("--ort") ?? "befehl";
   mkdirSync(out, { recursive: true });
 
   const fake = await startFakeEndpoint();
@@ -272,7 +278,13 @@ async function main(): Promise<void> {
     if (!mobil) throw new Error("is-mobile nach emulateMobile(true) nicht gesetzt");
 
     // Chat oeffnen, eine Runde fuehren, ein Plugin als Chip waehlen.
-    await cdp.evaluate(`app.workspace.detachLeavesOfType("settings-assistant-chat"); app.workspace.rightSplit.expand?.(); app.commands.executeCommandById(${q(`${PLUGIN_ID}:open-chat`)}); return true;`);
+    if (ort === "tab") {
+      await cdp.evaluate(`app.workspace.detachLeavesOfType("settings-assistant-chat"); const leaf = app.workspace.getLeaf("tab"); await leaf.setViewState({ type: "settings-assistant-chat", active: true }); await app.workspace.revealLeaf(leaf); return true;`);
+    } else if (ort === "leiste") {
+      await cdp.evaluate(`app.workspace.detachLeavesOfType("settings-assistant-chat"); const leaf = app.workspace.getRightLeaf(false); await leaf.setViewState({ type: "settings-assistant-chat", active: true }); app.workspace.rightSplit.expand?.(); await app.workspace.revealLeaf(leaf); return true;`);
+    } else {
+      await cdp.evaluate(`app.workspace.detachLeavesOfType("settings-assistant-chat"); app.commands.executeCommandById(${q(`${PLUGIN_ID}:open-chat`)}); return true;`);
+    }
     const da = await cdp.evaluate<boolean>(`for (let i = 0; i < 40 && !document.querySelector(".okit-chat-input"); i++) await new Promise((r) => setTimeout(r, 250)); return !!document.querySelector(".okit-chat-input");`);
     if (!da) throw new Error("Chat-Ansicht oeffnet sich nicht");
     await cdp.evaluate(`const v = app.workspace.getLeavesOfType("settings-assistant-chat")[0].view; v.submit("What does Quick Capture do, and how could I make it save more often?"); return true;`);
