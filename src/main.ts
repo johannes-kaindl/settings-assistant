@@ -1,4 +1,4 @@
-import { Component, MarkdownRenderer, Notice, Plugin, getLanguage, normalizePath, type WorkspaceLeaf } from "obsidian";
+import { Component, MarkdownRenderer, Notice, Platform, Plugin, getLanguage, normalizePath, type WorkspaceLeaf } from "obsidian";
 import "./i18n/strings";
 import { getLang, pickLang, setLang, t } from "./vendor/kit/i18n";
 import { thinkingLevelTexts, thinkingOffTexts } from "./vendor/kit-obsidian/thinking-control";
@@ -181,7 +181,9 @@ export default class SettingsAssistantPlugin extends Plugin {
   private async openChat(): Promise<void> {
     const { workspace } = this.app;
     const existing = workspace.getLeavesOfType(VIEW_TYPE_SA_CHAT)[0];
-    const leaf = existing ?? workspace.getRightLeaf(false);
+    // Auf dem Handy als Tab im Hauptbereich statt in der Schublade: unter der Schublade hängt Obsidians eigene Tab-Auswahl, und der Chat endet gemessen rund 155 px über der Tastatur
+    // (390 × 844 und 390 × 508, Welle 29); im Hauptbereich reicht er bis auf den Rand des Geräts herunter. Ein schon geöffneter Chat bleibt, wo er ist.
+    const leaf = existing ?? (Platform.isMobile ? workspace.getLeaf("tab") : workspace.getRightLeaf(false));
     if (!leaf) return;
     if (!existing) await leaf.setViewState({ type: VIEW_TYPE_SA_CHAT, active: true });
     await workspace.revealLeaf(leaf);

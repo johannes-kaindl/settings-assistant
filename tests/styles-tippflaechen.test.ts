@@ -29,3 +29,20 @@ describe("Beschriftungen, die das Plugin unter eine Antwort setzt", () => {
     });
   }
 });
+
+describe("Chips der Plugin-Auswahl: eine Zeile (Daumen-Test, Welle 29)", () => {
+  const css = readFileSync("styles.css", "utf8");
+  const regel = (selektor: string): string => css.split("\n").find((l) => l.startsWith(`${selektor} {`)) ?? "";
+  it("die Zeile bricht nicht um und rollt waagerecht; Chips kürzen ihren Namen, die Auswahl bleibt stehen", () => {
+    expect(regel(".sa-chat-chips")).toContain("flex-wrap: nowrap");
+    expect(regel(".sa-chat-chips")).toContain("overflow-x: auto");
+    expect(regel(".sa-chip-label")).toContain("text-overflow: ellipsis");
+    expect(regel(".sa-chip-add")).toContain("flex: 0 0 auto");
+  });
+
+  it("im Hauptbereich des Handys lässt der Chat Platz für Obsidians Navigationsleiste, in einer Seitenleiste nicht", () => {
+    const regelMobil = css.split("\n").find((l) => l.startsWith(".is-mobile .mod-root .sa-chat-host {")) ?? "";
+    expect(regelMobil).toContain("padding-bottom: calc(var(--navbar-height) + var(--safe-area-inset-bottom))");
+    expect(css.split("\n").filter((l) => /^\.is-mobile [^{]*\.sa-chat-host \{/.test(l))).toHaveLength(1);
+  });
+});

@@ -299,6 +299,9 @@
 /* Chat-Ansicht */
 /* Der Wirt des Kit-Chatfensters braucht eine begrenzte Höhe, sonst rollt der Verlauf nicht (obsidian-kit chat-window, Fallen beim Übernehmen). */
 .sa-chat-host { height: 100%; }
+/* Auf dem Handy steht der Chat im Hauptbereich (siehe openChat), und Obsidians schwebende Navigationsleiste liegt über dem unteren Rand: ohne diesen Abstand verdeckt sie die Knopfreihe
+   (gemessen 390 × 844 und 390 × 508, Welle 29: Navigationsleiste 52 px hoch, 32 px über dem Rand). Nur im Hauptbereich; in einer Seitenleiste deckt die Schublade sie ab. */
+.is-mobile .mod-root .sa-chat-host { padding-bottom: calc(var(--navbar-height) + var(--safe-area-inset-bottom)); box-sizing: border-box; }
 /* uebernommen aus src/vendor/kit-obsidian/thinking-control.ts (THINKING_CONTROL_CSS), obsidian-kit 0.73.0 */
 .okit-thinking-control { display: inline-flex; align-items: center; }
 .okit-thinking-toggle {
@@ -328,10 +331,13 @@
 .is-mobile .sa-chat-raw > summary { min-height: var(--input-height); padding-block: var(--size-4-3); }
 .is-mobile .sa-chat-sent > summary { min-height: var(--input-height); padding-block: var(--size-4-3); }
 .sa-chat-prompt { max-height: 16em; overflow: auto; white-space: pre-wrap; background: var(--background-secondary); padding: var(--size-4-2); }
-.sa-chat-chips { display: flex; flex-wrap: wrap; align-items: center; gap: var(--size-4-1); }
+/* Plugin-Chips und „Plugin hinzufügen…“ stehen immer in einer Zeile (Daumen-Test Welle 29, Kriterium c): die Chips kürzen ihre Namen, die Auswahl behält ihren Platz, und was die Zeile nicht fasst, rollt waagerecht. */
+.sa-chat-chips { display: flex; flex-wrap: nowrap; align-items: center; gap: var(--size-4-1); overflow-x: auto; }
 .sa-chat-chips:empty { display: none; }
-.sa-chip { display: inline-flex; align-items: center; gap: var(--size-4-1); padding: 0 var(--size-4-1) 0 var(--size-4-2); border-radius: var(--radius-m); background: var(--background-modifier-hover); font-size: var(--font-ui-smaller); }
-.sa-chip-remove { padding: 0; }
+.sa-chip { flex: 0 1 auto; min-width: 5em; display: inline-flex; align-items: center; gap: var(--size-4-1); padding: 0 var(--size-4-1) 0 var(--size-4-2); border-radius: var(--radius-m); background: var(--background-modifier-hover); font-size: var(--font-ui-smaller); }
+.sa-chip-remove { flex: 0 0 auto; padding: 0; }
+.sa-chip-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sa-chip-add { flex: 0 0 auto; max-width: 60%; }
 
 /* uebernommen aus src/vendor/kit-obsidian/model-bar.ts (MODEL_BAR_CSS), obsidian-kit 0.73.0 */
 .okit-model-bar { position: relative; width: 100%; min-width: 0; container-type: inline-size; container-name: okit-model-bar; }
