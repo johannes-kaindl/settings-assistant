@@ -109,7 +109,7 @@ export class SettingsChatHost extends ItemView {
       // Aktive Elemente, Quellen und gefährliche Link-Ziele kappt der `domGuard` des Kit-Fensters (seit Kit 0.70.0, `obsidian://` nur mit seiner Option).
       render: (el, markdown) => d.renderMarkdown(el, markdown),
       answerTransform: stripProfileBlocks,
-      // Seit Kit 0.73.0 steht die Modellzeile im Einschub über dem Textfeld (einzeilig), nicht mehr im Kopf.
+      // Die einzeilige Modellzeile baut `drawComposer` als direktes Kind des Einschubs; das Fenster hebt sie (Kit 0.74.0) in den Composer, über das Textfeld, bei geringer Höhe darunter.
       composer: (el) => this.drawComposer(el),
       afterAnswer: (el, entry) => { drawAnswerExtras(el, entry, d); },
       empty: {
