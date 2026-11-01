@@ -966,6 +966,11 @@ async function neuBeginnen(c: Ctx): Promise<void> {
   if (vor.runden === 0) return;   // leeres Gespraech: nichts zu leeren, Neu ist dann gesperrt
   if (!vor.frei) throw new Vorbedingung(`${vor.runden} Runde(n) im Fenster, aber „Neu“ ist gesperrt`);
   await c.cdp.evaluate(`document.querySelector(".okit-chat-new").click(); return { ok: true };`);
+  // Ist der Verlauf aus (Aufbewahrung 0, Vorgabe seit Welle 29), fragt Neu vor dem Verwerfen zurueck: bestaetigen (letzter Knopf), dann muss das Fenster leer sein.
+  const antwort = await pollUntil<{ art: string }>(c.cdp, `
+    if (document.querySelectorAll(".okit-chat-turn").length === 0) return { art: "leer" };
+    return document.querySelector(".modal-container .modal-button-container") ? { art: "frage" } : null;`, 8000, 200).catch(() => null);
+  if (antwort?.art === "frage") await c.cdp.evaluate(`const bs = document.querySelectorAll(".modal-container .modal-button-container button"); bs[bs.length - 1].click(); return { ok: true };`);
   const leer = await pollUntil<{ ok: boolean }>(c.cdp, `return document.querySelectorAll(".okit-chat-turn").length === 0 ? { ok: true } : null;`, 8000, 200).catch(() => null);
   if (!leer) throw new Vorbedingung(`„Neu“ hat das Gespraech nicht geleert (${vor.runden} Runde(n) davor; Rueckfrage offen? ${await notices(c.cdp)})`);
 }
