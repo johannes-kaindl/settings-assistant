@@ -332,7 +332,7 @@
 .is-mobile .sa-chat-sent > summary { min-height: var(--input-height); padding-block: var(--size-4-3); }
 .sa-chat-prompt { max-height: 16em; overflow: auto; white-space: pre-wrap; background: var(--background-secondary); padding: var(--size-4-2); }
 /* Plugin-Chips und „Plugin hinzufügen…“ stehen immer in einer Zeile (Daumen-Test Welle 29, Kriterium c): die Chips kürzen ihre Namen, die Auswahl behält ihren Platz, und was die Zeile nicht fasst, rollt waagerecht. */
-.sa-chat-chips { display: flex; flex-wrap: nowrap; align-items: center; gap: var(--size-4-1); overflow-x: auto; margin-top: var(--size-4-2); }
+.sa-chat-chips { display: flex; flex-wrap: nowrap; align-items: center; gap: var(--size-4-1); overflow-x: auto; }
 .sa-chat-chips:empty { display: none; }
 .sa-chip { flex: 0 1 auto; align-self: center; min-width: 5em; display: inline-flex; align-items: center; gap: var(--size-4-1); padding: 0 var(--size-4-1) 0 var(--size-4-2); border-radius: var(--radius-m); background: var(--background-modifier-hover); font-size: var(--font-ui-smaller); }
 /* Auf dem Handy ist der Chip so hoch wie das Dropdown daneben (Obsidians Eingabehöhe): gleiche Pillen auf einer Mittellinie, und das × trifft man mit dem Daumen. */
