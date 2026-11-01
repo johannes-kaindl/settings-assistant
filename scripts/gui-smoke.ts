@@ -1,5 +1,5 @@
 /**
- * GUI-Smoke — faehrt die Pruefpunkte P1-P25 gegen ein LAUFENDES Obsidian (CORE-TEST-02 b).
+ * GUI-Smoke — faehrt die Pruefpunkte P1-P40 gegen ein LAUFENDES Obsidian (CORE-TEST-02 b).
  *
  * Gemessen wird die SACHE: Dateiinhalt auf Platte (`sa-probe/data.json`, `hotkeys.json`, Schnappschuss-
  * Manifest), Dialogtext, Notice — nicht die Existenz eines Elements. Das Testplugin `sa-probe`
@@ -32,7 +32,7 @@
  * `npm run smoke:gui -- --launch --dataview --port <PORT>` fuehrt NUR drei eigene Punkte (D1-D3, eigener Nenner) und legt Dataview in den
  * Vault: die drei Dateien werden aus einer vorhandenen Installation unter ~/Documents/*\/.obsidian/plugins/dataview LESEND kopiert (oder
  * aus `DATAVIEW_QUELLE=<Ordner>`), JS-Abfragen und Inline-JS stehen an. D2 ist die Gegenprobe und laeuft zuerst: schlaegt sie nicht an
- * (kein Marker am nackten Renderer), sind D1 und D3 „nichts gemessen“, nicht „sicher“. Der Nenner ohne den Schalter bleibt bei P1-P38.
+ * (kein Marker am nackten Renderer), sind D1 und D3 „nichts gemessen“, nicht „sicher“. Der Nenner ohne den Schalter bleibt bei P1-P40.
  *
  * Der erste Lauf nach Profilanlage ist ein Aufwaermlauf und zaehlt nicht. Die regulaere Instanz auf 9222
  * wird nicht angefasst. Gemessen wird im eigenen Staging-Vault (`stagingVaultDir()`), nie im
@@ -106,13 +106,15 @@ const PUNKTE = [
   "P29 Pflichtpunkt Fokus-Erhalt (Gegenprobe): ein Auslöser, der den Fokus nimmt, macht die Messung rot",
   "P30 Pflichtpunkt Erreichbarkeit: Senden, Neu, Eingabefeld und Modellzeile sind bei ueberlaufendem Verlauf erreichbar",
   "P31 Pflichtpunkt Erreichbarkeit (Gegenprobe): ohne Rollbalken wird etwas unerreichbar",
-  "P32 Modellzeile: im Kopf des Chats, listet beide Modelle des Endpunkts, ein Wechsel schreibt das Modell in die Zeile und die naechste Anfrage traegt es",
+  "P32 Modellzeile: einzeilig ueber dem Eingabefeld (nicht im Kopf), ohne sichtbare Beschriftung, listet beide Modelle des Endpunkts, ein Wechsel schreibt das Modell in die Zeile und die naechste Anfrage traegt es",
   "P33 Modellzeile sperrt sich waehrend eines Laufs (Dropdown und Neu-laden gesperrt) und gibt sich danach frei",
   "P34 Escape bricht den laufenden Lauf ab: der Server sieht den Abbruch, die Antwort traegt „Stopped.“, Senden ist wieder frei",
   "P35 Fehlerzeile nennt bei einem HTTP-Fehler die Begruendung des Servers; „Send again“ sendet dieselbe Frage, die gescheiterte Runde geht nicht ans Modell",
   "P36 Denkblock ist im Strom offen und klappt nach der Antwort zu",
   "P37 Linkschutz: javascript:-, data:-, obsidian://- und file:-Links einer Antwort verlieren ihr href, ein https-Link behaelt es",
   "P38 Einstellungs-Tab baut bei jedem Oeffnen neu auf (der Haken haelt nach hide()); Gegenprobe: ohne Haken (dispose) kein Neuaufbau",
+  "P39 Verlauf am echten Adapter: die Runde liegt als .json im Ordner (ohne Schluessel), Neu legt ab und leert, die Liste zeigt sie, Laden setzt das Gespraech fort, Export schreibt eine .md, Loeschen entfernt die .json",
+  "P40 Aufbewahrung 0: der Verlauf-Knopf verschwindet, Neu fragt zurueck, Abbrechen behaelt das Gespraech, Verwerfen leert es und schreibt nichts",
 ] as const;
 type PunktName = (typeof PUNKTE)[number];
 const pn = (prefix: string): PunktName => {
@@ -121,7 +123,7 @@ const pn = (prefix: string): PunktName => {
   return hit;
 };
 
-// Dataview-Messung (`--dataview`): drei eigene Punkte mit eigenem Nenner. Ohne den Schalter bleibt die Bilanz bei den 37 Punkten oben.
+// Dataview-Messung (`--dataview`): drei eigene Punkte mit eigenem Nenner. Ohne den Schalter bleibt die Bilanz bei den 40 Punkten oben.
 const DV_PUNKTE = [
   "D1 Dataview-Kette: dataviewjs-Zaun und $=-Ausdruck einer Chat-Antwort laufen durch das echte Chat-Fenster, beide Marker bleiben leer",
   "D2 Dataview-Gegenprobe: derselbe Text ohne Neutralisierung am nackten Renderer setzt beide Marker (Dataview-JS laeuft in dieser Instanz)",
@@ -949,13 +951,23 @@ async function chatVorbereiten(c: Ctx, url: string = c.fake.url): Promise<void> 
   await c.cdp.evaluate(`app.workspace.detachLeavesOfType("settings-assistant-chat"); await new Promise((r) => setTimeout(r, 300)); app.commands.executeCommandById(${q(`${PLUGIN_ID}:open-chat`)}); return { ok: true };`);
   const da = await pollUntil<{ ok: boolean }>(c.cdp, `return document.querySelector(".okit-chat-input") ? { ok: true } : null;`, 10_000, 250);
   if (!da) throw new Vorbedingung(`Chat-Ansicht oeffnet sich nicht (kein .okit-chat-input) — ${await chatDiagnose(c.cdp)}`);
-  await c.cdp.evaluate(`
-    const nb = document.querySelector(".okit-chat-new");
-    if (nb) nb.click();
-    await new Promise((r) => setTimeout(r, 300));
-    return { ok: true };
-  `);
+  await neuBeginnen(c);
   await clearNotices(c.cdp);
+}
+
+/** Beginnt ein leeres Gespraech ueber das Symbol „Neu“ und prueft, dass der Klick wirkte. Seit Kit 0.73.0 ist Neu bei leerem Gespraech und im Lauf gesperrt:
+ *  ein Klick auf den gesperrten Knopf laeuft ins Leere, und ein Treiber, der ihn nur `if (nb)` klickt, merkt es nie (Falle aus dem Pilot, Welle 29). */
+async function neuBeginnen(c: Ctx): Promise<void> {
+  const vor = await c.cdp.evaluate<{ da: boolean; frei: boolean; runden: number }>(`
+    const nb = document.querySelector(".okit-chat-new");
+    return { da: !!nb, frei: !!nb && !nb.disabled, runden: document.querySelectorAll(".okit-chat-turn").length };
+  `);
+  if (!vor.da) throw new Vorbedingung(`das Symbol „Neu“ (.okit-chat-new) fehlt im Chat-Fenster — ${await chatDiagnose(c.cdp)}`);
+  if (vor.runden === 0) return;   // leeres Gespraech: nichts zu leeren, Neu ist dann gesperrt
+  if (!vor.frei) throw new Vorbedingung(`${vor.runden} Runde(n) im Fenster, aber „Neu“ ist gesperrt`);
+  await c.cdp.evaluate(`document.querySelector(".okit-chat-new").click(); return { ok: true };`);
+  const leer = await pollUntil<{ ok: boolean }>(c.cdp, `return document.querySelectorAll(".okit-chat-turn").length === 0 ? { ok: true } : null;`, 8000, 200).catch(() => null);
+  if (!leer) throw new Vorbedingung(`„Neu“ hat das Gespraech nicht geleert (${vor.runden} Runde(n) davor; Rueckfrage offen? ${await notices(c.cdp)})`);
 }
 
 async function chatAbsenden(c: Ctx, frage: string): Promise<void> {
@@ -1380,13 +1392,17 @@ async function zeilenModell(c: Ctx): Promise<string | null> {
 
 async function p32(c: Ctx): Promise<void> {
   await chatVorbereiten(c);
-  const ok = await pollUntil<{ ok: boolean }>(c.cdp, `const s = document.querySelector(".okit-chat-header .okit-model-bar-select"); return s && s.options.length >= 3 ? { ok: true } : null;`, 10_000, 250).catch(() => null);
+  const ok = await pollUntil<{ ok: boolean }>(c.cdp, `const s = document.querySelector(".okit-chat-composer-extra .okit-model-bar-select"); return s && s.options.length >= 3 ? { ok: true } : null;`, 10_000, 250).catch(() => null);
   if (!ok) { unmeasured(pn("P32"), "die Modellzeile im Kopf des Chats zeigt nach 10 s keine Modell-Liste (weniger als drei Eintraege: Automatisch und zwei Modelle)"); return; }
-  const zeile = await c.cdp.evaluate<{ label: string; opts: Array<{ v: string; t: string }>; denk: boolean; warn: boolean; alt: number }>(`
-    const bar = document.querySelector(".okit-chat-header .okit-model-bar");
+  const zeile = await c.cdp.evaluate<{ label: string; sichtbarerName: boolean; zeilen: number; imKopf: number; ueberEingabe: boolean; opts: Array<{ v: string; t: string }>; denk: boolean; warn: boolean; alt: number }>(`
+    const bar = document.querySelector(".okit-chat-composer-extra .okit-model-bar");
     const sel = bar.querySelector(".okit-model-bar-select");
     return {
-      label: (bar.querySelector(".okit-model-bar-label") || {}).textContent || "",
+      label: sel.getAttribute("aria-label") || "",
+      sichtbarerName: !!bar.querySelector(".okit-model-bar-label"),
+      zeilen: bar.querySelectorAll(".okit-model-bar-row").length,
+      imKopf: document.querySelectorAll(".okit-chat-header .okit-model-bar").length,
+      ueberEingabe: !!(bar.compareDocumentPosition(document.querySelector(".okit-chat-input")) & Node.DOCUMENT_POSITION_FOLLOWING),
       opts: Array.from(sel.options).map((o) => ({ v: o.value, t: o.textContent || "" })),
       denk: !!bar.querySelector(".okit-thinking-control"),
       warn: !!bar.querySelector(".okit-model-bar-warn:not(.is-hidden)"),
@@ -1396,7 +1412,7 @@ async function p32(c: Ctx): Promise<void> {
   const beide = [FAKE_MODEL, FAKE_MODEL_2].every((m) => zeile.opts.some((o) => o.v === m));
   const vorher = await zeilenModell(c);
   // Wechsel im Dropdown, wie ein Nutzer: Wert setzen, change melden.
-  await c.cdp.evaluate(`const sel = document.querySelector(".okit-chat-header .okit-model-bar-select"); sel.value = ${q(FAKE_MODEL_2)}; sel.dispatchEvent(new Event("change", { bubbles: true })); return { ok: true };`);
+  await c.cdp.evaluate(`const sel = document.querySelector(".okit-chat-composer-extra .okit-model-bar-select"); sel.value = ${q(FAKE_MODEL_2)}; sel.dispatchEvent(new Event("change", { bubbles: true })); return { ok: true };`);
   const geschrieben = await pollUntil<{ m: string }>(c.cdp, `
     const d = JSON.parse(await app.vault.adapter.read(app.vault.configDir + "/plugins/" + ${q(PLUGIN_ID)} + "/data.json"));
     const m = d.endpoints && d.endpoints[0] ? d.endpoints[0].model : "";
@@ -1409,9 +1425,9 @@ async function p32(c: Ctx): Promise<void> {
   let gesendet = "";
   try { gesendet = String((JSON.parse(c.fake.bodies[c.fake.bodies.length - 1] ?? "{}") as { model?: string }).model ?? ""); } catch { gesendet = ""; }
   // Zurueck auf das erste Modell, damit spaetere Punkte vom Ausgangszustand ausgehen (sie setzen die Zeile ohnehin selbst).
-  await c.cdp.evaluate(`const sel = document.querySelector(".okit-chat-header .okit-model-bar-select"); if (sel) { sel.value = ${q(FAKE_MODEL)}; sel.dispatchEvent(new Event("change", { bubbles: true })); } return { ok: true };`);
-  record(pn("P32"), zeile.label === "Chat" && beide && zeile.denk && !zeile.warn && vorher === FAKE_MODEL && geschrieben !== null && gesendet === FAKE_MODEL_2,
-    `Zeile „${zeile.label}“, Eintraege [${zeile.opts.map((o) => `${o.v === "" ? "<leer>" : o.v}=„${o.t}“`).join("; ")}] · beide Modelle da: ${String(beide)} · Denk-Steuerung in der Zeile: ${String(zeile.denk)} (Knoepfe im Kopf insgesamt ${zeile.alt}) · Warnzeichen: ${String(zeile.warn)} · Zeile vorher „${String(vorher)}“, nach dem Wechsel auf Platte: ${geschrieben ? `„${geschrieben.m}“` : "NICHT geschrieben"} · Anfrage am Server traegt model „${gesendet}“`);
+  await c.cdp.evaluate(`const sel = document.querySelector(".okit-chat-composer-extra .okit-model-bar-select"); if (sel) { sel.value = ${q(FAKE_MODEL)}; sel.dispatchEvent(new Event("change", { bubbles: true })); } return { ok: true };`);
+  record(pn("P32"), zeile.label.includes("Chat") && !zeile.sichtbarerName && zeile.zeilen === 1 && zeile.imKopf === 0 && zeile.ueberEingabe && zeile.alt === 0 && beide && zeile.denk && !zeile.warn && vorher === FAKE_MODEL && geschrieben !== null && gesendet === FAKE_MODEL_2,
+    `Name am Dropdown „${zeile.label}“, sichtbare Beschriftung ${String(zeile.sichtbarerName)}, Zeilen in der Modellzeile ${zeile.zeilen}, Modellzeile im Kopf ${zeile.imKopf}, ueber dem Eingabefeld ${String(zeile.ueberEingabe)} · Eintraege [${zeile.opts.map((o) => `${o.v === "" ? "<leer>" : o.v}=„${o.t}“`).join("; ")}] · beide Modelle da: ${String(beide)} · Denk-Steuerung in der Zeile: ${String(zeile.denk)} (Knoepfe im Kopf insgesamt ${zeile.alt}) · Warnzeichen: ${String(zeile.warn)} · Zeile vorher „${String(vorher)}“, nach dem Wechsel auf Platte: ${geschrieben ? `„${geschrieben.m}“` : "NICHT geschrieben"} · Anfrage am Server traegt model „${gesendet}“`);
 }
 
 /** P33 und P34 teilen sich einen langsamen Strom: erst die Sperre messen, dann mit Escape abbrechen. */
@@ -1422,7 +1438,7 @@ async function p33p34(c: Ctx): Promise<void> {
     const laeuft = await pollUntil<boolean>(c.cdp, `const b = document.querySelector(".okit-chat-turn.is-assistant .okit-stream-body"); return b && (b.textContent || "").length > 20 ? true : null;`, 20_000, 150).catch(() => null);
     if (!laeuft) { for (const n of ["P33", "P34"] as const) unmeasured(pn(n), "der Strom kam nicht in Gang (kein Antworttext nach 20 s)"); return; }
     const im = await c.cdp.evaluate<{ select: boolean; reload: boolean; senden: string }>(`
-      const bar = document.querySelector(".okit-chat-header .okit-model-bar");
+      const bar = document.querySelector(".okit-chat-composer-extra .okit-model-bar");
       const knoepfe = Array.from(bar.querySelectorAll("button"));
       return { select: bar.querySelector(".okit-model-bar-select").disabled === true, reload: knoepfe.length > 0 && knoepfe.some((b) => b.disabled === true), senden: document.querySelector(".okit-chat-send").textContent };
     `);
@@ -1432,7 +1448,7 @@ async function p33p34(c: Ctx): Promise<void> {
     const frei = await warteAufFertig(c);
     await sleep(500);
     const nach = await c.cdp.evaluate<{ select: boolean; aborted: string; senden: string; status: string }>(`
-      const bar = document.querySelector(".okit-chat-header .okit-model-bar");
+      const bar = document.querySelector(".okit-chat-composer-extra .okit-model-bar");
       const a = document.querySelector(".okit-chat-turn.is-assistant .okit-chat-aborted");
       return { select: bar.querySelector(".okit-model-bar-select").disabled === true, aborted: a ? a.textContent : "", senden: document.querySelector(".okit-chat-send").textContent, status: (document.querySelector(".okit-chat-status") || {}).textContent || "" };
     `);
@@ -1615,6 +1631,125 @@ async function d3(c: Ctx): Promise<void> {
     `Text ohne Backtick ${String(ohneZaun)} · Marker Block ${r.block}, Inline ${r.inline} (verlangt: beide undefined) · Rendering: ${r.html}`);
 }
 
+
+// ---------------------------------------------------------------------------------------------
+// Welle 29: Verlauf vergangener Chats (obsidian-kit 0.73.0, Option archive) am echten Adapter des Desktops
+// ---------------------------------------------------------------------------------------------
+
+const ARCHIV_ORDNER = "Settings Assistant/Chats";
+
+/** Dateien des Verlauf-Ordners: `.json` (Chats) und `.md` (Exporte); ein fehlender Ordner ist leer. */
+async function archivDateien(c: Ctx): Promise<{ json: string[]; md: string[] }> {
+  return c.cdp.evaluate<{ json: string[]; md: string[] }>(`
+    const f = ${q(ARCHIV_ORDNER)};
+    if (!(await app.vault.adapter.exists(f))) return { json: [], md: [] };
+    const l = await app.vault.adapter.list(f);
+    return { json: l.files.filter((x) => x.endsWith(".json")), md: l.files.filter((x) => x.endsWith(".md")) };
+  `);
+}
+
+/** Verlauf-Ordner vor dem Punkt leeren (Zustand aus frueheren Punkten und Laeufen darf nicht zaehlen, CORE-TEST-21) und die Aufbewahrung auf die Vorgabe stellen. */
+async function archivZuruecksetzen(c: Ctx, keep: number): Promise<void> {
+  await c.cdp.evaluate(`
+    const f = ${q(ARCHIV_ORDNER)};
+    if (await app.vault.adapter.exists(f)) await app.vault.adapter.rmdir(f, true);
+    const p = app.plugins.plugins[${q(PLUGIN_ID)}];
+    p.settings.chatKeep = ${String(keep)};
+    await p.saveSettings();
+    for (const l of app.workspace.getLeavesOfType("settings-assistant-chat")) l.view.refreshArchive();
+    return { ok: true };
+  `);
+}
+
+/** Verlauf-Dialog oeffnen (Knopf der Knopfreihe) und auf die Zeilen warten. */
+async function archivOeffnen(c: Ctx, zeilen: number): Promise<number> {
+  await c.cdp.evaluate(`document.querySelector(".okit-chat-archive").click(); return { ok: true };`);
+  const n = await pollUntil<{ n: number }>(c.cdp, `const n = document.querySelectorAll(".okit-chat-archive-row").length; return n >= ${String(zeilen)} ? { n } : null;`, 8000, 200).catch(() => null);
+  return n?.n ?? 0;
+}
+
+async function p39(c: Ctx): Promise<void> {
+  await archivZuruecksetzen(c, 50);
+  await chatVorbereiten(c);
+  const FRAGE = "Verlauf-Probe: what does maxRounds do?";
+  await chatAbsenden(c, FRAGE);
+  await warteAufFertig(c);
+  // (1) Speichern am Ende der Runde: genau eine .json, Kopf okitChat 1, Titel = die Frage, kein Schluessel in der Datei.
+  const dat = await pollUntil<{ n: number }>(c.cdp, `const f = ${q(ARCHIV_ORDNER)}; if (!(await app.vault.adapter.exists(f))) return null; const l = await app.vault.adapter.list(f); const n = l.files.filter((x) => x.endsWith(".json")).length; return n >= 1 ? { n } : null;`, 8000, 200).catch(() => null);
+  if (!dat) { unmeasured(pn("P39"), `nach der Runde liegt keine .json in „${ARCHIV_ORDNER}“ (8 s); Notices: ${await notices(c.cdp)}`); return; }
+  const datei = await c.cdp.evaluate<{ name: string; text: string }>(`
+    const l = await app.vault.adapter.list(${q(ARCHIV_ORDNER)});
+    const name = l.files.filter((x) => x.endsWith(".json"))[0];
+    return { name, text: await app.vault.adapter.read(name) };
+  `);
+  let kopf: { okitChat?: unknown; plugin?: unknown; title?: unknown; payloadType?: unknown } = {};
+  try { kopf = JSON.parse(datei.text) as typeof kopf; } catch { kopf = {}; }
+  const speichern = kopf.okitChat === 1 && kopf.plugin === PLUGIN_ID && kopf.payloadType === "okit-chat-history/1" && String(kopf.title ?? "").includes("Verlauf-Probe") && !datei.text.includes(FAKE_ENDPOINT_KEY) && !datei.text.includes("sk-");
+  // (2) Neu: frei nach der Runde, Klick legt ab (Notice), leert das Fenster, schreibt keine zweite Datei fuer dieselbe Runde.
+  const neuFrei = await c.cdp.evaluate<boolean>(`const nb = document.querySelector(".okit-chat-new"); return !!nb && !nb.disabled;`);
+  await clearNotices(c.cdp);
+  await c.cdp.evaluate(`document.querySelector(".okit-chat-new").click(); return { ok: true };`);
+  const geleert = await pollUntil<{ ok: boolean }>(c.cdp, `return document.querySelectorAll(".okit-chat-turn").length === 0 ? { ok: true } : null;`, 8000, 200).catch(() => null);
+  const notice = await notices(c.cdp);
+  const nachNeu = await archivDateien(c);
+  const neuGesperrt = await c.cdp.evaluate<boolean>(`return document.querySelector(".okit-chat-new").disabled === true;`);
+  // (3) Liste: der Knopf ist da, die Zeile traegt die Frage als Titel.
+  const knopfDa = await c.cdp.evaluate<boolean>(`const b = document.querySelector(".okit-chat-archive"); return !!b && !b.classList.contains("okit-chat-hidden") && !b.disabled;`);
+  const zeilen = knopfDa ? await archivOeffnen(c, 1) : 0;
+  const titel = await c.cdp.evaluate<string>(`const t = document.querySelector(".okit-chat-archive-row .okit-chat-archive-title"); return t ? t.textContent : "";`);
+  // (4) Export: ein Klick auf das Symbol schreibt eine .md, der Dialog bleibt offen, die Notiz erscheint nicht in der Liste.
+  await clearNotices(c.cdp);
+  await c.cdp.evaluate(`document.querySelector(".okit-chat-archive-export").click(); return { ok: true };`);
+  const exportiert = await pollUntil<{ md: number }>(c.cdp, `const l = await app.vault.adapter.list(${q(ARCHIV_ORDNER)}); const md = l.files.filter((x) => x.endsWith(".md")); return md.length >= 1 ? { md: md.length } : null;`, 8000, 200).catch(() => null);
+  const exportText = await c.cdp.evaluate<string>(`const l = await app.vault.adapter.list(${q(ARCHIV_ORDNER)}); const md = l.files.filter((x) => x.endsWith(".md"))[0]; return md ? await app.vault.adapter.read(md) : "";`);
+  const exportNotice = await notices(c.cdp);
+  const dialogOffen = await c.cdp.evaluate<boolean>(`return document.querySelectorAll(".okit-chat-archive-row").length >= 1;`);
+  // (5) Laden: ein Klick auf die Zeile schliesst den Dialog und setzt das Gespraech fort (Frage und Antwort stehen wieder da).
+  await c.cdp.evaluate(`document.querySelector(".okit-chat-archive-row .okit-chat-archive-title").click(); return { ok: true };`);
+  const geladen = await pollUntil<{ runden: number; frage: string }>(c.cdp, `
+    const turns = document.querySelectorAll(".okit-chat-turn").length;
+    const u = document.querySelector(".okit-chat-turn.is-user");
+    return turns >= 2 ? { runden: turns, frage: u ? u.textContent : "" } : null;`, 8000, 200).catch(() => null);
+  const dialogZu = await c.cdp.evaluate<boolean>(`return document.querySelectorAll(".okit-chat-archive-row").length === 0;`);
+  // (6) Loeschen: Symbol, Rueckfrage, Bestaetigen; die .json ist weg, der Export bleibt (er ist keine Chat-Datei des Verlaufs).
+  await archivOeffnen(c, 1);
+  await c.cdp.evaluate(`document.querySelector(".okit-chat-archive-delete").click(); return { ok: true };`);
+  const frage = await pollUntil<{ text: string }>(c.cdp, `const m = document.querySelector(".modal-container .modal-button-container"); return m ? { text: m.closest(".modal").textContent } : null;`, 8000, 200).catch(() => null);
+  await c.cdp.evaluate(`const bs = document.querySelectorAll(".modal-container .modal-button-container button"); bs[bs.length - 1].click(); return { ok: true };`).catch(() => undefined);
+  const nachLoeschen = await pollUntil<{ json: number; md: number }>(c.cdp, `const l = await app.vault.adapter.list(${q(ARCHIV_ORDNER)}); const json = l.files.filter((x) => x.endsWith(".json")).length; return json === 0 ? { json, md: l.files.filter((x) => x.endsWith(".md")).length } : null;`, 8000, 200).catch(() => null);
+  await schliesseDialoge(c.cdp);
+  record(pn("P39"),
+    speichern && neuFrei && geleert !== null && /past chats/i.test(notice) && nachNeu.json.length === 1 && neuGesperrt && knopfDa && zeilen === 1 && titel.includes("Verlauf-Probe") &&
+      exportiert !== null && exportText.includes("okit_chat_export") && /Saved as note/.test(exportNotice) && dialogOffen &&
+      geladen !== null && geladen.frage.includes("Verlauf-Probe") && dialogZu && frage !== null && nachLoeschen !== null && nachLoeschen.md === 1,
+    `Speichern: Kopf okitChat ${String(kopf.okitChat)} · plugin ${String(kopf.plugin)} · payloadType ${String(kopf.payloadType)} · Titel „${String(kopf.title)}“ · ohne Schluessel ${String(!datei.text.includes("sk-"))} (${speichern ? "ok" : "ROT"}) · Neu frei nach der Runde ${String(neuFrei)}, Fenster leer ${String(geleert !== null)}, Notice „${notice}“, Dateien danach ${nachNeu.json.length}, Neu danach gesperrt ${String(neuGesperrt)} · Liste: Knopf da ${String(knopfDa)}, Zeilen ${zeilen}, Titel „${titel}“ · Export: ${exportiert === null ? "keine .md" : `${exportiert.md} .md`}, Marker ${String(exportText.includes("okit_chat_export"))}, Notice „${exportNotice}“, Dialog blieb offen ${String(dialogOffen)} · Laden: ${geladen === null ? "kein Gespraech" : `${geladen.runden} Runden, Frage „${geladen.frage.slice(0, 40)}“`}, Dialog zu ${String(dialogZu)} · Loeschen: Rueckfrage ${frage === null ? "FEHLT" : "da"}, danach .json ${nachLoeschen === null ? "noch da" : nachLoeschen.json}, .md ${nachLoeschen === null ? "?" : nachLoeschen.md}`);
+}
+
+async function p40(c: Ctx): Promise<void> {
+  await archivZuruecksetzen(c, 50);
+  await chatVorbereiten(c);   // leert ein Gespraech aus einem frueheren Punkt noch mit Verlauf (bei Aufbewahrung 0 fragte Neu zurueck)
+  await archivZuruecksetzen(c, 0);
+  await chatAbsenden(c, "Aufbewahrung null: what does maxRounds do?");
+  await warteAufFertig(c);
+  const knopf = await c.cdp.evaluate<boolean>(`const b = document.querySelector(".okit-chat-archive"); return !!b && !b.classList.contains("okit-chat-hidden");`);
+  await c.cdp.evaluate(`document.querySelector(".okit-chat-new").click(); return { ok: true };`);
+  const frage = await pollUntil<{ text: string }>(c.cdp, `const m = document.querySelector(".modal-container .modal-button-container"); return m ? { text: m.closest(".modal").textContent } : null;`, 8000, 200).catch(() => null);
+  if (!frage) { unmeasured(pn("P40"), "Neu bei Aufbewahrung 0 oeffnet keine Rueckfrage (kein .modal-button-container im Dialog)"); await archivZuruecksetzen(c, 50); return; }
+  // Abbrechen: das Gespraech bleibt.
+  await c.cdp.evaluate(`document.querySelector(".modal-container .modal-button-container button").click(); return { ok: true };`);
+  await sleep(500);
+  const bleibt = await c.cdp.evaluate<number>(`return document.querySelectorAll(".okit-chat-turn").length;`);
+  // Verwerfen: leert, schreibt nichts.
+  await c.cdp.evaluate(`document.querySelector(".okit-chat-new").click(); return { ok: true };`);
+  await pollUntil<{ text: string }>(c.cdp, `const m = document.querySelector(".modal-container .modal-button-container"); return m ? { text: m.closest(".modal").textContent } : null;`, 8000, 200).catch(() => null);
+  await c.cdp.evaluate(`const bs = document.querySelectorAll(".modal-container .modal-button-container button"); bs[bs.length - 1].click(); return { ok: true };`);
+  const leer = await pollUntil<{ ok: boolean }>(c.cdp, `return document.querySelectorAll(".okit-chat-turn").length === 0 ? { ok: true } : null;`, 8000, 200).catch(() => null);
+  const dat = await archivDateien(c);
+  await archivZuruecksetzen(c, 50);
+  record(pn("P40"), !knopf && /gone for good|Discard/i.test(frage.text) && bleibt >= 2 && leer !== null && dat.json.length === 0 && dat.md.length === 0,
+    `Verlauf-Knopf sichtbar ${String(knopf)} (verlangt: nein) · Rueckfrage „${frage.text.replace(/\s+/g, " ").trim().slice(0, 120)}“ · nach Abbrechen ${bleibt} Runden · nach Verwerfen leer ${String(leer !== null)} · Dateien im Ordner ${dat.json.length} .json / ${dat.md.length} .md (verlangt: 0 / 0)`);
+}
+
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
   if (args.has("setup")) { setupVault(); console.log("\nDen Vault in der Zweitinstanz oeffnen, dann: npm run smoke:gui -- --port <PORT>"); return; }
@@ -1660,7 +1795,7 @@ async function main(): Promise<void> {
         [pn("P1"), p1], [pn("P2"), p2], [pn("P13"), p13], [pn("P7"), p7], [pn("P14"), p14],
         [pn("P3"), p3], [pn("P4"), p4], [pn("P5"), p5], [pn("P11"), p11], [pn("P6"), p6],
         [pn("P9"), p9], [pn("P10"), p10], [pn("P8"), p8p12], [pn("P15"), p15], [pn("P16"), p16], [pn("P17"), p17], [pn("P18"), p18], [pn("P19"), p19], [pn("P20"), p20], [pn("P21"), p21], [pn("P22"), p22], [pn("P23"), p23], [pn("P25"), p25], [pn("P26"), p26],
-        [pn("P32"), p32], [pn("P33"), p33p34], [pn("P35"), p35], [pn("P36"), p36], [pn("P37"), p37], [pn("P38"), p38],
+        [pn("P32"), p32], [pn("P33"), p33p34], [pn("P35"), p35], [pn("P36"), p36], [pn("P37"), p37], [pn("P38"), p38], [pn("P39"), p39], [pn("P40"), p40],
       ];
       for (const [name, fn] of reihe) {
         await schliesseDialoge(cdp);

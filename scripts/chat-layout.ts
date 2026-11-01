@@ -208,9 +208,9 @@ const MESS_JS = `
     statustext: (document.querySelector(".okit-chat-status")?.textContent || "").trim(),
     kontext: r(".sa-chat-sent"), kontextOffen: sent ? sent.open : null, kontextImLog: sent && log ? log.contains(sent) : null,
     tiefster, abstandUnten: +(innerHeight - tiefster).toFixed(1),
-    chipUndDropdownInEinerZeile: chip && dd ? Math.abs(chip.y - dd.y) < 6 : null,
+    chipUndDropdownInEinerZeile: chip && dd ? (Math.min(chip.bottom, dd.bottom) - Math.max(chip.y, dd.y)) > Math.min(chip.h, dd.h) / 2 : null,
     reihenfolge: reihe,
-    unterhalb: (() => { const c = r(".okit-chat"); if (!c) return ""; const e = document.elementFromPoint(200, Math.min(innerHeight - 2, c.bottom + 20)); const kette = []; for (let n = e; n && kette.length < 7; n = n.parentElement) kette.push(n.tagName.toLowerCase() + (n.className && typeof n.className === "string" ? "." + n.className.trim().split(/\\s+/).slice(0, 3).join(".") : "")); return kette.join(" < "); })(),
+    unterhalb: (() => { const c = r(".okit-chat"); if (!c) return ""; const y = Math.min(innerHeight - 2, c.bottom + 45); const desc = (n) => n.tagName.toLowerCase() + (typeof n.className === "string" && n.className.trim() ? "." + n.className.trim().split(/\\s+/).slice(0, 3).join(".") : ""); return "y=" + Math.round(y) + ": " + document.elementsFromPoint(200, y).slice(0, 6).map((n) => { const b = n.getBoundingClientRect(); return desc(n) + "[" + Math.round(b.top) + "-" + Math.round(b.bottom) + "]"; }).join(" < "); })(),
   };
 `;
 
