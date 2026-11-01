@@ -848,7 +848,7 @@ async function p8p12(c: Ctx): Promise<void> {
   const mitschnittSieht = requests.some((u) => u.includes("mess-probe.png"));
   await c.cdp.evaluate(`app.workspace.detachLeavesOfType("settings-assistant-chat"); await new Promise((r) => setTimeout(r, 300)); app.commands.executeCommandById(${q(`${PLUGIN_ID}:open-chat`)}); return { ok: true };`);
   const da = await pollUntil<{ ok: boolean }>(c.cdp, `return document.querySelector(".okit-chat-input") ? { ok: true } : null;`, 10_000, 250);
-  if (!da) throw new Vorbedingung("Chat-Ansicht oeffnet sich nicht (kein .okit-chat-input)");
+  if (!da) throw new Vorbedingung(`Chat-Ansicht oeffnet sich nicht (kein .okit-chat-input) — ${await chatDiagnose(c.cdp)}`);
   await clearNotices(c.cdp);
   await c.cdp.evaluate(`
     const i = document.querySelector(".okit-chat-input");
@@ -909,6 +909,30 @@ async function p8p12(c: Ctx): Promise<void> {
 
 // ---------------------------------------------------------------------------------------------
 
+/** Zustand der Chat-Ansicht fuer die Meldung, wenn sie sich nicht oeffnet (CORE-TEST-14: Aufrufstelle, Ein- und Ausgabe nennen). */
+async function chatDiagnose(cdp: Cdp): Promise<string> {
+  const d = await cdp.evaluate<Record<string, unknown>>(`
+    const leaves = app.workspace.getLeavesOfType("settings-assistant-chat");
+    const rl = app.workspace.rightSplit;
+    return {
+      leaves: leaves.length,
+      deferred: leaves.map((l) => String(l.isDeferred)),
+      viewCtor: leaves.map((l) => l.view && l.view.constructor && l.view.constructor.name),
+      rightCollapsed: rl ? rl.collapsed : null,
+      inDocument: !!document.querySelector(".okit-chat"),
+      inActive: !!activeDocument.querySelector(".okit-chat-input"),
+      docTitle: document.title,
+      modals: document.querySelectorAll(".modal-container").length + "/" + activeDocument.querySelectorAll(".modal-container").length,
+      cmd: !!app.commands.commands["settings-assistant:open-chat"],
+      cmds: Object.keys(app.commands.commands).filter((k) => k.startsWith("settings-assistant")),
+      enabled: app.plugins.enabledPlugins.has("settings-assistant"),
+      loaded: !!app.plugins.plugins["settings-assistant"],
+      ribbon: !!document.querySelector('[aria-label="Open settings chat"]'),
+    };
+  `).catch((e: unknown) => ({ fehler: String(e) }));
+  return JSON.stringify(d);
+}
+
 /** Endpunkt auf `url` stellen, Chat oeffnen, neues Gespraech, `frage` senden — ohne auf das Ende zu warten. */
 /** Endpunkt setzen, Chat oeffnen, neuen Chat beginnen — alles, was VOR dem Senden liegt (die Folge-Messung haengt ihren Beobachter dazwischen). */
 async function chatVorbereiten(c: Ctx, url: string = c.fake.url): Promise<void> {
@@ -924,7 +948,7 @@ async function chatVorbereiten(c: Ctx, url: string = c.fake.url): Promise<void> 
   if (pre.url !== url) throw new Vorbedingung(`Chat-Endpunkt laesst sich nicht aufloesen (${String(pre.url)})`);
   await c.cdp.evaluate(`app.workspace.detachLeavesOfType("settings-assistant-chat"); await new Promise((r) => setTimeout(r, 300)); app.commands.executeCommandById(${q(`${PLUGIN_ID}:open-chat`)}); return { ok: true };`);
   const da = await pollUntil<{ ok: boolean }>(c.cdp, `return document.querySelector(".okit-chat-input") ? { ok: true } : null;`, 10_000, 250);
-  if (!da) throw new Vorbedingung("Chat-Ansicht oeffnet sich nicht (kein .okit-chat-input)");
+  if (!da) throw new Vorbedingung(`Chat-Ansicht oeffnet sich nicht (kein .okit-chat-input) — ${await chatDiagnose(c.cdp)}`);
   await c.cdp.evaluate(`
     const nb = document.querySelector(".okit-chat-new");
     if (nb) nb.click();
@@ -1101,7 +1125,7 @@ async function p15(c: Ctx): Promise<void> {
   const vorher = c.fake.auth.length;
   await c.cdp.evaluate(`app.workspace.detachLeavesOfType("settings-assistant-chat"); await new Promise((r) => setTimeout(r, 300)); app.commands.executeCommandById(${q(`${PLUGIN_ID}:open-chat`)}); return { ok: true };`);
   const da = await pollUntil<{ ok: boolean }>(c.cdp, `return document.querySelector(".okit-chat-input") ? { ok: true } : null;`, 10_000, 250);
-  if (!da) throw new Vorbedingung("Chat-Ansicht oeffnet sich nicht (kein .okit-chat-input)");
+  if (!da) throw new Vorbedingung(`Chat-Ansicht oeffnet sich nicht (kein .okit-chat-input) — ${await chatDiagnose(c.cdp)}`);
   await c.cdp.evaluate(`
     const i = document.querySelector(".okit-chat-input");
     i.value = "Hello for the keychain check";
