@@ -44,8 +44,8 @@ export default class SettingsAssistantPlugin extends Plugin {
     setLang(pickLang(safeGetLanguage()));
     const raw: unknown = await this.loadData();
     this.settings = loadSettings(raw);
-    // `clampChatKeep` liegt im Kit-Modul mit `obsidian`-Import und kann deshalb nicht in `core/` stehen: ein kaputter Wert wird die Vorgabe, nie ein stilles „Verlauf aus“.
-    this.settings.chatKeep = clampChatKeep(this.settings.chatKeep);
+    // `clampChatKeep` liegt im Kit-Modul mit `obsidian`-Import und kann deshalb nicht in `core/` stehen. Ein Wert, der keine Zahl ist, wird die Vorgabe dieses Plugins (0, Verlauf aus), nicht die des Kits (50): ein kaputter Eintrag schaltet den Verlauf nie ein.
+    this.settings.chatKeep = typeof this.settings.chatKeep === "number" ? clampChatKeep(this.settings.chatKeep) : 0;
     if (typeof this.settings.chatFolder !== "string") this.settings.chatFolder = "";
     // Das frühere globale Modell ist in die Zeilen gewandert; den Altschlüssel einmal von der Platte nehmen.
     if (typeof raw === "object" && raw !== null && "localModel" in raw) await this.saveSettings();

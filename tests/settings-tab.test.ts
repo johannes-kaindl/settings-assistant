@@ -155,7 +155,7 @@ describe("SettingsAssistantSettingTab", () => {
     const rows = (el: FakeEl): FakeEl[] => el.querySelectorAll(".setting-item").map((n: FakeEl) => n.__setting);
     const byName = (el: FakeEl, name: string): FakeEl | undefined => rows(el).find((r: FakeEl) => r.nameValue === name);
 
-    it("die Zeilen stehen zwischen Chat-Modell und Schnappschüssen, mit Vorgabe-Ordner nach dem Anzeigenamen und Aufbewahrung 50", async () => {
+    it("die Zeilen stehen zwischen Chat-Modell und Schnappschüssen, mit Vorgabe-Ordner nach dem Anzeigenamen und Aufbewahrung 0 (Verlauf aus)", async () => {
       const { el } = await render(host());
       const names = rows(el).map((r: FakeEl) => r.nameValue);
       const folder = names.indexOf("Folder for past chats");
@@ -163,7 +163,7 @@ describe("SettingsAssistantSettingTab", () => {
       expect(names.indexOf("Chats to keep")).toBe(folder + 1);
       expect(folder).toBeLessThan(names.indexOf("Retention"));
       expect(byName(el, "Folder for past chats")!.descValue).toContain("Settings Assistant/Chats");
-      expect(byName(el, "Chats to keep")!.components[0]._value).toBe(50);
+      expect(byName(el, "Chats to keep")!.components[0]._value).toBe(0);
     });
 
     it("eine geänderte Aufbewahrung wird gespeichert und den offenen Chat-Fenstern gemeldet; ein geänderter Ordner wird gespeichert, ohne sie zu melden", async () => {

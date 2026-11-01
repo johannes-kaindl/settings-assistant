@@ -11,7 +11,7 @@ export interface SettingsAssistantSettings {
   request: RequestSettings;
   /** Ordner der vergangenen Chats im Vault (leer = `<Plugin-Name>/Chats`); der Speicher prüft ihn. */
   chatFolder: string;
-  /** Wie viele vergangene Chats bleiben (0 bis 500; 0 = kein Verlauf). Vorgabe 50 wie `DEFAULT_CHAT_KEEP` des Kits (`tests/settings.test.ts` hält beide gleich). */
+  /** Wie viele vergangene Chats bleiben (0 bis 500; 0 = kein Verlauf). Vorgabe 0 = Verlauf aus (Entscheidung Johannes 2026-11-01); das Kit schlüge 50 vor (`DEFAULT_CHAT_KEEP`), `tests/settings.test.ts` hält den Unterschied fest. */
   chatKeep: number;
 }
 
@@ -21,7 +21,7 @@ export const DEFAULT_SETTINGS: SettingsAssistantSettings = {
   endpointChoice: {},
   request: DEFAULT_REQUEST_SETTINGS,
   chatFolder: "",
-  chatKeep: 50,
+  chatKeep: 0,
 };
 
 const isObj = (v: unknown): v is Record<string, unknown> => v !== null && typeof v === "object" && !Array.isArray(v);

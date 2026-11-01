@@ -4,9 +4,11 @@ import { DEFAULT_GFS_POLICY } from "../src/vendor/kit/rotation";
 import { DEFAULT_CHAT_KEEP } from "../src/vendor/kit-obsidian/chat-archive-settings";
 
 describe("loadSettings", () => {
-  it("Verlauf: Ordner leer (= Vorgabe) und Aufbewahrung wie die Vorgabe des Kits; gespeicherte Werte bleiben", () => {
+  it("Verlauf: Ordner leer (= Vorgabe) und Aufbewahrung 0 (Verlauf aus, Entscheidung Johannes 2026-11-01, nicht die Kit-Vorgabe); gespeicherte Werte bleiben", () => {
     expect(DEFAULT_SETTINGS.chatFolder).toBe("");
-    expect(DEFAULT_SETTINGS.chatKeep).toBe(DEFAULT_CHAT_KEEP);
+    expect(DEFAULT_SETTINGS.chatKeep).toBe(0);
+    expect(DEFAULT_SETTINGS.chatKeep).not.toBe(DEFAULT_CHAT_KEEP);
+    expect(loadSettings(undefined).chatKeep).toBe(0);
     const s = loadSettings({ chatFolder: "Eigene/Chats", chatKeep: 7 });
     expect(s.chatFolder).toBe("Eigene/Chats");
     expect(s.chatKeep).toBe(7);
