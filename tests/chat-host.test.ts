@@ -126,8 +126,10 @@ describe("chat-host", () => {
     it("steht einzeilig im Einschub über dem Textfeld, nicht im Kopf; der Name der Aufgabe steht nur im aria-label, und die Denk-Steuerung ist in ihr (kein zweiter Knopf)", async () => {
       const s = await openWith();
       expect(all(s.view, ".okit-chat-header .okit-model-bar").length).toBe(0);
-      const extra = all(s.view, ".okit-chat-composer-extra")[0];
-      expect(extra.querySelectorAll(".okit-model-bar").length).toBe(1);
+      // Seit Kit 0.74.0 hebt das Fenster die Modellzeile aus dem Einschub in den Composer (kompakter Composer, Mobil-Falte).
+      const composer = all(s.view, ".okit-chat-composer")[0];
+      expect(composer.querySelectorAll(".okit-model-bar").length).toBe(1);
+      expect(all(s.view, ".okit-chat-composer-extra")[0].querySelectorAll(".okit-model-bar").length).toBe(0);
       // Ohne `showLabel` gibt es keine sichtbare Beschriftung mehr (Kit 0.73.0); „Chat“ lebt im Namen des Dropdowns.
       expect(all(s.view, ".okit-model-bar-label").length).toBe(0);
       expect(all(s.view, ".okit-model-bar-select")[0].getAttribute("aria-label")).toContain("Chat");
@@ -136,11 +138,25 @@ describe("chat-host", () => {
       expect(all(s.view, ".sa-chat-head").length).toBe(0);
     });
 
-    it("steht über den Chips: Modellzeile, dann Plugin-Auswahl, dann das Textfeld", async () => {
+    it("steht als DIREKTES Kind des Composers: der Einschub trägt nur die Chips (kein Wrapper, den das Kit nicht hebt)", async () => {
       const s = await openWith();
-      const kinder = [...all(s.view, ".okit-chat-composer-extra")[0].children].map((c: any) => c.className as string);
-      expect(kinder[0]).toContain("sa-chat-bar");
-      expect(kinder[1]).toContain("sa-chat-chips");
+      const kinder = [...all(s.view, ".okit-chat-composer")[0].children].map((c: any) => c.className as string);
+      expect(kinder.filter((k) => k.includes("okit-model-bar")).length).toBe(1);
+      const einschub = [...all(s.view, ".okit-chat-composer-extra")[0].children].map((c: any) => c.className as string);
+      expect(einschub.length).toBe(1);
+      expect(einschub[0]).toContain("sa-chat-chips");
+      expect(all(s.view, ".sa-chat-bar").length).toBe(0);
+    });
+
+    it("steht nach mehrmaligem Zeichnen des Composers (reload, reload mit models) genau einmal im Composer, nie im Einschub", async () => {
+      const s = await openWith();
+      await s.view.reload();
+      await s.view.reload({ models: true });
+      await tick();
+      expect(all(s.view, ".okit-model-bar").length).toBe(1);
+      expect(all(s.view, ".okit-chat-composer")[0].querySelectorAll(".okit-model-bar").length).toBe(1);
+      expect(all(s.view, ".okit-chat-composer-extra")[0].querySelectorAll(".okit-model-bar").length).toBe(0);
+      expect(all(s.view, ".sa-chat-chips").length).toBe(1);
     });
 
     it("ein Wechsel im Dropdown ruft setModel der Verbindung", async () => {

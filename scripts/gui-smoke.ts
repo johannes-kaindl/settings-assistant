@@ -1397,10 +1397,10 @@ async function zeilenModell(c: Ctx): Promise<string | null> {
 
 async function p32(c: Ctx): Promise<void> {
   await chatVorbereiten(c);
-  const ok = await pollUntil<{ ok: boolean }>(c.cdp, `const s = document.querySelector(".okit-chat-composer-extra .okit-model-bar-select"); return s && s.options.length >= 3 ? { ok: true } : null;`, 10_000, 250).catch(() => null);
+  const ok = await pollUntil<{ ok: boolean }>(c.cdp, `const s = document.querySelector(".okit-chat-composer .okit-model-bar-select"); return s && s.options.length >= 3 ? { ok: true } : null;`, 10_000, 250).catch(() => null);
   if (!ok) { unmeasured(pn("P32"), "die Modellzeile im Kopf des Chats zeigt nach 10 s keine Modell-Liste (weniger als drei Eintraege: Automatisch und zwei Modelle)"); return; }
   const zeile = await c.cdp.evaluate<{ label: string; sichtbarerName: boolean; zeilen: number; imKopf: number; ueberEingabe: boolean; opts: Array<{ v: string; t: string }>; denk: boolean; warn: boolean; alt: number }>(`
-    const bar = document.querySelector(".okit-chat-composer-extra .okit-model-bar");
+    const bar = document.querySelector(".okit-chat-composer .okit-model-bar");
     const sel = bar.querySelector(".okit-model-bar-select");
     return {
       label: sel.getAttribute("aria-label") || "",
@@ -1417,7 +1417,7 @@ async function p32(c: Ctx): Promise<void> {
   const beide = [FAKE_MODEL, FAKE_MODEL_2].every((m) => zeile.opts.some((o) => o.v === m));
   const vorher = await zeilenModell(c);
   // Wechsel im Dropdown, wie ein Nutzer: Wert setzen, change melden.
-  await c.cdp.evaluate(`const sel = document.querySelector(".okit-chat-composer-extra .okit-model-bar-select"); sel.value = ${q(FAKE_MODEL_2)}; sel.dispatchEvent(new Event("change", { bubbles: true })); return { ok: true };`);
+  await c.cdp.evaluate(`const sel = document.querySelector(".okit-chat-composer .okit-model-bar-select"); sel.value = ${q(FAKE_MODEL_2)}; sel.dispatchEvent(new Event("change", { bubbles: true })); return { ok: true };`);
   const geschrieben = await pollUntil<{ m: string }>(c.cdp, `
     const d = JSON.parse(await app.vault.adapter.read(app.vault.configDir + "/plugins/" + ${q(PLUGIN_ID)} + "/data.json"));
     const m = d.endpoints && d.endpoints[0] ? d.endpoints[0].model : "";
@@ -1430,7 +1430,7 @@ async function p32(c: Ctx): Promise<void> {
   let gesendet = "";
   try { gesendet = String((JSON.parse(c.fake.bodies[c.fake.bodies.length - 1] ?? "{}") as { model?: string }).model ?? ""); } catch { gesendet = ""; }
   // Zurueck auf das erste Modell, damit spaetere Punkte vom Ausgangszustand ausgehen (sie setzen die Zeile ohnehin selbst).
-  await c.cdp.evaluate(`const sel = document.querySelector(".okit-chat-composer-extra .okit-model-bar-select"); if (sel) { sel.value = ${q(FAKE_MODEL)}; sel.dispatchEvent(new Event("change", { bubbles: true })); } return { ok: true };`);
+  await c.cdp.evaluate(`const sel = document.querySelector(".okit-chat-composer .okit-model-bar-select"); if (sel) { sel.value = ${q(FAKE_MODEL)}; sel.dispatchEvent(new Event("change", { bubbles: true })); } return { ok: true };`);
   record(pn("P32"), zeile.label.includes("Chat") && !zeile.sichtbarerName && zeile.zeilen === 1 && zeile.imKopf === 0 && zeile.ueberEingabe && zeile.alt === 0 && beide && zeile.denk && !zeile.warn && vorher === FAKE_MODEL && geschrieben !== null && gesendet === FAKE_MODEL_2,
     `Name am Dropdown „${zeile.label}“, sichtbare Beschriftung ${String(zeile.sichtbarerName)}, Zeilen in der Modellzeile ${zeile.zeilen}, Modellzeile im Kopf ${zeile.imKopf}, ueber dem Eingabefeld ${String(zeile.ueberEingabe)} · Eintraege [${zeile.opts.map((o) => `${o.v === "" ? "<leer>" : o.v}=„${o.t}“`).join("; ")}] · beide Modelle da: ${String(beide)} · Denk-Steuerung in der Zeile: ${String(zeile.denk)} (Knoepfe im Kopf insgesamt ${zeile.alt}) · Warnzeichen: ${String(zeile.warn)} · Zeile vorher „${String(vorher)}“, nach dem Wechsel auf Platte: ${geschrieben ? `„${geschrieben.m}“` : "NICHT geschrieben"} · Anfrage am Server traegt model „${gesendet}“`);
 }
@@ -1443,7 +1443,7 @@ async function p33p34(c: Ctx): Promise<void> {
     const laeuft = await pollUntil<boolean>(c.cdp, `const b = document.querySelector(".okit-chat-turn.is-assistant .okit-stream-body"); return b && (b.textContent || "").length > 20 ? true : null;`, 20_000, 150).catch(() => null);
     if (!laeuft) { for (const n of ["P33", "P34"] as const) unmeasured(pn(n), "der Strom kam nicht in Gang (kein Antworttext nach 20 s)"); return; }
     const im = await c.cdp.evaluate<{ select: boolean; reload: boolean; senden: string }>(`
-      const bar = document.querySelector(".okit-chat-composer-extra .okit-model-bar");
+      const bar = document.querySelector(".okit-chat-composer .okit-model-bar");
       const knoepfe = Array.from(bar.querySelectorAll("button"));
       return { select: bar.querySelector(".okit-model-bar-select").disabled === true, reload: knoepfe.length > 0 && knoepfe.some((b) => b.disabled === true), senden: document.querySelector(".okit-chat-send").textContent };
     `);
@@ -1453,7 +1453,7 @@ async function p33p34(c: Ctx): Promise<void> {
     const frei = await warteAufFertig(c);
     await sleep(500);
     const nach = await c.cdp.evaluate<{ select: boolean; aborted: string; senden: string; status: string }>(`
-      const bar = document.querySelector(".okit-chat-composer-extra .okit-model-bar");
+      const bar = document.querySelector(".okit-chat-composer .okit-model-bar");
       const a = document.querySelector(".okit-chat-turn.is-assistant .okit-chat-aborted");
       return { select: bar.querySelector(".okit-model-bar-select").disabled === true, aborted: a ? a.textContent : "", senden: document.querySelector(".okit-chat-send").textContent, status: (document.querySelector(".okit-chat-status") || {}).textContent || "" };
     `);

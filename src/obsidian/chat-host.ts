@@ -49,7 +49,6 @@ export class SettingsChatHost extends ItemView {
   private win: ChatWindow | null = null;
   private bar: ModelBar | null = null;
   private chipsEl: HTMLElement | null = null;
-  private barEl: HTMLElement | null = null;
 
   constructor(leaf: WorkspaceLeaf, private readonly deps: ChatHostDeps) { super(leaf); }
 
@@ -151,17 +150,17 @@ export class SettingsChatHost extends ItemView {
     });
   }
 
-  /** Der Einschub über dem Textfeld (seit Kit 0.73.0): oben die einzeilige Modellzeile, darunter die Chips der Plugin-Auswahl. Das Kit ruft ihn beim Bau und bei `refresh()`
-   *  und danach die Rückgabe, bevor es neu zeichnet: die Zeile gibt sich dort frei. Die Chips zeichnen sich allein neu (`drawChips`), die Zeile bleibt dabei stehen. */
+  /** Der Einschub über dem Textfeld: das Kit ruft ihn beim Bau und bei `refresh()` und danach die Rückgabe, bevor es neu zeichnet. Die Modellzeile baut er als DIREKTES Kind des Einschubs
+   *  (Kit 0.74.0): das Fenster hebt sie von dort in den Composer, ein Wrapper darum bliebe stehen und der kompakte Composer griffe nicht. Im Einschub bleiben nur die Chips der Plugin-Auswahl;
+   *  sie zeichnen sich allein neu (`drawChips`), die Zeile bleibt dabei stehen. */
   private drawComposer(el: HTMLElement): () => void {
-    this.barEl = el.createDiv({ cls: "sa-chat-bar" });
     this.chipsEl = el.createDiv({ cls: "sa-chat-chips", attr: { "aria-label": t("chat.chips") } });
     this.fillChips();
     if (!this.endpointOk) return () => {};
     const d = this.deps;
     const bar = buildModelBar({
       app: d.app,
-      containerEl: this.barEl,
+      containerEl: el,
       llm: d.llm,
       label: t("chat.modelLabel"),
       strings: { lang: getLang() },

@@ -200,9 +200,9 @@ const MESS_JS = `
   const lb = log ? log.getBoundingClientRect() : null;
   const sent = document.querySelector(".sa-chat-sent");
   const chip = r(".sa-chip"), dd = r(".sa-chip-add");
-  const teile = { modellzeile: r(".okit-model-bar"), chips: r(".sa-chat-chips"), eingabe: r(".okit-chat-input"), knopfreihe: r(".okit-chat-buttons"), statuszeile: r(".okit-chat-statusbar") };
+  const teile = { modellzeile: r(".okit-model-bar"), chips: r(".sa-chat-chips"), eingabe: r(".okit-chat-input"), knopfreihe: r(".okit-chat-buttons-start"), statuszeile: r(".okit-chat-statusbar") };
   const unten = Object.values(teile).filter(Boolean).map((b) => b.bottom);
-  const namen = [["Modellzeile", ".okit-model-bar"], ["Chips", ".sa-chat-chips"], ["Eingabe", ".okit-chat-input"], ["Knopfreihe", ".okit-chat-buttons"], ["Statuszeile", ".okit-chat-statusbar"], ["Kontext", ".sa-chat-sent"], ["Verlauf", ".okit-chat-log"]];
+  const namen = [["Modellzeile", ".okit-model-bar"], ["Chips", ".sa-chat-chips"], ["Eingabe", ".okit-chat-input"], ["Knopfreihe", ".okit-chat-buttons-start"], ["Statuszeile", ".okit-chat-statusbar"], ["Kontext", ".sa-chat-sent"], ["Verlauf", ".okit-chat-log"]];
   const reihe = namen.map(([n, s]) => [n, r(s)]).filter(([, b]) => b).sort((a, b) => a[1].y - b[1].y).map(([n, b]) => n + "@" + Math.round(b.y));
   const tiefster = unten.length ? Math.max(...unten) : 0;
   return {
