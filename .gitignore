@@ -7,3 +7,4 @@ data.json
 .gui-smoke.mjs
 .superpowers/
 .shots.mjs
+.chat-layout.mjs
