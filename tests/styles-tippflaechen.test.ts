@@ -38,6 +38,10 @@ describe("Chips der Plugin-Auswahl: eine Zeile (Daumen-Test, Welle 29)", () => {
     expect(regel(".sa-chat-chips")).toContain("overflow-x: auto");
     expect(regel(".sa-chip-label")).toContain("text-overflow: ellipsis");
     expect(regel(".sa-chip-add")).toContain("flex: 0 0 auto");
+    // Abstand zur Modellzeile darüber und gemeinsame Mittellinie (Abnahme 2026-11-01: das Dropdown berührte die Modellzeile).
+    expect(regel(".sa-chat-chips")).toContain("margin-top: var(--size-4-2)");
+    expect(regel(".sa-chip")).toContain("align-self: center");
+    expect(regel(".is-mobile .sa-chip")).toContain("min-height: var(--input-height)");
   });
 
   it("im Hauptbereich des Handys lässt der Chat Platz für Obsidians Navigationsleiste, in einer Seitenleiste nicht", () => {

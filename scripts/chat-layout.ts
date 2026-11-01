@@ -183,6 +183,9 @@ interface Messung {
   kontext: Box | null; kontextOffen: boolean | null; kontextImLog: boolean | null;
   tiefster: number; abstandUnten: number;
   chipUndDropdownInEinerZeile: boolean | null;
+  /** Abstand der Mittellinien von Chip und Dropdown in px (Soll unter 1) und Abstand der Chip-Zeile zur Modellzeile darueber (Soll ab 4). */
+  mittellinienAbstand: number | null;
+  abstandZurModellzeile: number | null;
   reihenfolge: string[];
   unterhalb: string;
   navbar: string;
@@ -210,6 +213,8 @@ const MESS_JS = `
     kontext: r(".sa-chat-sent"), kontextOffen: sent ? sent.open : null, kontextImLog: sent && log ? log.contains(sent) : null,
     tiefster, abstandUnten: +(innerHeight - tiefster).toFixed(1),
     chipUndDropdownInEinerZeile: chip && dd ? (Math.min(chip.bottom, dd.bottom) - Math.max(chip.y, dd.y)) > Math.min(chip.h, dd.h) / 2 : null,
+    mittellinienAbstand: chip && dd ? +Math.abs((chip.y + chip.h / 2) - (dd.y + dd.h / 2)).toFixed(1) : null,
+    abstandZurModellzeile: teile.modellzeile && (chip || dd) ? +(Math.min(chip ? chip.y : 1e9, dd ? dd.y : 1e9) - teile.modellzeile.bottom).toFixed(1) : null,
     reihenfolge: reihe,
     navbar: (() => { const n = document.querySelector(".mobile-navbar"); const b = n ? n.getBoundingClientRect() : null; const h = document.querySelector(".sa-chat-host"); const cs = h ? getComputedStyle(h) : null; const bs = getComputedStyle(document.body); return (b ? "Navbar " + Math.round(b.top) + "-" + Math.round(b.bottom) + " (" + (n.className || "") + ")" : "keine Navbar") + " · --mobile-navbar-height " + bs.getPropertyValue("--mobile-navbar-height").trim() + " · --navbar-height " + bs.getPropertyValue("--navbar-height").trim() + " · safe-bottom " + bs.getPropertyValue("--safe-area-inset-bottom").trim() + " · Host padding-bottom " + (cs ? cs.paddingBottom : "?") + " · Host-Box " + (h ? Math.round(h.getBoundingClientRect().top) + "-" + Math.round(h.getBoundingClientRect().bottom) : "?"); })(),
     unterhalb: (() => { const c = r(".okit-chat"); if (!c) return ""; const y = Math.min(innerHeight - 2, c.bottom + 45); const desc = (n) => n.tagName.toLowerCase() + (typeof n.className === "string" && n.className.trim() ? "." + n.className.trim().split(/\\s+/).slice(0, 3).join(".") : ""); return "y=" + Math.round(y) + ": " + document.elementsFromPoint(200, y).slice(0, 6).map((n) => { const b = n.getBoundingClientRect(); return desc(n) + "[" + Math.round(b.top) + "-" + Math.round(b.bottom) + "]"; }).join(" < "); })(),
@@ -227,7 +232,7 @@ function kurz(m: Messung): string {
     `${m.zustand}: Viewport ${m.viewport.join("×")} mobil ${String(m.isMobile)}`,
     `  (a) Abstand Knopfreihe/Eingabe zum unteren Rand ${m.abstandUnten} px (tiefstes Chat-Element bis ${m.tiefster}; Chat ${b(m.chat)})`,
     `  (b) Antwortbereich ${m.log?.h ?? "—"} px = ${m.logZeilen} Zeilen à ${m.zeilenhoehe} px`,
-    `  (c) Chip ${b(m.chip)} · Dropdown ${b(m.dropdown)} · in einer Zeile ${String(m.chipUndDropdownInEinerZeile)}`,
+    `  (c) Chip ${b(m.chip)} · Dropdown ${b(m.dropdown)} · in einer Zeile ${String(m.chipUndDropdownInEinerZeile)} · Mittellinien ${m.mittellinienAbstand ?? "—"} px auseinander (Soll < 1) · Abstand zur Modellzeile ${m.abstandZurModellzeile ?? "—"} px (Soll >= 4)`,
     `  (d) Kontext offen ${String(m.kontextOffen)} · im Verlauf ${String(m.kontextImLog)} · ${b(m.kontext)}`,
     `  Statuszeile „${m.statustext}“ ${b(m.statuszeile)} · Modellzeile ${b(m.modellzeile)} · Eingabe ${b(m.eingabe)} · Knopfreihe ${b(m.knopfreihe)}`,
     `  Reihenfolge von oben: ${m.reihenfolge.join(" > ")}`,
