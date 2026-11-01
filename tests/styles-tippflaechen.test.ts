@@ -38,8 +38,10 @@ describe("Chips der Plugin-Auswahl: eine Zeile (Daumen-Test, Welle 29)", () => {
     expect(regel(".sa-chat-chips")).toContain("overflow-x: auto");
     expect(regel(".sa-chip-label")).toContain("text-overflow: ellipsis");
     expect(regel(".sa-chip-add")).toContain("flex: 0 0 auto");
-    // Abstand zur Modellzeile darüber und gemeinsame Mittellinie (Abnahme 2026-11-01: das Dropdown berührte die Modellzeile).
-    expect(regel(".sa-chat-chips")).toContain("margin-top: var(--size-4-2)");
+    // Abstand zur Modellzeile darüber (Abnahme 2026-11-01: das Dropdown berührte die Modellzeile) und gemeinsame Mittellinie. Seit Kit 0.74.0 sind Modellzeile und Einschub Geschwister im Composer:
+    // den Abstand von 8 px liefert dessen `gap`, ein eigener Außenabstand der Chips machte 16 px (gemessen 390 × 844: 17,4 statt 17,8 Zeilen).
+    expect(regel(".sa-chat-chips")).not.toContain("margin-top");
+    expect(regel(".okit-chat-composer")).toContain("gap: var(--size-4-2)");
     expect(regel(".sa-chip")).toContain("align-self: center");
     expect(regel(".is-mobile .sa-chip")).toContain("min-height: var(--input-height)");
   });
