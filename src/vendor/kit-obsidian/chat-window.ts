@@ -1,4 +1,4 @@
-// vendored from obsidian-kit@0.73.0, src/obsidian/chat-window.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
+// vendored from obsidian-kit@0.74.0, src/obsidian/chat-window.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
 /**
  * Chat-Fenster (UI-STANDARD §8, Baustein 12): Verlauf, Eingabe, Ablauf, Abbruch, Fehlerzeile und Leerzustand eines Fach-Chats.
  *
@@ -152,7 +152,7 @@ export interface ChatWindowOptions {
    *  des Kopfs (`refresh()`, `refreshHeader()`) und bei `destroy()`, genau einmal je Zeichnung; ein Einschub ohne Rückgabe verhält sich wie bisher. Dort gehört
    *  hin, was der Kopf angelegt hat und `empty()` nicht abräumt. Die Modellzeile steht seit 0.73.0 nicht mehr hier, sondern im `composer`. */
   header?: (el: HTMLElement) => void | (() => void);
-  /** Bereich über dem Textfeld (Modellzeile seit 0.73.0, Kontext-Panel, Chips). Wie `header` mit Abmelde-Rückgabe (die Modellzeile: `return () => { bar.destroy(); }`); neu zeichnen: `refresh()` oder `refreshComposer()`.
+  /** Bereich über dem Textfeld (Modellzeile seit 0.73.0, Kontext-Panel, Chips). Wie `header` mit Abmelde-Rückgabe (die Modellzeile: `return () => { bar.destroy(); }`); neu zeichnen: `refresh()` oder `refreshComposer()`. Seit 0.74.0 hebt das Fenster ein direktes Kind mit der Klasse `okit-model-bar` aus dem Einschub in den Composer (Layout, siehe `CHAT_WINDOW_CSS`).
    *  Im Leerzustand (`empty.when()`) ist der ganze `composer` samt Einschub ausgeblendet. */
   composer?: (el: HTMLElement) => void | (() => void);
   /** Bereich unter jeder Antwort (Quellen, Profil-Blöcke); wird nach dem Ende der Antwort und nach jedem `setMeta` neu gezeichnet. */
@@ -320,9 +320,9 @@ export function buildChatWindow(parent: HTMLElement, opts: ChatWindowOptions): C
     attr: { rows: "1", "aria-label": strings.inputLabel, placeholder: strings.placeholder },
   });
   inputEl.value = "";
-  const buttonsEl = composerEl.createDiv({ cls: "okit-chat-buttons" });
-  // Links die Gruppe für Neu (und in 0.73.0 Teil 2b der Verlauf), rechts Senden: Neu steht bewusst am anderen Ende als Senden (Fehlklick).
-  const buttonsStartEl = buttonsEl.createDiv({ cls: "okit-chat-buttons-start" });
+  // Neu und Verlauf links, Senden rechts: seit 0.74.0 direkte Kinder des Composers (ohne Wrapper `okit-chat-buttons`), damit ein Grid sie ohne `display: contents` (Store-Warnung) umordnen kann.
+  // Neu steht bewusst am anderen Ende als Senden (Fehlklick), auch in der kompakten Anordnung.
+  const buttonsStartEl = composerEl.createDiv({ cls: "okit-chat-buttons-start" });
   const newBtn = buttonsStartEl.createEl("button", { cls: "clickable-icon okit-chat-new", attr: { type: "button", "aria-label": strings.newChat } });
   setIcon(newBtn, "square-pen");
   // Der Verlauf-Knopf nur mit `archive` (ohne sie bleibt das DOM wie in 2a), hinter Neu; sichtbar nur, solange der Verlauf an ist.
@@ -330,7 +330,7 @@ export function buildChatWindow(parent: HTMLElement, opts: ChatWindowOptions): C
     ? null
     : buttonsStartEl.createEl("button", { cls: "clickable-icon okit-chat-archive", attr: { type: "button", "aria-label": strings.archive } });
   if (archiveBtn !== null) setIcon(archiveBtn, "history");
-  const sendBtn = buttonsEl.createEl("button", { cls: "okit-chat-send mod-cta", attr: { type: "button" } });
+  const sendBtn = composerEl.createEl("button", { cls: "okit-chat-send mod-cta", attr: { type: "button" } });
   const statusbarEl = rootEl.createDiv({ cls: "okit-chat-statusbar" });
   const statusEl = statusbarEl.createDiv({ cls: "okit-chat-status", attr: { "aria-live": "polite" } });
   const timerEl = statusbarEl.createDiv({ cls: "okit-chat-timer", attr: { "aria-hidden": "true" } });
@@ -341,6 +341,10 @@ export function buildChatWindow(parent: HTMLElement, opts: ChatWindowOptions): C
     if (text === statusText) return;
     statusText = text;
     statusEl.setText(text);
+    // Nur für den kompakten Composer (CHAT_WINDOW_CSS, Mobil, geringe Höhe): die Zustandszeile erscheint dort nur, solange die Antwort läuft (denkt, schreibt); fertig, gestoppt und Fehler stehen im Gespräch selbst.
+    const live = text === strings.statusThinking || text === strings.statusWriting;
+    statusbarEl.toggleClass("is-live", live);
+    composerEl.toggleClass("is-live", live); // die Modellzeile weicht der Zustandszeile (ohne :has(), das der Store-Lint verbietet)
   };
 
   /** `inputPosition()` kann sich mit einer Einstellung ändern: `refresh()` setzt die Eingabe dann um (im echten DOM verschiebt `insertBefore`). */
@@ -611,12 +615,27 @@ export function buildChatWindow(parent: HTMLElement, opts: ChatWindowOptions): C
     headerEl.empty();
     if (opts.header !== undefined) guarded(() => { const r = opts.header?.(headerEl); if (typeof r === "function") headerOff = r; });
   };
+  // Die Modellzeile (direktes Kind des Einschubs mit der Klasse `okit-model-bar`) wandert seit 0.74.0 in den Composer, damit das Grid sie neben Neu und Verlauf legen kann (CSS allein kann sie nicht
+  // aus dem Einschub lösen, `display: contents` ist eine Store-Warnung). Darüber bleibt sie die erste Zeile über dem Einschub; ein Einschub ohne Modellzeile ändert sich nicht.
+  let liftedBars: HTMLElement[] = [];
+  const liftModelBar = (): void => {
+    for (const c of Array.from(composerExtraEl.children) as HTMLElement[]) {
+      if (!c.classList.contains("okit-model-bar")) continue;
+      c.remove();
+      composerEl.appendChild(c);
+      liftedBars.push(c);
+    }
+  };
   const drawComposer = (): void => {
     const off = composerOff;
     composerOff = null;
     callOff(off);
+    // Was die Abmeldung nicht entfernt hat, räumt das Fenster ab: früher leerte `empty()` des Einschubs auch die Modellzeile.
+    for (const b of liftedBars) b.remove();
+    liftedBars = [];
     composerExtraEl.empty();
     if (opts.composer !== undefined) guarded(() => { const r = opts.composer?.(composerExtraEl); if (typeof r === "function") composerOff = r; });
+    liftModelBar();
   };
 
   const drawSlots = (): void => {
@@ -1108,7 +1127,10 @@ export function buildChatWindow(parent: HTMLElement, opts: ChatWindowOptions): C
 }
 
 /** Gehört in die `styles.css` des Consumers (zusammen mit `STREAM_AREA_CSS`) — das Kit injiziert kein CSS.
- *  Nur Theme-Variablen, keine harten Farben oder Größen (UI-STANDARD). */
+ *  Nur Theme-Variablen, keine harten Farben oder Größen (UI-STANDARD).
+ *
+ *  Der kompakte Composer (0.74.0) ist ein Höhen-`@media` am Ende: bei geringer Fensterhöhe, etwa mit offener Handy-Tastatur, liegt die Modellzeile in der unteren Zeile neben Neu und Verlauf
+ *  (Senden neben der Eingabe) und die Zustandszeile ersetzt auf Mobil, solange die Antwort läuft, die Modellzeile (kein Platz reserviert). Darüber bleibt alles pixelgleich außer den Tippflächen auf Mobil. */
 export const CHAT_WINDOW_CSS = `
 .okit-chat { display: flex; flex-direction: column; min-height: 0; height: 100%; gap: var(--size-4-2); }
 .okit-chat-header:empty { display: none; }
@@ -1139,10 +1161,15 @@ export const CHAT_WINDOW_CSS = `
 .okit-chat-error { color: var(--text-error); }
 .okit-chat-aborted, .okit-chat-hint { color: var(--text-muted); }
 .okit-chat-after:empty { display: none; }
-.okit-chat-composer { flex: 0 0 auto; display: flex; flex-direction: column; gap: var(--size-4-2); }
+.okit-chat-composer { flex: 0 0 auto; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: var(--size-4-2); }
+/* Standardanordnung (0.74.0, ein Grid statt der Spalte): jede Zeile des Composers ist eine Gitterzeile über die ganze Breite, Neu/Verlauf links und Senden rechts teilen sich die letzte. Die Reihenfolge steht in order, nicht im DOM. */
+.okit-chat-composer > * { grid-column: 1 / -1; min-width: 0; order: 1; }
+.okit-chat-composer > .okit-model-bar { order: -1; }
+.okit-chat-composer-extra { order: 0; }
+.okit-chat-buttons-start { grid-column: 1; order: 2; }
+.okit-chat-send { grid-column: 3; order: 3; }
 .okit-chat-composer-extra:empty { display: none; }
 .okit-chat-input { width: 100%; resize: none; max-height: 12em; overflow-y: auto; }
-.okit-chat-buttons { display: flex; align-items: center; justify-content: space-between; gap: var(--size-4-2); }
 .okit-chat-buttons-start { display: flex; align-items: center; gap: var(--size-2-2); }
 .okit-chat-new svg { width: var(--icon-s); height: var(--icon-s); }
 .okit-chat-new:disabled { opacity: 0.4; cursor: not-allowed; }
@@ -1158,6 +1185,32 @@ export const CHAT_WINDOW_CSS = `
 .okit-chat-empty-text { margin: 0; color: var(--text-muted); }
 .okit-chat-hint { color: var(--text-faint); font-size: var(--font-ui-small); }
 .okit-chat--input-top { flex-direction: column; }
+/* Tippfläche auf Mobil: Neu und Verlauf sind 44 px groß (Obsidian setzt ein Symbolknopf dort sonst nur auf Symbolgröße plus Rand, gemessen 30 × 26). Das Symbol bleibt klein und mittig, nur der Knopf wächst. */
+.is-mobile button.clickable-icon.okit-chat-new, .is-mobile button.clickable-icon.okit-chat-archive { min-width: calc(var(--size-4-10) + var(--size-4-1)); min-height: calc(var(--size-4-10) + var(--size-4-1)); display: flex; align-items: center; justify-content: center; }
+/* Kompakter Composer bei geringer Höhe. Die Höhe fragt ein @media ab (die Wurzel hat keine feste Höhe, ein Container mit Höhenabfrage bräuchte eine), die Breite ein Container auf der Wurzel; alles in einem Block, damit Neukopieren genügt. */
+@media (max-height: 640px) {
+  .okit-chat { container-type: inline-size; container-name: okit-chat; }
+  .is-mobile .okit-chat:not(.okit-chat--input-top) { position: relative; }
+  /* Die Modellzeile in die untere Zeile falten, aber nur, wo sie dort Platz hat (ab 20 em Breite, auch auf einem schmalen Handy mit Denkstufe; darunter, etwa in einer schmalen Seitenleiste, bleibt die Standardanordnung).
+     Zeile eins: Eingabe und Senden. Zeile zwei: Neu, Verlauf und die Modellzeile. Senden steht neben der Eingabe, damit es nie neben Neu liegt (Fehlklick) und die Modellzeile mit Denkstufe neben Neu und Verlauf (je 44 px auf Mobil) Platz hat. */
+  @container okit-chat (min-width: 20em) {
+    .okit-chat-composer > .okit-chat-input { grid-column: 1 / 3; order: 1; }
+    .okit-chat-composer > .okit-chat-send { grid-column: 3; order: 2; align-self: end; }
+    .okit-chat-composer > .okit-chat-buttons-start { grid-column: 1; order: 3; }
+    .okit-chat-composer > .okit-model-bar { grid-column: 2 / -1; order: 4; width: auto; }
+    .okit-chat-composer > .okit-model-bar .okit-model-bar-row { flex-wrap: nowrap; }
+    .okit-chat-composer > .okit-model-bar .okit-model-bar-select { min-width: 4em; }
+    /* Das Symbol vor der Denkstufe fällt in der gefalteten Zeile weg (es zeigt den Zustand nur ein zweites Mal), damit der Modellname lesbar bleibt. */
+    .okit-chat-composer > .okit-model-bar .okit-thinking-icon { display: none; }
+    /* Auf Mobil reserviert die Zustandszeile hier keinen Platz mehr: sie ersetzt, solange die Antwort läuft, die Modellzeile (die Zeile ist dann gesperrt) an derselben Stelle der unteren Zeile, ohne Höhensprung
+       und ohne ein anderes Element zu überdecken. Fertig, gestoppt und Fehler stehen im Gespräch selbst (Zeile, Hinweis), die Zustandszeile fehlt dann. Die Höhe der unteren Zeile ist die Tippfläche (44 px). */
+    .is-mobile .okit-chat:not(.okit-chat--input-top) .okit-chat-statusbar {
+      position: absolute; inset-inline-end: 0; bottom: 0; height: calc(var(--size-4-10) + var(--size-4-1)); gap: var(--size-4-2); align-items: center; pointer-events: none;
+    }
+    .is-mobile .okit-chat:not(.okit-chat--input-top) .okit-chat-statusbar:not(.is-live) { display: none; }
+    .is-mobile .okit-chat:not(.okit-chat--input-top) .okit-chat-composer.is-live > .okit-model-bar { visibility: hidden; }
+  }
+}
 /* Ans Ende UND mit der Wurzelklasse davor: die Regeln oben setzen display auf flex, und bei gleicher Spezifität gewönne die spätere. Im Fake-DOM der Tests
    unsichtbar, im echten Renderer blieb der Verlauf unter dem Leerzustand stehen (Pilot, 2026-10-23). */
 .okit-chat .okit-chat-hidden { display: none; }

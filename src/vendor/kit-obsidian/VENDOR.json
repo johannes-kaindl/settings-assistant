@@ -1,6 +1,6 @@
 {
   "source": "obsidian-kit",
-  "version": "0.73.0",
-  "sha": "e82f442",
+  "version": "0.74.0",
+  "sha": "fcc2ac0",
   "vendored": "clipboard.ts, endpoint-list.ts, endpoint-secrets.ts, secrets.ts, model-picker.ts, settings_walker.ts, folder-suggest.ts, stream-area.ts, endpoint-source.ts, request-section.ts, request-session.ts, thinking-control.ts, collapsible.ts, chat-client.ts, chat-transport.ts, shortcuts-bridge.ts, clock.ts, help-setting.ts, version-list.ts, llm-connection.ts, llm-connection-strings.ts, backend-probe.ts, endpoint-plumbing.ts, embedding-connection.ts, endpoint-status-text.ts, plugin-api.ts, anthropic-transport.ts, chat-window.ts, chat-window-strings.ts, model-bar.ts, model-bar-strings.ts, stable-writer.ts, dom-guard.ts, chat-archive-dialog.ts, chat-archive.ts, chat-archive-strings.ts, run-exclusive.ts, confirm.ts, chat-archive-settings.ts, chat-archive-css.ts"
 }

@@ -1,4 +1,4 @@
-// vendored from obsidian-kit@0.73.0, src/obsidian/model-bar.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
+// vendored from obsidian-kit@0.74.0, src/obsidian/model-bar.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
 /**
  * Modellzeile (UI-STANDARD § 8, neu in 0.67.0): eine Zeile, in der man sieht, welches Modell eine Aufgabe benutzt, und es wechselt — Dropdown mit den Modellen
  * des aktiven Endpunkts, „Anderer Endpunkt …“, Neu-laden-Knopf und optional die Denk-Steuerung. Läuft eigenständig in jeder Seitenleiste und im
@@ -185,7 +185,10 @@ export function buildModelBar(opts: ModelBarOptions): ModelBar {
     if (otherEndpoint() !== null) select.createEl("option", { text: st.otherEndpoint, attr: { value: OTHER_ENDPOINT } });
     select.value = current;
     const hint = list === null ? "" : !list.reachable ? st.hintUnreachable : list.models.length === 0 ? st.hintNoList : "";
-    if (hint !== "") select.setAttribute("title", hint); else select.removeAttribute("title");
+    // Der Tooltip trägt den Hinweis, sonst seit 0.74.0 den vollen Namen des gewählten Modells: im kompakten Composer ist das Dropdown schmal und kürzt den Namen mit Auslassung.
+    const shown = entries(current).find((e) => e.value === current)?.label ?? "";
+    const tip = hint !== "" ? hint : shown;
+    if (tip !== "") select.setAttribute("title", tip); else select.removeAttribute("title");
     warnEl.toggleClass("is-hidden", hint === "");
     if (hint !== "") { warnEl.setAttribute("aria-label", hint); warnEl.setAttribute("title", hint); } else { warnEl.removeAttribute("aria-label"); warnEl.removeAttribute("title"); }
     applyDisabled();
@@ -270,6 +273,8 @@ export const MODEL_BAR_CSS = `
 .okit-model-bar-warn.is-hidden { display: none; }
 .okit-model-bar-warn svg { width: var(--icon-xs); height: var(--icon-xs); }
 .okit-model-bar-refresh { flex: 0 0 auto; }
+/* Tippfläche auf Mobil (44 px, das Symbol bleibt klein): gemessen 30 × 26 ohne diese Regel. */
+.is-mobile button.clickable-icon.okit-model-bar-refresh { min-width: calc(var(--size-4-10) + var(--size-4-1)); min-height: calc(var(--size-4-10) + var(--size-4-1)); display: inline-flex; align-items: center; justify-content: center; }
 .okit-model-bar-refresh:disabled { opacity: 0.4; cursor: not-allowed; }
 .okit-model-bar-refresh svg { width: var(--icon-xs); height: var(--icon-xs); }
 .okit-model-bar-refresh.is-loading svg { animation: okit-model-bar-spin 1s linear infinite; }
