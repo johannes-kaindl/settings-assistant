@@ -59,8 +59,6 @@ export default class SettingsAssistantPlugin extends Plugin {
       // „Am Limit ohne Text“ bleibt ein Fehler (nicht ein leerer Antwortblock).
       truncated: "error",
       lang: () => getLang(),
-      // Der Chat zeigt die Stufenwahl, wenn die Einstellung an ist.
-      levelPicker: true,
       // Claude als Endpunkt des Managers (`provider: "anthropic"`): ohne den Opt-in fragt die Verbindung ihn nie danach. Die Chat-Sendung selbst
       // ist transportneutral (`llm.complete`), `anthropic-transport` und `anthropic-wire` sind vendort.
       transports: { anthropic: true },
@@ -124,7 +122,8 @@ export default class SettingsAssistantPlugin extends Plugin {
         current: () => thinkingFor(this.settings.request, CHAT_MODE),
         onLevel: () => onLevelFor(this.settings.request, CHAT_MODE),
         setLevel: (l) => this.setChatThinking(l),
-        levelPicker: () => this.settings.request.levelPickerInChat,
+        // Die Modellzeile zeigt die Stufen seit Kit 0.73.0 immer als Auswahl; die Einstellung „Stufenwahl im Chat“ (`levelPickerInChat`) hat dort keine Wirkung mehr. Der Kit-Vertrag verlangt die Funktion trotzdem.
+        levelPicker: () => false,
         strings: {
           // „aus nicht möglich“ (Gemma 4 auf LM Studio, Claude) kommt als Beschriftung samt Tooltip aus dem Kit; `button` wird dann nicht gerufen.
           button: (level) => level !== "off" ? t("chat.think.on", t(`request.level.${level}`)) : t("chat.think.off"),
