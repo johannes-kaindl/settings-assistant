@@ -4,6 +4,25 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+
+- **Past chats.** Every conversation is now filed as one `.json` file in a vault folder (default `Settings Assistant/Chats`) at the end of each round, and a history button next to **New chat** opens the list: search by title, open a chat to continue it (it writes back into its own file), **Save as note** (a Markdown copy beside it, never read back) and **Delete** (final, with a confirmation). The file holds what the chat window shows, including the **Sent context** (the settings values that were sent to the model); withheld keys stay out, as in the window. Two new rows under **Settings → Settings Assistant → Past chats**: **Folder for past chats** (empty means the default) and **Chats to keep** (0 to 500, default 50; 0 turns the history off, and lowering it deletes the surplus at the next save). New commands **Start new chat** and **Open past chats…** (only while the chat is open). Chats were kept in memory only until now (obsidian-kit 0.73.0, code-kit 0.40.0).
+- **On a phone the chat opens as a tab in the main area** instead of the right drawer. In the drawer Obsidian's own tab selector and margin took 155 px under the buttons (measured in Obsidian's mobile emulation, 390 × 844 and 390 × 508); in the main area the chat ends just above Obsidian's floating navigation bar, and the plugin leaves room for it. A chat that is already open stays where it is. Not yet tried on a device.
+
+### Changed
+
+- **The model row is one line above the input** (model, a hint when the model is not listed, thinking level, reload), and the heading row "Chat + model" and the separate thinking row at the top are gone. The word "Chat" is no longer shown; the dropdown still announces it (obsidian-kit 0.73.0).
+- **The thinking level is a dropdown with the levels of the chosen model** (an icon in front), no longer a button that toggles. Claude models offer low to max as far as the model has them, local families off, low, medium, high, a model without a recognised family on LM Studio or Open WebUI the generic list, Haiku 4.5 and Claude over Open WebUI no thinking element. "Very high" and "max" say that answers get long and cost more. The settings section **Request** lists the same six levels ("very high" and "max" are new).
+- **A stored thinking level "off" now sends the model's own default when the model is Claude** (more thinking, more time and cost per answer) until you lower the level; a stored "max" on a model without it falls back to the next lower level. For Opus 4.6, Sonnet 4.6 and Opus 4.5 the plugin no longer sends `temperature`, `top_p` and `top_k`, on any backend (code-kit 0.39.0).
+- **"New" is an icon** (square with a pen, tooltip "New chat") next to Send instead of a text button, and it is locked while the conversation is empty and while an answer runs. With the history on, it files the conversation, clears the window and says "Chat saved to past chats" without asking; with the history off (Chats to keep 0), it asks before it discards.
+- **Plugin chips and "Add a plugin…" always stand in one line.** Long plugin names are cut with an ellipsis, and many chips scroll sideways instead of wrapping.
+- The shared library moved from obsidian-kit 0.72.0 to 0.73.0 and from code-kit 0.38.0 to 0.40.0 (`anthropic-wire` now comes from code-kit). Nothing else of the skipped releases reaches this plugin: 0.37.6 changes the live indexer, 0.38.0 changes line-ending detection and the comment of the link guard, neither is used here.
+
+### Tested
+
+- The GUI smoke now has 40 points (P39 history on the real adapter: file written without a key, New files and clears, list, open, export, delete; P40 history off). It no longer clicks the locked New icon blindly: it sends a message first and checks the result of the click.
+- `scripts/chat-layout.ts` measures the thumb criteria of the chat in a 390 × 844 and a 390 × 508 (iOS keyboard) emulation, light and dark.
+
 ## [0.9.2] — 2026-10-26
 
 ### Changed
