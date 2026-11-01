@@ -1407,7 +1407,7 @@ async function p32(c: Ctx): Promise<void> {
       sichtbarerName: !!bar.querySelector(".okit-model-bar-label"),
       zeilen: bar.querySelectorAll(".okit-model-bar-row").length,
       imKopf: document.querySelectorAll(".okit-chat-header .okit-model-bar").length,
-      ueberEingabe: !!(bar.compareDocumentPosition(document.querySelector(".okit-chat-input")) & Node.DOCUMENT_POSITION_FOLLOWING),
+      ueberEingabe: bar.getBoundingClientRect().bottom <= document.querySelector(".okit-chat-input").getBoundingClientRect().top + 1,
       opts: Array.from(sel.options).map((o) => ({ v: o.value, t: o.textContent || "" })),
       denk: !!bar.querySelector(".okit-thinking-control"),
       warn: !!bar.querySelector(".okit-model-bar-warn:not(.is-hidden)"),
