@@ -1,8 +1,17 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_SETTINGS, loadSettings } from "../src/core/settings";
 import { DEFAULT_GFS_POLICY } from "../src/vendor/kit/rotation";
+import { DEFAULT_CHAT_KEEP } from "../src/vendor/kit-obsidian/chat-archive-settings";
 
 describe("loadSettings", () => {
+  it("Verlauf: Ordner leer (= Vorgabe) und Aufbewahrung wie die Vorgabe des Kits; gespeicherte Werte bleiben", () => {
+    expect(DEFAULT_SETTINGS.chatFolder).toBe("");
+    expect(DEFAULT_SETTINGS.chatKeep).toBe(DEFAULT_CHAT_KEEP);
+    const s = loadSettings({ chatFolder: "Eigene/Chats", chatKeep: 7 });
+    expect(s.chatFolder).toBe("Eigene/Chats");
+    expect(s.chatKeep).toBe(7);
+  });
+
   it("undefined und Nicht-Objekte ergeben die Defaults", () => {
     expect(loadSettings(undefined)).toEqual(DEFAULT_SETTINGS);
     expect(loadSettings(null)).toEqual(DEFAULT_SETTINGS);

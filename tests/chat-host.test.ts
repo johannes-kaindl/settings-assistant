@@ -21,7 +21,7 @@ const broken = `${F}settings-profile\n{oops sk-DETAIL-LEAK\n${F}`;
 
 type Complete = (req: { messages: Array<{ role: string; content: unknown }> }, h: ChatSendHandlers) => Promise<ChatSendResult>;
 
-function setup(opts: { endpoint?: boolean; answer?: string; complete?: Complete; state?: ChatState; readSettings?: ChatHostDeps["readSettings"] } = {}) {
+function setup(opts: { endpoint?: boolean; answer?: string; complete?: Complete; state?: ChatState; readSettings?: ChatHostDeps["readSettings"]; keep?: number } = {}) {
   const flag = { ok: opts.endpoint ?? true };
   const complete = vi.fn<Complete>(opts.complete ?? (async (_req, h) => { h.onToken("hi"); return { ok: true, content: opts.answer ?? "plain answer" }; }));
   const models = vi.fn(async () => ({ models: ["m1", "m2"], reachable: true }));
@@ -29,10 +29,12 @@ function setup(opts: { endpoint?: boolean; answer?: string; complete?: Complete;
   const llm = { complete, models, setModel, modelInUse: () => "m1", source: () => ({ family: null, model: "m1", sentModel: "m1" }) };
   const service = { plan: vi.fn(async () => []), applyInteractive: vi.fn(async () => ({ cancelled: true as const })) };
   const state = opts.state ?? newChatState();
+  // Der Speicher des Verlaufs: im Fake-DOM zählt nur, ob er an ist (`keep` > 0) und dass der Wirt ihn ans Fenster reicht; Speichern, Liste und Dialog prüft der Kit-Pilot am echten Adapter.
+  const archive = { enabled: () => (opts.keep ?? 50) > 0, save: vi.fn(async () => ({ name: "x.json" })), list: vi.fn(async () => ({ entries: [], unreadable: 0 })), load: vi.fn(async () => null), remove: vi.fn(async () => false), exportNote: vi.fn(async () => null) };
   const deps: ChatHostDeps = {
     app: { plugins: { plugins: {} } } as never,
     llm: llm as never,
-    state, service, installed: () => installed,
+    state, archive: archive as never, service, installed: () => installed,
     readSettings: opts.readSettings ?? (async () => JSON.stringify({ apiKey: "sk-SECRET-VALUE", maxRounds: 5 })),
     describeEndpoint: () => ({ endpoint: "http://x", model: "m1" }),
     resolveEndpoint: async () => flag.ok,
@@ -45,7 +47,7 @@ function setup(opts: { endpoint?: boolean; answer?: string; complete?: Complete;
     domGuard: false,
   };
   const view = new SettingsChatHost(new WorkspaceLeaf() as never, deps);
-  return { view, deps, state, service, flag, complete, llm };
+  return { view, deps, state, service, flag, complete, llm, archive };
 }
 type Setup = ReturnType<typeof setup>;
 const el = (v: SettingsChatHost) => v.contentEl as any;
@@ -121,14 +123,24 @@ describe("chat-host", () => {
   });
 
   describe("Modellzeile", () => {
-    it("steht im Kopf des Fensters, mit dem Namen der Aufgabe, und die Denk-Steuerung ist in ihr (kein zweiter Knopf)", async () => {
+    it("steht einzeilig im Einschub über dem Textfeld, nicht im Kopf; der Name der Aufgabe steht nur im aria-label, und die Denk-Steuerung ist in ihr (kein zweiter Knopf)", async () => {
       const s = await openWith();
-      const header = all(s.view, ".okit-chat-header")[0];
-      expect(header.querySelectorAll(".okit-model-bar").length).toBe(1);
-      expect(header.querySelector(".okit-model-bar-label").textContent).toBe("Chat");
+      expect(all(s.view, ".okit-chat-header .okit-model-bar").length).toBe(0);
+      const extra = all(s.view, ".okit-chat-composer-extra")[0];
+      expect(extra.querySelectorAll(".okit-model-bar").length).toBe(1);
+      // Ohne `showLabel` gibt es keine sichtbare Beschriftung mehr (Kit 0.73.0); „Chat“ lebt im Namen des Dropdowns.
+      expect(all(s.view, ".okit-model-bar-label").length).toBe(0);
+      expect(all(s.view, ".okit-model-bar-select")[0].getAttribute("aria-label")).toContain("Chat");
       expect(all(s.view, ".okit-thinking-control").length).toBe(1);
       expect(all(s.view, ".okit-model-bar")[0].querySelectorAll(".okit-thinking-control").length).toBe(1);
       expect(all(s.view, ".sa-chat-head").length).toBe(0);
+    });
+
+    it("steht über den Chips: Modellzeile, dann Plugin-Auswahl, dann das Textfeld", async () => {
+      const s = await openWith();
+      const kinder = [...all(s.view, ".okit-chat-composer-extra")[0].children].map((c: any) => c.className as string);
+      expect(kinder[0]).toContain("sa-chat-bar");
+      expect(kinder[1]).toContain("sa-chat-chips");
     });
 
     it("ein Wechsel im Dropdown ruft setModel der Verbindung", async () => {
@@ -154,16 +166,20 @@ describe("chat-host", () => {
     });
 
     it("reload bei unverändertem Endpunkt-Zustand zeichnet nur die Zeile neu, der Entwurf bleibt", async () => {
-      let label = "Thinking: off";
+      let stufe: "off" | "low" = "off";
       const fresh = setup();
-      (fresh.deps.thinking as any).strings.button = () => label;
+      (fresh.deps.thinking as any).current = () => stufe;
+      // Modell ohne erkannte Familie auf LM Studio: die generische Liste (aus, niedrig, mittel, hoch) steht im Dropdown.
+      (fresh.deps.thinking as any).backend = () => "lmstudio";
       await fresh.view.onOpen();
       const input = all(fresh.view, ".okit-chat-input")[0];
       input.value = "halber Entwurf";
-      expect(text(fresh.view)).toContain("Thinking: off");
-      label = "Thinking: low";
+      // Das Fake-DOM kennt keine Tag-Selektoren: das Dropdown ist das zweite Kind nach dem Symbol, sein Wert steht in der Komponente.
+      const wahl = (): string => all(fresh.view, ".okit-thinking-control")[0].children[1].__component.getValue();
+      expect(wahl()).toBe("off");
+      stufe = "low";
       await fresh.view.reload();
-      expect(text(fresh.view)).toContain("Thinking: low");
+      expect(wahl()).toBe("low");
       expect(all(fresh.view, ".okit-chat-input")[0]).toBe(input);
       expect(input.value).toBe("halber Entwurf");
     });

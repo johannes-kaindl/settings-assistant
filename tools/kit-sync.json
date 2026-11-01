@@ -1,10 +1,10 @@
 {
   "sources": {
     "obsidian-kit": {
-      "ref": "0.72.0"
+      "ref": "0.73.0"
     },
     "code-kit": {
-      "ref": "0.38.0"
+      "ref": "0.40.0"
     }
   },
   "targets": [
@@ -52,7 +52,11 @@
         "model-context",
         "local-stamp",
         "chat-history",
-        "stream-blocks"
+        "stream-blocks",
+        "anthropic-wire",
+        "chat-archive",
+        "filename-template",
+        "rel-path"
       ]
     },
     {
@@ -63,7 +67,6 @@
         "endpoint-source",
         "endpoint-secret-hook",
         "plugin-id",
-        "anthropic-wire",
         "override-guard",
         "tool-provider"
       ],
@@ -119,7 +122,14 @@
         "model-bar",
         "model-bar-strings",
         "stable-writer",
-        "dom-guard"
+        "dom-guard",
+        "chat-archive-dialog",
+        "chat-archive",
+        "chat-archive-strings",
+        "run-exclusive",
+        "confirm",
+        "chat-archive-settings",
+        "chat-archive-css"
       ],
       "rewrite": [
         [

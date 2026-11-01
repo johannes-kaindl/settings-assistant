@@ -1,7 +1,9 @@
 import { Component, MarkdownRenderer, Notice, Plugin, getLanguage, normalizePath, type WorkspaceLeaf } from "obsidian";
 import "./i18n/strings";
 import { getLang, pickLang, setLang, t } from "./vendor/kit/i18n";
-import { thinkingOffTexts } from "./vendor/kit-obsidian/thinking-control";
+import { thinkingLevelTexts, thinkingOffTexts } from "./vendor/kit-obsidian/thinking-control";
+import { createChatArchive, type ChatArchive } from "./vendor/kit-obsidian/chat-archive";
+import { clampChatKeep } from "./vendor/kit-obsidian/chat-archive-settings";
 import type { EndpointConfig } from "./vendor/kit/endpoint_config";
 import { onLevelFor, thinkingFor, withThinkingLevel, type RequestSettings, type ThinkingLevel } from "./vendor/kit/sampling-profiles";
 import { createLlmConnection, type LlmConnection } from "./vendor/kit-obsidian/llm-connection";
@@ -35,11 +37,16 @@ export default class SettingsAssistantPlugin extends Plugin {
   /** Verlauf und Plugin-Auswahl des Chats: nur im Speicher, überleben das Schließen und Öffnen der Ansicht. */
   private readonly chatState = newChatState();
   private readonly markdownHost = new Component();
+  /** Der Verlauf vergangener Chats: eine `.json` je Chat im Vault-Ordner der Einstellung `chatFolder` (Getter, damit eine Änderung ohne Neuaufbau wirkt). */
+  private archive!: ChatArchive;
 
   async onload(): Promise<void> {
     setLang(pickLang(safeGetLanguage()));
     const raw: unknown = await this.loadData();
     this.settings = loadSettings(raw);
+    // `clampChatKeep` liegt im Kit-Modul mit `obsidian`-Import und kann deshalb nicht in `core/` stehen: ein kaputter Wert wird die Vorgabe, nie ein stilles „Verlauf aus“.
+    this.settings.chatKeep = clampChatKeep(this.settings.chatKeep);
+    if (typeof this.settings.chatFolder !== "string") this.settings.chatFolder = "";
     // Das frühere globale Modell ist in die Zeilen gewandert; den Altschlüssel einmal von der Platte nehmen.
     if (typeof raw === "object" && raw !== null && "localModel" in raw) await this.saveSettings();
     this.llm = createLlmConnection({
@@ -65,6 +72,16 @@ export default class SettingsAssistantPlugin extends Plugin {
         return this.saveSettings().then(() => this.refreshChatViews({ models: patch.request === undefined }));
       },
     });
+    this.archive = createChatArchive({
+      adapter: this.app.vault.adapter,
+      folder: () => this.settings.chatFolder,
+      defaultFolder: `${this.manifest.name}/Chats`,
+      keep: () => this.settings.chatKeep,
+      plugin: this.manifest.id,
+      configDir: this.app.vault.configDir,
+      normalizePath,
+      onError: (message) => { new Notice(message); },
+    });
     this.applyService = new ApplyService(this.app, () => this.settings);
     this.api = createSettingsAssistantApi({ app: this.app, service: this.applyService });
     this.registerMarkdownCodeBlockProcessor("settings-profile", (src, el, ctx) =>
@@ -74,6 +91,8 @@ export default class SettingsAssistantPlugin extends Plugin {
       settings: this.settings,
       llm: this.llm,
       saveSettings: () => this.saveSettings(),
+      // Die Aufbewahrung bestimmt, ob der Verlauf-Knopf des Chat-Fensters da ist: die offenen Fenster zeichnen nach.
+      onChatKeepChanged: () => { for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE_SA_CHAT)) if (leaf.view instanceof SettingsChatHost) leaf.view.refreshArchive(); },
       restore: (dir) => this.applyService.restoreInteractive(dir),
     });
     this.addSettingTab(this.settingTab);
@@ -89,6 +108,7 @@ export default class SettingsAssistantPlugin extends Plugin {
       app: this.app,
       llm: this.llm,
       state: this.chatState,
+      archive: this.archive,
       service: this.applyService,
       installed: () => installedPlugins(this.app),
       readSettings: (id) => readConfig(this.app, targetPath({ kind: "plugin", id }, this.app.vault.configDir)),
@@ -111,10 +131,34 @@ export default class SettingsAssistantPlugin extends Plugin {
           offNotPossible: thinkingOffTexts(getLang()),
           level: (l) => t(`request.level.${l}`),
           pickerLabel: t("request.thinkingLevel"),
+          // Namen des Dropdowns (Stufe, Standard des Modells, Kostenhinweis bei xhigh/max) und der gesperrte Eintrag kommen aus dem Kit.
+          name: thinkingLevelTexts(getLang()).name,
+          costNote: thinkingLevelTexts(getLang()).costNote,
+          lockedLevel: thinkingLevelTexts(getLang()).lockedLevel,
         },
       },
       now: () => new Date(),
     }));
+    this.addCommand({
+      id: "new-chat",
+      name: t("cmd.newChat"),
+      checkCallback: (checking) => {
+        const view = this.chatView();
+        if (view === null) return false;
+        if (!checking) view.newChat();
+        return true;
+      },
+    });
+    this.addCommand({
+      id: "open-past-chats",
+      name: t("cmd.pastChats"),
+      checkCallback: (checking) => {
+        const view = this.chatView();
+        if (view === null) return false;
+        if (!checking) view.openArchive();
+        return true;
+      },
+    });
     this.addCommand({ id: "open-chat", name: t("cmd.chat"), callback: () => { void this.openChat(); } });
     this.addRibbonIcon("sliders-horizontal", t("cmd.chat"), () => { void this.openChat(); });
 
@@ -126,6 +170,12 @@ export default class SettingsAssistantPlugin extends Plugin {
   /** Alle offenen Chat-Ansichten neu auflösen (Endpunkt, Modell oder Denkstufe geändert); `models`: auch die Modell-Liste neu laden. */
   async refreshChatViews(opts: { models?: boolean } = {}): Promise<void> {
     await refreshChatViews(this.app.workspace.getLeavesOfType(VIEW_TYPE_SA_CHAT), opts);
+  }
+
+  /** Die offene Chat-Ansicht (die erste), sonst `null`: die Befehle „Start new chat“ und „Open past chats…“ gibt es nur, solange sie offen ist. */
+  private chatView(): SettingsChatHost | null {
+    const leaf = this.app.workspace.getLeavesOfType(VIEW_TYPE_SA_CHAT)[0];
+    return leaf?.view instanceof SettingsChatHost ? leaf.view : null;
   }
 
   private async openChat(): Promise<void> {

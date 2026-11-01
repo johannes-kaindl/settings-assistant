@@ -8,7 +8,7 @@ import { createLlmConnection, type LlmConnection } from "../src/vendor/kit-obsid
 import { applyLlmPatch, toLlmSettings } from "../src/core/llm-settings";
 import type { SettingsAssistantSettings } from "../src/core/settings";
 
-const PLUGIN = { manifest: { id: "settings-assistant" } } as never;
+const PLUGIN = { manifest: { id: "settings-assistant", name: "Settings Assistant" } } as never;
 type FakeEl = ReturnType<typeof makeFakeEl>;
 
 function fakeApp(files: Record<string, string> = {}, withSecrets = false) {
@@ -149,6 +149,47 @@ describe("SettingsAssistantSettingTab", () => {
     expect(empty[0].textContent).toBe("No snapshots yet");
     expect(el.querySelectorAll(".sa-snapshots")).toHaveLength(1);
     expect(el.querySelectorAll(".okit-vlist")).toHaveLength(0);
+  });
+
+  describe("Vergangene Chats", () => {
+    const rows = (el: FakeEl): FakeEl[] => el.querySelectorAll(".setting-item").map((n: FakeEl) => n.__setting);
+    const byName = (el: FakeEl, name: string): FakeEl | undefined => rows(el).find((r: FakeEl) => r.nameValue === name);
+
+    it("die Zeilen stehen zwischen Chat-Modell und Schnappschüssen, mit Vorgabe-Ordner nach dem Anzeigenamen und Aufbewahrung 50", async () => {
+      const { el } = await render(host());
+      const names = rows(el).map((r: FakeEl) => r.nameValue);
+      const folder = names.indexOf("Folder for past chats");
+      expect(folder).toBeGreaterThan(-1);
+      expect(names.indexOf("Chats to keep")).toBe(folder + 1);
+      expect(folder).toBeLessThan(names.indexOf("Retention"));
+      expect(byName(el, "Folder for past chats")!.descValue).toContain("Settings Assistant/Chats");
+      expect(byName(el, "Chats to keep")!.components[0]._value).toBe(50);
+    });
+
+    it("eine geänderte Aufbewahrung wird gespeichert und den offenen Chat-Fenstern gemeldet; ein geänderter Ordner wird gespeichert, ohne sie zu melden", async () => {
+      const onChatKeepChanged = vi.fn();
+      const h = host({ onChatKeepChanged });
+      const { el } = await render(h);
+      byName(el, "Chats to keep")!.components[0].onChangeCB?.(10);
+      await flush();
+      expect(h.settings.chatKeep).toBe(10);
+      expect(h.saveSettings).toHaveBeenCalledTimes(1);
+      expect(onChatKeepChanged).toHaveBeenCalledTimes(1);
+      byName(el, "Folder for past chats")!.components[0].onChangeCB?.("Eigene/Chats");
+      await flush();
+      expect(h.settings.chatFolder).toBe("Eigene/Chats");
+      expect(h.saveSettings).toHaveBeenCalledTimes(2);
+      expect(onChatKeepChanged).toHaveBeenCalledTimes(1);
+    });
+
+    it("ein ungültiger Ordner (Konfigurationsordner) wird nicht gespeichert", async () => {
+      const h = host();
+      const { el } = await render(h);
+      byName(el, "Folder for past chats")!.components[0].onChangeCB?.(".cfg/plugins");
+      await flush();
+      expect(h.settings.chatFolder).toBe("");
+      expect(h.saveSettings).not.toHaveBeenCalled();
+    });
   });
 
   it("vier Zahlenfelder für die Aufbewahrung speichern gültige Werte und verwerfen ungültige", async () => {

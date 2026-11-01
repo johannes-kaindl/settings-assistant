@@ -6,6 +6,7 @@ import { getLang, t } from "../vendor/kit/i18n";
 import { EMPTY_CHAT, type ChatHistory, type ChatModelMessage } from "../vendor/kit/chat-history";
 import { buildChatWindow, type ChatSendHandlers, type ChatSendResult, type ChatWindow } from "../vendor/kit-obsidian/chat-window";
 import { buildModelBar, type ModelBar } from "../vendor/kit-obsidian/model-bar";
+import type { ChatArchive } from "../vendor/kit-obsidian/chat-archive";
 import type { LlmConnection } from "../vendor/kit-obsidian/llm-connection";
 import type { ThinkingControlOptions } from "../vendor/kit-obsidian/thinking-control";
 import type { PluginInfo } from "../core/chat-context";
@@ -28,6 +29,8 @@ export interface ChatHostDeps extends ChatAnswerDeps {
   app: App;
   llm: Pick<LlmConnection, "complete" | "models" | "setModel" | "modelInUse" | "source">;
   state: ChatState;
+  /** Der Verlauf vergangener Chats (Kit-Speicher, `payloadType okit-chat-history/1`). */
+  archive: ChatArchive;
   installed(): PluginInfo[];
   readSettings(id: string): Promise<string | null>;
   describeEndpoint(): { endpoint: string; model: string } | Promise<{ endpoint: string; model: string }>;
@@ -46,6 +49,7 @@ export class SettingsChatHost extends ItemView {
   private win: ChatWindow | null = null;
   private bar: ModelBar | null = null;
   private chipsEl: HTMLElement | null = null;
+  private barEl: HTMLElement | null = null;
 
   constructor(leaf: WorkspaceLeaf, private readonly deps: ChatHostDeps) { super(leaf); }
 
@@ -67,6 +71,15 @@ export class SettingsChatHost extends ItemView {
 
   /** Sendet eine Frage wie die Eingabe (Test und Befehle); ohne Text die Eingabe. */
   async submit(text?: string): Promise<void> { await this.win?.submit(text); }
+
+  /** Befehl „Start new chat“: `clear()` leert ohne Rückfrage; ist der Verlauf an, sichert das Fenster das Gespräch vorher (Kit 0.73.0). */
+  newChat(): void { this.win?.clear(); }
+
+  /** Befehl „Open past chats…“. Ohne Verlauf, im Lauf und im Leerzustand tut es nichts. */
+  openArchive(): void { this.win?.openArchive(); }
+
+  /** Nach einer geänderten Aufbewahrung folgt der Verlauf-Knopf des Fensters. */
+  refreshArchive(): void { this.win?.refresh(); }
 
   private async resolve(): Promise<boolean> {
     try { this.endpointOk = await this.deps.resolveEndpoint(); } catch { this.endpointOk = false; }
@@ -97,8 +110,8 @@ export class SettingsChatHost extends ItemView {
       // Aktive Elemente, Quellen und gefährliche Link-Ziele kappt der `domGuard` des Kit-Fensters (seit Kit 0.70.0, `obsidian://` nur mit seiner Option).
       render: (el, markdown) => d.renderMarkdown(el, markdown),
       answerTransform: stripProfileBlocks,
-      header: (el) => this.drawHeader(el),
-      composer: (el) => { this.drawComposer(el); },
+      // Seit Kit 0.73.0 steht die Modellzeile im Einschub über dem Textfeld (einzeilig), nicht mehr im Kopf.
+      composer: (el) => this.drawComposer(el),
       afterAnswer: (el, entry) => { drawAnswerExtras(el, entry, d); },
       empty: {
         when: () => !this.endpointOk,
@@ -107,6 +120,7 @@ export class SettingsChatHost extends ItemView {
         cta: { label: t("chat.empty.cta"), onClick: () => { d.openOwnSettings(); } },
       },
       initial: d.state.history,
+      archive: { store: d.archive, app: d.app, model: () => d.llm.modelInUse(), thinking: () => d.thinking.current() },
       onChange: (h) => {
         d.state.history = h;
         // Die Chips folgen der Liste der installierten Plugins.
@@ -137,13 +151,17 @@ export class SettingsChatHost extends ItemView {
     });
   }
 
-  /** Das Kit ruft die Rückgabe vor der nächsten Zeichnung des Kopfs und bei `destroy()`: die Zeile gibt sich dort frei. */
-  private drawHeader(el: HTMLElement): () => void {
+  /** Der Einschub über dem Textfeld (seit Kit 0.73.0): oben die einzeilige Modellzeile, darunter die Chips der Plugin-Auswahl. Das Kit ruft ihn beim Bau und bei `refresh()`
+   *  und danach die Rückgabe, bevor es neu zeichnet: die Zeile gibt sich dort frei. Die Chips zeichnen sich allein neu (`drawChips`), die Zeile bleibt dabei stehen. */
+  private drawComposer(el: HTMLElement): () => void {
+    this.barEl = el.createDiv({ cls: "sa-chat-bar" });
+    this.chipsEl = el.createDiv({ cls: "sa-chat-chips", attr: { "aria-label": t("chat.chips") } });
+    this.fillChips();
     if (!this.endpointOk) return () => {};
     const d = this.deps;
     const bar = buildModelBar({
       app: d.app,
-      containerEl: el,
+      containerEl: this.barEl,
       llm: d.llm,
       label: t("chat.modelLabel"),
       strings: { lang: getLang() },
@@ -157,14 +175,8 @@ export class SettingsChatHost extends ItemView {
     };
   }
 
-  /** Der Einschub über dem Textfeld: das Kit ruft ihn beim Bau und bei `refreshComposer()`. */
-  private drawComposer(el: HTMLElement): void {
-    this.chipsEl = el.createDiv({ cls: "sa-chat-chips", attr: { "aria-label": t("chat.chips") } });
-    this.fillChips();
-  }
-
-  /** Die Chips zeichnen sich über `refreshComposer()` neu: nur der Einschub, nicht die Bereiche unter den Antworten (der Zustand „gespeichert“ bleibt). */
-  private drawChips(): void { this.win?.refreshComposer(); }
+  /** Nur die Chips zeichnen sich neu: Modellzeile, Entwurf und die Bereiche unter den Antworten bleiben (der Zustand „gespeichert“ bleibt erhalten). */
+  private drawChips(): void { this.fillChips(); }
 
   private fillChips(): void {
     const el = this.chipsEl;

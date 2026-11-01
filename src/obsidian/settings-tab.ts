@@ -8,6 +8,8 @@ import { githubHelpUrls, helpSettingDefinition, HELP_SETTING_TEXTS_DE, HELP_SETT
 import { installTabRefreshOnOpen, renderSettingDefinitions, settingBodyHost } from "../vendor/kit-obsidian/settings_walker";
 import type { LlmConnection } from "../vendor/kit-obsidian/llm-connection";
 import { buildVersionList } from "../vendor/kit-obsidian/version-list";
+import { chatArchiveSettingDefinitions } from "../vendor/kit-obsidian/chat-archive-settings";
+import { resolveChatArchiveStrings } from "../vendor/kit-obsidian/chat-archive-strings";
 import type { ModeId } from "../vendor/kit/sampling-profiles";
 import type { GfsPolicy } from "../vendor/kit/rotation";
 
@@ -19,6 +21,8 @@ export interface SettingsTabHost {
   settings: SettingsAssistantSettings;
   llm: LlmConnection;
   saveSettings(): Promise<void>;
+  /** Die Aufbewahrung der vergangenen Chats hat sich geändert: offene Chat-Fenster zeichnen den Verlauf-Knopf nach (0 = aus). */
+  onChatKeepChanged?(): void;
   /** Zurückholen (Dialog + Schreibweg); der Tab zeichnet danach die Liste neu. */
   restore(dir: string): Promise<unknown>;
 }
@@ -46,6 +50,21 @@ export class SettingsAssistantSettingTab extends PluginSettingTab {
       { type: "group", heading: t("set.chatModel"), items: [
         { render: (s: Setting) => { this.host.llm.renderSettings(settingBodyHost(s), { lang: getLang() }); } },
       ] },
+      // Vergangene Chats: Ordner und Aufbewahrung; Texte und Prüfung des Ordners kommen aus dem Kit (`chat-archive-settings`).
+      { type: "group", heading: resolveChatArchiveStrings({ lang: getLang() }).settingsHeading, items: chatArchiveSettingDefinitions({
+        app: this.app,
+        folder: this.host.settings.chatFolder,
+        keep: this.host.settings.chatKeep,
+        defaultFolder: `${this.plugin.manifest.name}/Chats`,
+        configDir: this.app.vault.configDir,
+        strings: { lang: getLang() },
+        onChange: async (key, value) => {
+          if (key === "folder") this.host.settings.chatFolder = String(value);
+          else this.host.settings.chatKeep = Number(value);
+          await this.host.saveSettings().catch(() => { new Notice(t("set.saveFailed")); });
+          if (key === "keep") this.host.onChatKeepChanged?.();
+        },
+      }) },
       {
         type: "group",
         heading: t("set.snapshots"),

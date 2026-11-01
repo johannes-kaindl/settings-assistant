@@ -8,4 +8,18 @@ describe("Kit-CSS", () => {
     expect(findVendoredCss(vendorDir).length).toBeGreaterThan(0);
     expect(missingKitCss(vendorDir, readFileSync("styles.css", "utf8"))).toEqual([]);
   });
+
+  it("MODEL_BAR_CSS steht vor CHAT_WINDOW_CSS (Kit 0.73.0): die Regel in @container verliert sonst gegen eine spätere gleicher Spezifität", () => {
+    const css = readFileSync("styles.css", "utf8");
+    const marker = (name: string): number => css.indexOf(`(${name}), obsidian-kit`);
+    expect(marker("MODEL_BAR_CSS")).toBeGreaterThan(-1);
+    expect(marker("CHAT_WINDOW_CSS")).toBeGreaterThan(-1);
+    expect(marker("MODEL_BAR_CSS")).toBeLessThan(marker("CHAT_WINDOW_CSS"));
+  });
+
+  it("CHAT_ARCHIVE_CSS ist kopiert, weil das Chat-Fenster den Verlauf zeigt (Option archive)", () => {
+    const names = findVendoredCss("src/vendor/kit-obsidian").map((c) => c.name);
+    expect(names).toContain("CHAT_ARCHIVE_CSS");
+    expect(missingKitCss("src/vendor/kit-obsidian", readFileSync("styles.css", "utf8"))).not.toContain("CHAT_ARCHIVE_CSS");
+  });
 });
