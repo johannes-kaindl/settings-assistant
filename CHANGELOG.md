@@ -4,6 +4,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Fixed
+
+- **The "Plugins (n)" button no longer relies on the `:has` selector.** The store scan flags `:has` in a stylesheet, which would have cost the review grade "Passed"; the chat now carries a class while the input has focus, and the button and the chip row follow that class. Nothing changes on screen: with the keyboard open on a phone the chips still fold behind the button.
+
 ## [0.11.0] — 2026-11-03
 
 ### Changed

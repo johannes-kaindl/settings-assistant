@@ -349,10 +349,10 @@
 .sa-chip-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sa-chip-add { flex: 0 0 auto; max-width: 60%; }
 /* Plugins (n): bei offener Tastatur am Handy steht die Chip-Zeile hinter einem Knopf in der Knopfreihe (neben Neu und Verlauf), ein Tipp klappt sie auf (Entscheidung Johannes 2026-11-03: gemessen kostete die Zeile 52 px,
-   dem Chat blieben bei 508 px Fensterhöhe 6,7 statt gut 9 Zeilen). Die Tastatur ist offen, solange die Eingabe den Fokus hat; auf dem Desktop und bei geschlossener Tastatur bleibt alles wie es war. */
+   dem Chat blieben bei 508 px Fensterhöhe 6,7 statt gut 9 Zeilen). Die Tastatur ist offen, solange die Eingabe den Fokus hat (die Klasse `sa-kbd-open` am Chat-Stamm setzt ein Fokus-Handler; `:has` meldet der Store-Scanner); auf dem Desktop und bei geschlossener Tastatur bleibt alles wie es war. */
 .sa-chips-toggle { display: none; padding-inline: var(--size-4-3); font-size: var(--font-ui-smaller); }
-.is-mobile .okit-chat:has(.okit-chat-input:focus) .sa-chips-toggle:not(.is-empty) { display: inline-flex; align-items: center; min-height: var(--input-height); }
-.is-mobile .okit-chat:has(.okit-chat-input:focus) .sa-chat-chips:not(.is-open) { display: none; }
+.is-mobile .okit-chat.sa-kbd-open .sa-chips-toggle:not(.is-empty) { display: inline-flex; align-items: center; min-height: var(--input-height); }
+.is-mobile .okit-chat.sa-kbd-open .sa-chat-chips:not(.is-open) { display: none; }
 
 /* uebernommen aus obsidian-kit/src/obsidian/model-bar.ts (MODEL_BAR_CSS), obsidian-kit 0.76.1 */
 .okit-model-bar { position: relative; width: 100%; min-width: 0; container-type: inline-size; container-name: okit-model-bar; }

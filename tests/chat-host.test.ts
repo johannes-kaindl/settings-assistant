@@ -396,6 +396,17 @@ describe("chat-host", () => {
       expect(t.getAttribute("aria-expanded")).toBe("false");
     });
 
+    it("der Chat-Stamm trägt sa-kbd-open genau solange die Eingabe den Fokus hat (ersetzt :has im Stylesheet, das der Store-Scanner meldet)", async () => {
+      const s = await openWith();
+      const input = all(s.view, ".okit-chat-input")[0];
+      const stamm = all(s.view, ".okit-chat")[0];
+      expect(stamm.classList.contains("sa-kbd-open")).toBe(false);
+      input.dispatchEvent({ type: "focus" });
+      expect(stamm.classList.contains("sa-kbd-open")).toBe(true);
+      input.dispatchEvent({ type: "blur" });
+      expect(stamm.classList.contains("sa-kbd-open")).toBe(false);
+    });
+
     it("die aufgeklappte Zeile bleibt offen, wenn ein Chip dazukommt oder geht (die Zeile zeichnet sich neu)", async () => {
       const s = await openWith();
       toggle(s.view)[0].click();

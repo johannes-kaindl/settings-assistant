@@ -53,6 +53,10 @@ export class SettingsChatHost extends ItemView {
   private chipsToggle: HTMLButtonElement | null = null;
   private chipsOpen = false;
   private readonly onInputFocus = (): void => { this.setChipsOpen(false); };
+  /** Die Klasse am Chat-Stamm ersetzt `:has(.okit-chat-input:focus)` im Stylesheet: der Store-Scanner meldet `:has` als Befund (Passed wird Satisfactory). */
+  private chatRoot: HTMLElement | null = null;
+  private readonly onKbdOpen = (): void => { this.chatRoot?.classList.add("sa-kbd-open"); };
+  private readonly onKbdClosed = (): void => { this.chatRoot?.classList.remove("sa-kbd-open"); };
 
   constructor(leaf: WorkspaceLeaf, private readonly deps: ChatHostDeps) { super(leaf); }
 
@@ -193,7 +197,15 @@ export class SettingsChatHost extends ItemView {
     btn.addEventListener("mousedown", (e) => { e.preventDefault(); });
     btn.addEventListener("click", () => { this.setChipsOpen(!this.chipsOpen); });
     // Ein neuer Fokus in der Eingabe klappt die Zeile wieder ein: wer weitertippt, will den Platz. Dieselbe Funktion je Aufruf, damit ein zweites addEventListener nichts verdoppelt.
-    row.parentElement?.querySelector(".okit-chat-input")?.addEventListener("focus", this.onInputFocus);
+    const input = row.parentElement?.querySelector(".okit-chat-input") ?? null;
+    input?.addEventListener("focus", this.onInputFocus);
+    // Aufwärts über parentElement statt `closest` (das Fake-DOM der Tests kennt es nicht).
+    let root: HTMLElement | null = composer?.parentElement ?? null;
+    while (root && !root.classList.contains("okit-chat")) root = root.parentElement;
+    this.chatRoot = root;
+    input?.addEventListener("focus", this.onKbdOpen);
+    input?.addEventListener("blur", this.onKbdClosed);
+    if (input && input.ownerDocument?.activeElement === input) this.onKbdOpen();
     this.chipsToggle = btn;
     return btn;
   }
@@ -201,6 +213,8 @@ export class SettingsChatHost extends ItemView {
   private dropToggle(): void {
     this.chipsToggle?.remove();
     this.chipsToggle = null;
+    this.chatRoot?.classList.remove("sa-kbd-open");
+    this.chatRoot = null;
   }
 
   private setChipsOpen(open: boolean): void {

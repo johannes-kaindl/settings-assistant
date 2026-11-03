@@ -57,7 +57,7 @@ describe("Chips der Plugin-Auswahl: eine Zeile (Daumen-Test, Welle 29)", () => {
 
 // „Plugins (n)“: die Chip-Zeile wandert bei offener Tastatur am Handy hinter einen Knopf. Die Tastatur ist offen, solange die Eingabe den Fokus hat; alles andere (Desktop, geschlossene Tastatur) bleibt ohne Regel.
 describe("Knopf „Plugins (n)“ und die Chip-Zeile bei offener Tastatur", () => {
-  const FOKUS = ".is-mobile .okit-chat:has(.okit-chat-input:focus)";
+  const FOKUS = ".is-mobile .okit-chat.sa-kbd-open";
   const stripped = css.replace(/\/\*[\s\S]*?\*\//g, "");
 
   it("der Knopf ist grundsätzlich unsichtbar und erscheint nur auf dem Handy bei fokussierter Eingabe (44 px hoch wie die Nachbarn)", () => {
