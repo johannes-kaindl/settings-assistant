@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.11.0] — 2026-11-03
+
 ### Changed
 
 - **On a phone, while the keyboard is open, the row of plugin chips folds into a button "Plugins (n)"** next to the New icon (n is the number of chosen plugins); one tap shows the row and lets you pick or remove plugins as before, a tap into the input hides it again. The row cost 52 px, so the answer area showed 6.7 lines on a 390 × 508 screen; now it shows 8.6 lines (10.3 on 390 × 546). On the desktop and with the keyboard closed nothing changes.
