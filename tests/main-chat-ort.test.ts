@@ -53,7 +53,9 @@ describe("Befehl „Open settings chat“: Ort der Ansicht", () => {
   it("ein schon geöffneter Chat bleibt, wo er ist (auch auf dem Handy)", async () => {
     Platform.isMobile = true;
     const app = makeFakeApp();
-    const vorhanden = { setViewState: async () => { throw new Error("darf nicht neu gesetzt werden"); } };
+    const vorhanden = new WorkspaceLeaf();
+    vorhanden.parent = app.workspace.rootSplit;   // steht im Hauptbereich
+    vorhanden.setViewState = async () => { throw new Error("darf nicht neu gesetzt werden"); };
     app.workspace.getLeavesOfType = () => [vorhanden];
     let neu = 0;
     app.workspace.getLeaf = () => { neu++; return new WorkspaceLeaf(); };
@@ -61,5 +63,40 @@ describe("Befehl „Open settings chat“: Ort der Ansicht", () => {
     const p = await plugin(app);
     await open(p);
     expect(neu).toBe(0);
+  });
+
+  // Rückmeldung rag-w30 (2026-11-03): wer den Chat vor 0.10.0 in der Schublade hatte, behält ihn dort, denn das Layout bleibt über Updates hinaus gespeichert. Auf dem Handy wird das Blatt
+  // geschlossen und die Ansicht öffnet als Tab im Hauptbereich (Kit 0.77.0, `openChatLeaf`); der Verlauf des Gesprächs liegt im Plugin (`state.history`), nicht im Blatt.
+  it("auf dem Handy: ein Chat, der noch in der Schublade steht (gespeichertes Layout), wird geschlossen und öffnet als Tab im Hauptbereich", async () => {
+    Platform.isMobile = true;
+    const app = makeFakeApp();
+    const schublade = new WorkspaceLeaf();
+    schublade.parent = app.workspace.rightSplit;
+    let geschlossen = 0;
+    schublade.detach = () => { geschlossen++; };
+    schublade.setViewState = async () => { throw new Error("die Schublade darf nicht neu gesetzt werden"); };
+    app.workspace.getLeavesOfType = () => [schublade];
+    const gesetzt: unknown[] = [];
+    app.workspace.getLeaf = (art: unknown) => { gesetzt.push(art); const l = new WorkspaceLeaf(); l.parent = app.workspace.rootSplit; l.setViewState = async (v: unknown) => { gesetzt.push(v); }; return l; };
+    app.workspace.revealLeaf = async () => {};
+    const p = await plugin(app);
+    await open(p);
+    expect(geschlossen).toBe(1);
+    expect(gesetzt[0]).toBe("tab");
+    expect(gesetzt[1]).toMatchObject({ type: VIEW_TYPE_SA_CHAT });
+  });
+
+  it("am Desktop bleibt ein Chat in der Schublade, wo er ist (nichts geschlossen, nichts neu gesetzt)", async () => {
+    const app = makeFakeApp();
+    const schublade = new WorkspaceLeaf();
+    schublade.parent = app.workspace.rightSplit;
+    let geschlossen = 0;
+    schublade.detach = () => { geschlossen++; };
+    schublade.setViewState = async () => { throw new Error("darf nicht neu gesetzt werden"); };
+    app.workspace.getLeavesOfType = () => [schublade];
+    app.workspace.revealLeaf = async () => {};
+    const p = await plugin(app);
+    await open(p);
+    expect(geschlossen).toBe(0);
   });
 });

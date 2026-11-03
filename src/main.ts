@@ -1,7 +1,8 @@
-import { Component, MarkdownRenderer, Notice, Platform, Plugin, getLanguage, normalizePath, type WorkspaceLeaf } from "obsidian";
+import { Component, MarkdownRenderer, Notice, Plugin, getLanguage, normalizePath, type WorkspaceLeaf } from "obsidian";
 import "./i18n/strings";
 import { getLang, pickLang, setLang, t } from "./vendor/kit/i18n";
 import { thinkingLevelTexts, thinkingOffTexts } from "./vendor/kit-obsidian/thinking-control";
+import { openChatLeaf } from "./vendor/kit-obsidian/chat-leaf";
 import { createChatArchive, type ChatArchive } from "./vendor/kit-obsidian/chat-archive";
 import { clampChatKeep } from "./vendor/kit-obsidian/chat-archive-settings";
 import type { EndpointConfig } from "./vendor/kit/endpoint_config";
@@ -177,15 +178,10 @@ export default class SettingsAssistantPlugin extends Plugin {
     return leaf?.view instanceof SettingsChatHost ? leaf.view : null;
   }
 
+  /** Wo der Chat öffnet, entscheidet das Kit (`openChatLeaf`, seit 0.77.0): Desktop rechte Seitenleiste, Handy und Tablet ein Tab im Hauptbereich (unter der Schublade hängt Obsidians Tab-Auswahl, der Chat endet dort rund 155 px über der Tastatur);
+   *  ein Chat, der noch in der Schublade gespeichert ist, wird geschlossen und öffnet im Hauptbereich. Der Verlauf hält das Plugin im Speicher (`chatState.history`), nicht das Blatt; er überlebt das Schließen. */
   private async openChat(): Promise<void> {
-    const { workspace } = this.app;
-    const existing = workspace.getLeavesOfType(VIEW_TYPE_SA_CHAT)[0];
-    // Auf dem Handy als Tab im Hauptbereich statt in der Schublade: unter der Schublade hängt Obsidians eigene Tab-Auswahl, und der Chat endet gemessen rund 155 px über der Tastatur
-    // (390 × 844 und 390 × 508, Welle 29); im Hauptbereich reicht er bis auf den Rand des Geräts herunter. Ein schon geöffneter Chat bleibt, wo er ist.
-    const leaf = existing ?? (Platform.isMobile ? workspace.getLeaf("tab") : workspace.getRightLeaf(false));
-    if (!leaf) return;
-    if (!existing) await leaf.setViewState({ type: VIEW_TYPE_SA_CHAT, active: true });
-    await workspace.revealLeaf(leaf);
+    await openChatLeaf(this.app.workspace, VIEW_TYPE_SA_CHAT);
   }
 
   private async setChatThinking(level: ThinkingLevel): Promise<void> {

@@ -11,7 +11,8 @@ All notable changes to this project are documented here. The format follows [Kee
 - **The past-chats button stays hidden on a phone while "Chats to keep" is 0.** A rule for the phone layout had shown it anyway (obsidian-kit 0.76.0).
 - **The copy buttons of answers are easier to hit with a thumb on a phone** (44 × 44 px hit area, the icon keeps its look; obsidian-kit 0.76.0).
 - **The row "Level picker in chat" is gone from Settings → Request for good,** also for a plugin that had it switched on before: the model row always shows the level, so the row did nothing. The earlier note that a switch that was already on stays visible no longer holds (obsidian-kit 0.76.0).
-- The shared library moved from obsidian-kit 0.74.0 to 0.76.1. Nothing else of the skipped releases reaches this plugin: 0.75.0 adds a writer for code-block bodies, 0.76.0 a choice dialog and a status indicator (the Request section draws its status line with the latter, same look), 0.76.1 only a shared helper for the chat spacing.
+- **If you had the chat in the right drawer on a phone or tablet, it now opens as a tab in the main area the next time you open it.** The saved layout kept the chat in the drawer for good, so the fix of 0.10.0 only reached new installs. The drawer copy is closed first; your conversation stays (the plugin holds it, not the tab). On the desktop nothing changes: the chat stays in the right sidebar (obsidian-kit 0.77.0).
+- The shared library moved from obsidian-kit 0.74.0 to 0.77.0. Nothing else of the skipped releases reaches this plugin: 0.75.0 adds a writer for code-block bodies, 0.76.0 a choice dialog and a status indicator (the Request section draws its status line with the latter, same look), 0.76.1 only a shared helper for the chat spacing.
 
 ### Documentation
 
@@ -19,6 +20,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Tested
 
+- The layout measurement (`npm run chat-layout --ort schublade-dann-befehl`) puts the chat in the drawer, runs a round, calls the command and checks that the tab sits in the main area with the round still in the log. A unit test covers the same case with a counter-case on the desktop.
 - The layout measurement (`npm run chat-layout`) sets the keyboard the way the device reports it (app container shrinks, safe-area variable on the keyboard height, window height unchanged); the former viewport shrink is kept as `--tastaturart viewport`. A unit test now guards that the plugin sets no spacing on the chat host itself (a mutation test with the old rule turns it red).
 
 ## [0.10.0] — 2026-11-01

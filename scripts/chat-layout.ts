@@ -252,7 +252,8 @@ async function main(): Promise<void> {
   const tag = flag("--tag") ?? "lauf";
   const out = flag("--out") ?? "/tmp/saw-w29";
   // `befehl` (Standard): der Befehl „Open settings chat“ entscheidet, wo der Chat sitzt (Handy: Tab im Hauptbereich; seit Welle 29). `leiste`: erzwungen in der rechten
-  // Schublade, `tab`: erzwungen als Tab (Vergleichsmessungen).
+  // Schublade, `tab`: erzwungen als Tab (Vergleichsmessungen). `schublade-dann-befehl` (Welle 30, Kit 0.77.0): erst in der Schublade (wie ein gespeichertes Layout), eine Runde, dann der Befehl:
+  // das Blatt muss in den Hauptbereich wandern, und die Runde im Verlauf bleiben (der Verlauf lebt im Plugin, nicht im Blatt).
   const ort = flag("--ort") ?? "befehl";
   // Tastaturart: `geraet` (Standard, Welle 30) setzt, was am iPhone gemessen wurde (Master 2026-11-03, obsidian-kit pilot/chat-tastatur.ts): innerHeight bleibt, Obsidian verkleinert .app-container,
   // --keyboard-height und --safe-area-inset-bottom stehen auf der Tastaturhöhe, env(safe-area-inset-bottom) bleibt 34 px. `viewport` (Welle 29) verkleinert den Viewport, so greift die Falte
@@ -289,7 +290,7 @@ async function main(): Promise<void> {
     // Chat oeffnen, eine Runde fuehren, ein Plugin als Chip waehlen.
     if (ort === "tab") {
       await cdp.evaluate(`app.workspace.detachLeavesOfType("settings-assistant-chat"); const leaf = app.workspace.getLeaf("tab"); await leaf.setViewState({ type: "settings-assistant-chat", active: true }); await app.workspace.revealLeaf(leaf); return true;`);
-    } else if (ort === "leiste") {
+    } else if (ort === "leiste" || ort === "schublade-dann-befehl") {
       await cdp.evaluate(`app.workspace.detachLeavesOfType("settings-assistant-chat"); const leaf = app.workspace.getRightLeaf(false); await leaf.setViewState({ type: "settings-assistant-chat", active: true }); app.workspace.rightSplit.expand?.(); await app.workspace.revealLeaf(leaf); return true;`);
     } else {
       await cdp.evaluate(`app.workspace.detachLeavesOfType("settings-assistant-chat"); app.commands.executeCommandById(${q(`${PLUGIN_ID}:open-chat`)}); return true;`);
@@ -299,6 +300,19 @@ async function main(): Promise<void> {
     await cdp.evaluate(`const v = app.workspace.getLeavesOfType("settings-assistant-chat")[0].view; v.submit("What does Quick Capture do, and how could I make it save more often?"); return true;`);
     const fertig = await cdp.evaluate<boolean>(`for (let i = 0; i < 80 && !document.querySelector(".sa-chat-sent"); i++) await new Promise((r) => setTimeout(r, 250)); await new Promise((r) => setTimeout(r, 800)); return !!document.querySelector(".sa-chat-sent");`);
     if (!fertig) throw new Error("die Antwort kam nicht zustande (kein „Sent context“)");
+    if (ort === "schublade-dann-befehl") {
+      const vorher = await cdp.evaluate<{ root: boolean; n: number }>(`const l = app.workspace.getLeavesOfType("settings-assistant-chat"); return { root: l[0].getRoot() === app.workspace.rootSplit, n: l.length };`);
+      await cdp.evaluate(`app.commands.executeCommandById(${q(`${PLUGIN_ID}:open-chat`)}); return true;`);
+      const nachher = await cdp.evaluate<{ root: boolean; n: number; frage: boolean; sent: boolean }>(`
+        for (let i = 0; i < 40; i++) { const l = app.workspace.getLeavesOfType("settings-assistant-chat"); if (l.length === 1 && l[0].getRoot() === app.workspace.rootSplit && document.querySelector(".okit-chat-log")) break; await new Promise((r) => setTimeout(r, 250)); }
+        await new Promise((r) => setTimeout(r, 800));
+        const l = app.workspace.getLeavesOfType("settings-assistant-chat");
+        const log = document.querySelector(".okit-chat-log");
+        return { root: l.length > 0 && l[0].getRoot() === app.workspace.rootSplit, n: l.length, frage: !!log && log.textContent.includes("Quick Capture do"), sent: !!document.querySelector(".sa-chat-sent") };`);
+      console.log(`Schublade -> Befehl: vorher im Hauptbereich ${String(vorher.root)} (Blaetter ${vorher.n}); nachher im Hauptbereich ${String(nachher.root)} (Blaetter ${nachher.n}), Frage im Verlauf ${String(nachher.frage)}, Kontext-Block ${String(nachher.sent)}`);
+      if (vorher.root || !nachher.root || nachher.n !== 1 || !nachher.frage) throw new Error("Schublade -> Hauptbereich: Erwartung verfehlt (vorher Schublade, nachher ein Blatt im Hauptbereich mit der Frage im Verlauf)");
+      return; // reine DOM-Pruefung, keine Bilder: braucht keinen Fokus (`--exclusive all` genuegt); das `finally` raeumt die Emulation ab
+    }
     const chip = await cdp.evaluate<boolean>(`const s = document.querySelector(".sa-chip-add"); if (!s) return !!document.querySelector(".sa-chip"); if (!document.querySelector(".sa-chip")) { const o = [...s.options].find((x) => x.value === ${q(DEMO_ID)}); if (o) { s.value = o.value; s.dispatchEvent(new Event("change")); await new Promise((r) => setTimeout(r, 500)); } } return !!document.querySelector(".sa-chip");`);
     if (!chip) console.log("WARNUNG: kein Plugin-Chip entstanden");
 
