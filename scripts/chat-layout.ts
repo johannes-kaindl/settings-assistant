@@ -8,7 +8,7 @@
  * npm run build
  * lsof -nP -iTCP:<PORT> -sTCP:LISTEN
  * python3 ~/.claude/hooks/obsidian-cdp-lock.py acquire --label settings-assistant --intent "chat-layout <tag>" --exclusive focus --port <PORT> --ttl 300
- * npm run chat-layout -- --port <PORT> --tag vorher [--out /tmp/saw-w29]
+ * npm run chat-layout -- --port <PORT> --tag vorher [--out /tmp/saw-w29] [--tastaturart geraet|viewport]
  * python3 ~/.claude/hooks/obsidian-cdp-lock.py release
  * ```
  *
@@ -113,7 +113,7 @@ interface Instanz { child: ChildProcess; ud: string }
 function startInstanz(vaultDir: string, port: number): Instanz {
   if (portHalten(port)) throw new Error(`Port ${port} ist belegt — anderen waehlen (nichts beendet).`);
   let ud = PROFILE_BASE;
-  if (pgrepProfile(ud) !== "") ud = `${PROFILE_BASE}-w29`;
+  if (pgrepProfile(ud) !== "") ud = `${PROFILE_BASE}-w30`;
   if (pgrepProfile(ud) !== "") throw new Error(`Auch ${ud} wird von einer fremden Instanz gehalten — Abbruch (nichts beendet).`);
   mkdirSync(ud, { recursive: true });
   // Oberflaeche Englisch: obsidian.json UND localStorage (das zweite setzt `bereiteVor`).
@@ -211,12 +211,12 @@ const MESS_JS = `
     ...teile, chip, dropdown: dd, senden: r(".okit-chat-send"), neu: r(".okit-chat-new"),
     statustext: (document.querySelector(".okit-chat-status")?.textContent || "").trim(),
     kontext: r(".sa-chat-sent"), kontextOffen: sent ? sent.open : null, kontextImLog: sent && log ? log.contains(sent) : null,
-    tiefster, abstandUnten: +(innerHeight - tiefster).toFixed(1),
+    tiefster, abstandUnten: +((document.querySelector('.app-container') ? document.querySelector('.app-container').getBoundingClientRect().bottom : innerHeight) - tiefster).toFixed(1),
     chipUndDropdownInEinerZeile: chip && dd ? (Math.min(chip.bottom, dd.bottom) - Math.max(chip.y, dd.y)) > Math.min(chip.h, dd.h) / 2 : null,
     mittellinienAbstand: chip && dd ? +Math.abs((chip.y + chip.h / 2) - (dd.y + dd.h / 2)).toFixed(1) : null,
     abstandZurModellzeile: teile.modellzeile && (chip || dd) && teile.modellzeile.y < Math.min(chip ? chip.y : 1e9, dd ? dd.y : 1e9) ? +(Math.min(chip ? chip.y : 1e9, dd ? dd.y : 1e9) - teile.modellzeile.bottom).toFixed(1) : null,
     reihenfolge: reihe,
-    navbar: (() => { const n = document.querySelector(".mobile-navbar"); const b = n ? n.getBoundingClientRect() : null; const h = document.querySelector(".sa-chat-host"); const cs = h ? getComputedStyle(h) : null; const bs = getComputedStyle(document.body); return (b ? "Navbar " + Math.round(b.top) + "-" + Math.round(b.bottom) + " (" + (n.className || "") + ")" : "keine Navbar") + " · --mobile-navbar-height " + bs.getPropertyValue("--mobile-navbar-height").trim() + " · --navbar-height " + bs.getPropertyValue("--navbar-height").trim() + " · safe-bottom " + bs.getPropertyValue("--safe-area-inset-bottom").trim() + " · Host padding-bottom " + (cs ? cs.paddingBottom : "?") + " · Host-Box " + (h ? Math.round(h.getBoundingClientRect().top) + "-" + Math.round(h.getBoundingClientRect().bottom) : "?"); })(),
+    navbar: (() => { const n = document.querySelector(".mobile-navbar"); const b = n ? n.getBoundingClientRect() : null; const h = document.querySelector(".view-content.okit-chat-host") || document.querySelector(".sa-chat-host"); const cs = h ? getComputedStyle(h) : null; const bs = getComputedStyle(document.body); return (b ? "Navbar " + Math.round(b.top) + "-" + Math.round(b.bottom) + " (" + (n.className || "") + ")" : "keine Navbar") + " · --mobile-navbar-height " + bs.getPropertyValue("--mobile-navbar-height").trim() + " · --navbar-height " + bs.getPropertyValue("--navbar-height").trim() + " · safe-bottom " + bs.getPropertyValue("--safe-area-inset-bottom").trim() + " · --keyboard-height " + bs.getPropertyValue("--keyboard-height").trim() + " · Host okit-chat-host " + String(!!document.querySelector(".view-content.okit-chat-host")) + " · Host padding-bottom " + (cs ? cs.paddingBottom : "?") + " · Host-Box " + (h ? Math.round(h.getBoundingClientRect().top) + "-" + Math.round(h.getBoundingClientRect().bottom) : "?"); })(),
     unterhalb: (() => { const c = r(".okit-chat"); if (!c) return ""; const y = Math.min(innerHeight - 2, c.bottom + 45); const desc = (n) => n.tagName.toLowerCase() + (typeof n.className === "string" && n.className.trim() ? "." + n.className.trim().split(/\\s+/).slice(0, 3).join(".") : ""); return "y=" + Math.round(y) + ": " + document.elementsFromPoint(200, y).slice(0, 6).map((n) => { const b = n.getBoundingClientRect(); return desc(n) + "[" + Math.round(b.top) + "-" + Math.round(b.bottom) + "]"; }).join(" < "); })(),
   };
 `;
@@ -254,6 +254,10 @@ async function main(): Promise<void> {
   // `befehl` (Standard): der Befehl „Open settings chat“ entscheidet, wo der Chat sitzt (Handy: Tab im Hauptbereich; seit Welle 29). `leiste`: erzwungen in der rechten
   // Schublade, `tab`: erzwungen als Tab (Vergleichsmessungen).
   const ort = flag("--ort") ?? "befehl";
+  // Tastaturart: `geraet` (Standard, Welle 30) setzt, was am iPhone gemessen wurde (Master 2026-11-03, obsidian-kit pilot/chat-tastatur.ts): innerHeight bleibt, Obsidian verkleinert .app-container,
+  // --keyboard-height und --safe-area-inset-bottom stehen auf der Tastaturhöhe, env(safe-area-inset-bottom) bleibt 34 px. `viewport` (Welle 29) verkleinert den Viewport, so greift die Falte
+  // (max-height: 640px), die am Gerät nie greift; nur noch als Vergleich.
+  const tastaturart = flag("--tastaturart") ?? "geraet";
   mkdirSync(out, { recursive: true });
 
   const fake = await startFakeEndpoint();
@@ -302,7 +306,16 @@ async function main(): Promise<void> {
       await cdp.evaluate(`app.vault.setConfig("theme", ${q(schema)}); app.updateTheme(); app.workspace.trigger("css-change"); await new Promise((r) => setTimeout(r, 600)); return true;`);
       for (const mitTastatur of [false, true]) {
         const hoehe = mitTastatur ? HOEHE - TASTATUR : HOEHE;
-        await cdp.send("Emulation.setDeviceMetricsOverride", { width: BREITE, height: hoehe, deviceScaleFactor: 2, mobile: true });
+        if (tastaturart === "viewport") {
+          await cdp.send("Emulation.setDeviceMetricsOverride", { width: BREITE, height: hoehe, deviceScaleFactor: 2, mobile: true });
+        } else {
+          await cdp.send("Emulation.setDeviceMetricsOverride", { width: BREITE, height: HOEHE, deviceScaleFactor: 2, mobile: true });
+          await cdp.send("Emulation.setSafeAreaInsetsOverride", { insets: { top: 0, bottom: 34, left: 0, right: 0 } });
+          // Auf :root UND body (in der Emulation steht unterhalb von :root eine eigene Definition).
+          await cdp.evaluate(`const r = document.documentElement; const app = document.querySelector(".app-container");
+            for (const el of [r, document.body]) { el.style.setProperty("--keyboard-height", "${mitTastatur ? TASTATUR : 0}px"); el.style.setProperty("--safe-area-inset-bottom", "${mitTastatur ? TASTATUR : 34}px"); }
+            app.style.height = "${hoehe}px"; return true;`);
+        }
         await cdp.evaluate(mitTastatur ? `document.querySelector(".okit-chat-input")?.focus(); return true;` : `document.activeElement?.blur?.(); return true;`);
         await sleep(900);
         const zustand = `${tag}-${name}-${mitTastatur ? "tastatur" : "ohne"}`;
@@ -319,6 +332,8 @@ async function main(): Promise<void> {
   } finally {
     if (cdp) {
       await cdp.send("Emulation.clearDeviceMetricsOverride").catch(() => undefined);
+      await cdp.send("Emulation.setSafeAreaInsetsOverride", { insets: { top: 0, bottom: 0, left: 0, right: 0 } }).catch(() => undefined);
+      await cdp.evaluate(`for (const el of [document.documentElement, document.body]) { el.style.removeProperty("--keyboard-height"); el.style.removeProperty("--safe-area-inset-bottom"); } const a = document.querySelector(".app-container"); if (a) a.style.height = ""; return true;`).catch(() => undefined);
       // Das Profil behaelt die Emulation (localStorage): zurueckstellen, sonst startet der naechste Lauf mobil.
       await cdp.evaluate(`app.vault.setConfig("theme", "moonstone"); app.emulateMobile(false); return true;`).catch(() => undefined);
       await sleep(1500);

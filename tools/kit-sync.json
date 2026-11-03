@@ -1,7 +1,7 @@
 {
   "sources": {
     "obsidian-kit": {
-      "ref": "0.74.0"
+      "ref": "0.76.1"
     },
     "code-kit": {
       "ref": "0.40.0"
@@ -100,6 +100,7 @@
         "stream-area",
         "endpoint-source",
         "request-section",
+        "status-indicator",
         "request-session",
         "thinking-control",
         "collapsible",
@@ -118,6 +119,7 @@
         "plugin-api",
         "anthropic-transport",
         "chat-window",
+        "chat-host",
         "chat-window-strings",
         "model-bar",
         "model-bar-strings",

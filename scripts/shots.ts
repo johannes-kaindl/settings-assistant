@@ -69,6 +69,14 @@ const CHAT_ANSWER = [
   "```",
 ].join("\n");
 
+/** Ordner der abgelegten Chats (Vorgabe des Plugins) und die Fragen der drei Runden im Bild „Past chats“. */
+const ARCHIV_ORDNER = "Settings Assistant/Chats";
+const HISTORY_FRAGEN = [
+  "Quick Capture saves too rarely. Can you make it save every 15 seconds and stop opening the new note?",
+  "Which settings of Quick Capture can I change, and which are locked?",
+  "Copy my Quick Capture settings to my other vault",
+];
+
 interface FakeEndpoint { url: string; close: () => Promise<void> }
 /** Der zentrale Stub (`tools/obsidian-cdp/llm-stub.ts`) streamt die feste Antwort in zwei Haelften. */
 async function startFakeEndpoint(): Promise<FakeEndpoint> {
@@ -302,6 +310,54 @@ const SHOTS: Shot[] = [
       const unten = await boxOf(cdp, ".okit-chat-statusbar", 0);
       if (!seite || !unten) return null;
       return { ...seite, height: unten.y + unten.height + 8 - seite.y };
+    },
+  },
+  {
+    name: "history.png",
+    klasse: "feature",
+    async run(cdp, _port, fake) {
+      await stelleDemoDatenHer(cdp);
+      if (!(await oeffneProfilNotiz(cdp))) return null;
+      if (!(await setzeEndpunkt(cdp, fake))) return null;
+      // Verlauf einschalten (Vorgabe ist aus) und den Ordner leeren: das Bild zeigt nur die drei Runden von hier, keinen Rest eines frueheren Laufs.
+      await cdp.evaluate(`
+        const f = ${q(ARCHIV_ORDNER)};
+        if (await app.vault.adapter.exists(f)) await app.vault.adapter.rmdir(f, true);
+        const p = app.plugins.plugins[${q(PLUGIN_ID)}];
+        p.settings.chatKeep = 50;
+        await p.saveSettings();
+        app.workspace.detachLeavesOfType("settings-assistant-chat"); await new Promise((r) => setTimeout(r, 300));
+        app.commands.executeCommandById(${q(`${PLUGIN_ID}:open-chat`)});
+        return { ok: true };
+      `);
+      const da = await pollUntil<{ ok: boolean }>(cdp, `return document.querySelector(".okit-chat-input") ? { ok: true } : null;`, 10_000, 250);
+      if (!da) return null;
+      // Drei Runden, je mit „New chat“ abgelegt (bei eingeschaltetem Verlauf ohne Rueckfrage). Der Fake antwortet immer gleich, die Titel kommen aus den Fragen.
+      for (const frage of HISTORY_FRAGEN) {
+        await cdp.evaluate(`
+          const i = document.querySelector(".okit-chat-input");
+          i.value = ${q(frage)};
+          i.dispatchEvent(new Event("input", { bubbles: true }));
+          document.querySelector(".okit-chat-send").click();
+          return { ok: true };
+        `);
+        const fertig = await pollUntil<{ ok: boolean }>(cdp, `
+          const send = document.querySelector(".okit-chat-send");
+          return send && send.textContent === "Send" && document.querySelector(".sa-chat-block .sa-apply") ? { ok: true } : null;
+        `, 30_000, 300);
+        if (!fertig) return null;
+        await sleep(600);
+        await cdp.evaluate(`document.querySelector(".okit-chat-new").click(); return { ok: true };`);
+        const abgelegt = await pollUntil<{ ok: boolean }>(cdp, `return document.querySelector(".okit-chat-new")?.disabled && !document.querySelector(".sa-chat-block") ? { ok: true } : null;`, 10_000, 250);
+        if (!abgelegt) return null;
+        await sleep(400);
+      }
+      await clearNotices(cdp);
+      await cdp.evaluate(`document.querySelector(".okit-chat-archive").click(); return { ok: true };`);
+      const zeilen = await pollUntil<{ n: number }>(cdp, `const n = document.querySelectorAll(".okit-chat-archive-row").length; return n >= ${String(HISTORY_FRAGEN.length)} ? { n } : null;`, 8000, 200);
+      if (!zeilen) return null;
+      await sleep(600);
+      return boxOf(cdp, ".modal-container .prompt, .modal-container .modal", -5);
     },
   },
   {

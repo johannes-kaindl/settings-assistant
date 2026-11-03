@@ -4,6 +4,23 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Changed
+
+- **On a phone no empty strip is left between Send and the keyboard any more, and the floating navigation bar no longer covers the bottom row of buttons.** Obsidian shrinks its app container when the keyboard opens and sets its safe-area variable to the keyboard height; the plugin's own spacing rule for the chat counted that twice (on an iPhone it left the chat 52 px). The library now sets the spacing once, and the plugin's rule is gone. Measured in Obsidian's mobile emulation set the way an iPhone reports it (390 × 844, keyboard 336 px): keyboard closed, the chat ends 2 px above the navigation bar; keyboard open, 0 px empty and about seven lines of answer with a plugin chip in the chat (about nine without the chip row). Not yet tried on a device with this build (obsidian-kit 0.76.0).
+- **The thinking level in the model row is a symbol where the row is narrow** (▄ for medium, next to the brain icon), so the model name keeps its room; the list of levels still shows the full names, and an entry now reads "▄ Medium" (obsidian-kit 0.76.0).
+- **The past-chats button stays hidden on a phone while "Chats to keep" is 0.** A rule for the phone layout had shown it anyway (obsidian-kit 0.76.0).
+- **The copy buttons of answers are easier to hit with a thumb on a phone** (44 × 44 px hit area, the icon keeps its look; obsidian-kit 0.76.0).
+- **The row "Level picker in chat" is gone from Settings → Request for good,** also for a plugin that had it switched on before: the model row always shows the level, so the row did nothing. The earlier note that a switch that was already on stays visible no longer holds (obsidian-kit 0.76.0).
+- The shared library moved from obsidian-kit 0.74.0 to 0.76.1. Nothing else of the skipped releases reaches this plugin: 0.75.0 adds a writer for code-block bodies, 0.76.0 a choice dialog and a status indicator (the Request section draws its status line with the latter, same look), 0.76.1 only a shared helper for the chat spacing.
+
+### Documentation
+
+- The README and the chat how-to show the dialog **Past chats** (new picture), and the chat picture shows the current window: model row above the input, New as an icon, no heading row.
+
+### Tested
+
+- The layout measurement (`npm run chat-layout`) sets the keyboard the way the device reports it (app container shrinks, safe-area variable on the keyboard height, window height unchanged); the former viewport shrink is kept as `--tastaturart viewport`. A unit test now guards that the plugin sets no spacing on the chat host itself (a mutation test with the old rule turns it red).
+
 ## [0.10.0] — 2026-11-01
 
 ### Added

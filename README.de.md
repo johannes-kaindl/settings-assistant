@@ -76,6 +76,8 @@ npm run build   # erzeugt main.js
 
 <a href="https://raw.githubusercontent.com/johannes-kaindl/settings-assistant/main/docs/images/chat.png"><img src="https://raw.githubusercontent.com/johannes-kaindl/settings-assistant/main/docs/images/thumbs/chat.png" width="380" alt="Der Einstellungs-Chat in der Seitenleiste mit einem entworfenen Profil, seinen Prüfzeilen und einem Anwenden-Knopf"></a><br><sub>Auf die Vorschau klicken für den Chat in voller Größe</sub>
 
+<img src="https://raw.githubusercontent.com/johannes-kaindl/settings-assistant/main/docs/images/history.png" width="550" alt="Der Dialog Vergangene Chats: drei abgelegte Chats mit Titel und Datum, ein Suchfeld und die Symbole zum Speichern als Notiz und zum Löschen">
+
 <img src="https://raw.githubusercontent.com/johannes-kaindl/settings-assistant/main/docs/images/restore-dialog.png" width="550" alt="Der Dialog Schnappschuss zurückholen mit einer Datei, seit dem Anwenden unverändert">
 
 Die Anleitung [First profile](https://github.com/johannes-kaindl/settings-assistant/blob/main/docs/tutorial-first-profile.md) (Englisch) geht all das einmal Schritt für Schritt durch.

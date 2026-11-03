@@ -46,9 +46,11 @@ describe("Chips der Plugin-Auswahl: eine Zeile (Daumen-Test, Welle 29)", () => {
     expect(regel(".is-mobile .sa-chip")).toContain("min-height: var(--input-height)");
   });
 
-  it("im Hauptbereich des Handys lässt der Chat Platz für Obsidians Navigationsleiste, in einer Seitenleiste nicht", () => {
-    const regelMobil = css.split("\n").find((l) => l.startsWith(".is-mobile .mod-root .sa-chat-host {")) ?? "";
-    expect(regelMobil).toContain("padding-bottom: calc(var(--navbar-height) + var(--safe-area-inset-bottom))");
-    expect(css.split("\n").filter((l) => /^\.is-mobile [^{]*\.sa-chat-host \{/.test(l))).toHaveLength(1);
+  it("den Abstand zur Navigationsleiste setzt das Kit (okit-chat-host, 0.76.0), keine eigene Regel am Wirt: sie ergäbe bei offener Tastatur 380 px", () => {
+    // Gerät 2026-11-03: Obsidian setzt --safe-area-inset-bottom bei offener Tastatur auf deren Höhe; eine Plugin-Regel mit der Variable ließ dem Chat 52 px.
+    const eigene = css.split("\n").filter((l) => /\.sa-chat-host[^{]*\{[^}]*padding/.test(l));
+    expect(eigene).toEqual([]);
+    expect(css).toMatch(/\.okit-chat-host[^{]*\{[^}]*padding-bottom: max\(0px, calc\(var\(--navbar-height\)/);
+    expect(css).toMatch(/\.sa-chat-host \{ height: 100%; \}/);
   });
 });

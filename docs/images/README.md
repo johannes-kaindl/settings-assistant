@@ -4,7 +4,7 @@ Dieser Ordner hält die Bilder, die `README.md` und `README.de.md` einbetten. Di
 
 ## Status
 
-Stand 2026-10-03: alle fünf Bilder stehen, aufgenommen in einer Zweitinstanz (Profil und Port gehören dem Treiber, Oberfläche Englisch). Die Bilder zeigen ein Demo-Plugin „Quick Capture“ mit erfundenen, generischen Einstellungen; es läuft kein Sprachmodell, der Chat antwortet ein lokaler Fake-Endpunkt mit einer festen Antwort.
+Stand 2026-11-03: sechs Bilder (`history.png` ist neu, `chat.png` ist neu aufgenommen: Modellzeile über dem Eingabefeld, Neu als Symbol, ohne Kopfzeile „Chat + Modell“). Stand 2026-10-03: die ersten fünf Bilder standen, aufgenommen in einer Zweitinstanz (Profil und Port gehören dem Treiber, Oberfläche Englisch). Die Bilder zeigen ein Demo-Plugin „Quick Capture“ mit erfundenen, generischen Einstellungen; es läuft kein Sprachmodell, der Chat antwortet ein lokaler Fake-Endpunkt mit einer festen Antwort.
 
 ## Konventionen
 
@@ -16,7 +16,8 @@ Verbindlich ist der workspace-weite Bild-Standard (`_docs/readme/readme-spec.jso
 |---|---|---|---|
 | `hero.png` | hero | `README.md`, `README.de.md` (Kopf) | Die Notiz „Weekly review setup“ in der Leseansicht: der `settings-profile`-Block als Prüfzeilen — will change, already set, key not found und die gesperrte Zeile `apiKey` mit „Open settings“ — darunter der Knopf „Apply 4 changes“. |
 | `apply-dialog.png` | feature | `README.md`, `README.de.md` (Usage) | Der Dialog „Apply settings“: Zeilen unter `plugins.quick-capture` mit Häkchen (drei angehakt, `timestampFormat` nicht), der Hinweis „quick-capture will be reloaded — open views close.“, die gesperrte Zeile und „Apply 3 changes“. |
-| `chat.png` | detail | `README.md`, `README.de.md` (Usage) | Die Chat-Seitenleiste mit Frage, Antwort, dem Profil als Prüfzeilen, „Apply 2 changes“, „Raw block (secrets redacted)“, „Save as profile note“ und „Sent context“. |
+| `chat.png` | detail | `README.md`, `README.de.md` (Usage) | Die Chat-Seitenleiste mit Frage, Antwort, dem Profil als Prüfzeilen, „Apply 2 changes“, „Raw block (secrets redacted)“, „Save as profile note“ und „Sent context“; unten die Modellzeile (Modell und Neu-laden) über der Zeile mit dem Plugin-Chip und „Add a plugin…“, das Eingabefeld, Neu als Symbol, Senden und die Statuszeile. |
+| `history.png` | feature | `README.md`, `README.de.md` (Usage), `docs/howto-ask-the-chat.md` | Der Dialog „Past chats“ mit dem Suchfeld und drei abgelegten Chats (Titel, Datum, die zwei Symbole „Save as note“ und „Delete“) und der Tastenzeile darunter. Der Verlauf wird dafür im Rezept eingeschaltet (Aufbewahrung 50), drei Runden werden mit „New chat“ abgelegt. |
 | `restore-dialog.png` | feature | `README.md`, `README.de.md` (Usage) | Der Dialog „Restore snapshot“ nach einem Anwenden, mit `.obsidian/plugins/quick-capture/data.json`, „unchanged since the apply — will be restored“ und „Restore 1 file“. |
 | `settings.png` | detail | `README.md`, `README.de.md` (Configuration) | Der Abschnitt „Snapshots“ des Einstellungen-Tabs: Retention-Felder und „Saved snapshots“ mit einem Eintrag. |
 

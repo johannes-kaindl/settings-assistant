@@ -76,6 +76,8 @@ npm run build   # produces main.js
 
 <a href="https://raw.githubusercontent.com/johannes-kaindl/settings-assistant/main/docs/images/chat.png"><img src="https://raw.githubusercontent.com/johannes-kaindl/settings-assistant/main/docs/images/thumbs/chat.png" width="380" alt="The settings chat in the sidebar with a drafted profile, its check rows and an Apply button"></a><br><sub>Click the preview for the full-size chat</sub>
 
+<img src="https://raw.githubusercontent.com/johannes-kaindl/settings-assistant/main/docs/images/history.png" width="550" alt="The Past chats dialog: three filed chats with their titles and dates, a search field, and the icons to save one as a note or delete it">
+
 <img src="https://raw.githubusercontent.com/johannes-kaindl/settings-assistant/main/docs/images/restore-dialog.png" width="550" alt="The Restore snapshot dialog with one file marked unchanged since the apply">
 
 The walk-through [First profile](https://github.com/johannes-kaindl/settings-assistant/blob/main/docs/tutorial-first-profile.md) does all of this once, step by step.

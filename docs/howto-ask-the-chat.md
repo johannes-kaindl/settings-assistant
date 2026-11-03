@@ -21,6 +21,8 @@ The thinking level is a dropdown with the levels of the chosen model: for Claude
 
 ## Past chats
 
+<img src="https://raw.githubusercontent.com/johannes-kaindl/settings-assistant/main/docs/images/history.png" width="550" alt="The Past chats dialog: three filed chats with their titles and dates, a search field, and the icons to save one as a note or delete it">
+
 The history is off until you switch it on: set **Chats to keep** above 0 (for example 50) under **Settings → Settings Assistant → Past chats**. Then the plugin files every conversation as a `.json` file in the folder you set in the same section (empty means `Settings Assistant/Chats`). The history button (clock icon) next to **New chat**, or the command **Open past chats…**, opens the list: type to search the titles, press Enter or click a row to continue that chat (it writes back into its own file), **Save as note** (also Shift+Enter) writes a Markdown copy beside it that the plugin never reads again, and **Delete** (also Alt+Enter) asks first and is final. Lowering **Chats to keep** deletes the oldest chats above the number at the next save. The files contain the **Sent context** too; read [Why secrets never travel](explanation-secrets.md#where-the-rule-stops) before you sync the folder.
 
 ## Read what was sent
