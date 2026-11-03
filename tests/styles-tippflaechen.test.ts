@@ -54,3 +54,25 @@ describe("Chips der Plugin-Auswahl: eine Zeile (Daumen-Test, Welle 29)", () => {
     expect(css).toMatch(/\.sa-chat-host \{ height: 100%; \}/);
   });
 });
+
+// „Plugins (n)“: die Chip-Zeile wandert bei offener Tastatur am Handy hinter einen Knopf. Die Tastatur ist offen, solange die Eingabe den Fokus hat; alles andere (Desktop, geschlossene Tastatur) bleibt ohne Regel.
+describe("Knopf „Plugins (n)“ und die Chip-Zeile bei offener Tastatur", () => {
+  const FOKUS = ".is-mobile .okit-chat:has(.okit-chat-input:focus)";
+  const stripped = css.replace(/\/\*[\s\S]*?\*\//g, "");
+
+  it("der Knopf ist grundsätzlich unsichtbar und erscheint nur auf dem Handy bei fokussierter Eingabe (44 px hoch wie die Nachbarn)", () => {
+    expect(rule(".sa-chips-toggle")).toMatch(/display:\s*none/);
+    expect(stripped).toContain(`${FOKUS} .sa-chips-toggle:not(.is-empty) {`);
+    expect(rule(`${FOKUS} .sa-chips-toggle:not(.is-empty)`)).toMatch(/min-height:\s*var\(--input-height\)/);
+  });
+
+  it("die Chip-Zeile verschwindet nur unter denselben Bedingungen und nur, solange sie nicht aufgeklappt ist", () => {
+    expect(rule(`${FOKUS} .sa-chat-chips:not(.is-open)`)).toMatch(/display:\s*none/);
+  });
+
+  it("Gegenprobe: keine Regel blendet die Chip-Zeile ohne Handy-Bedingung oder ohne Fokus aus", () => {
+    const blenden = stripped.split("}").filter((r) => /\.sa-chat-chips/.test(r.split("{")[0]!) && /display:\s*none/.test(r) && !/:empty/.test(r.split("{")[0]!));
+    expect(blenden.length).toBe(1);
+    expect(blenden[0]!).toContain(FOKUS);
+  });
+});

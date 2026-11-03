@@ -6,6 +6,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Changed
 
+- **On a phone, while the keyboard is open, the row of plugin chips folds into a button "Plugins (n)"** next to the New icon (n is the number of chosen plugins); one tap shows the row and lets you pick or remove plugins as before, a tap into the input hides it again. The row cost 52 px, so the answer area showed 6.7 lines on a 390 × 508 screen; now it shows 8.6 lines (10.3 on 390 × 546). On the desktop and with the keyboard closed nothing changes.
 - **On a phone no empty strip is left between Send and the keyboard any more, and the floating navigation bar no longer covers the bottom row of buttons.** Obsidian shrinks its app container when the keyboard opens and sets its safe-area variable to the keyboard height; the plugin's own spacing rule for the chat counted that twice (on an iPhone it left the chat 52 px). The library now sets the spacing once, and the plugin's rule is gone. Measured in Obsidian's mobile emulation set the way an iPhone reports it (390 × 844, keyboard 336 px): keyboard closed, the chat ends 2 px above the navigation bar; keyboard open, 0 px empty and about seven lines of answer with a plugin chip in the chat (about nine without the chip row). Not yet tried on a device with this build (obsidian-kit 0.76.0).
 - **The thinking level in the model row is a symbol where the row is narrow** (▄ for medium, next to the brain icon), so the model name keeps its room; the list of levels still shows the full names, and an entry now reads "▄ Medium" (obsidian-kit 0.76.0).
 - **The past-chats button stays hidden on a phone while "Chats to keep" is 0.** A rule for the phone layout had shown it anyway (obsidian-kit 0.76.0).
@@ -21,6 +22,7 @@ All notable changes to this project are documented here. The format follows [Kee
 ### Tested
 
 - The layout measurement (`npm run chat-layout --ort schublade-dann-befehl`) puts the chat in the drawer, runs a round, calls the command and checks that the tab sits in the main area with the round still in the log. A unit test covers the same case with a counter-case on the desktop.
+- The layout measurement takes `--tastatur <px>` (298 gives the 390 × 546 container) and reports the "Plugins (n)" button; GUI smoke point P41 checks the button (desktop: hidden, phone class with focus: visible and the chip row folded, tap opens and closes it, without focus both back to normal).
 - The layout measurement (`npm run chat-layout`) sets the keyboard the way the device reports it (app container shrinks, safe-area variable on the keyboard height, window height unchanged); the former viewport shrink is kept as `--tastaturart viewport`. A unit test now guards that the plugin sets no spacing on the chat host itself (a mutation test with the old rule turns it red).
 
 ## [0.10.0] — 2026-11-01

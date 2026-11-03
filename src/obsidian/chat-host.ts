@@ -49,6 +49,10 @@ export class SettingsChatHost extends ItemView {
   private win: ChatWindow | null = null;
   private bar: ModelBar | null = null;
   private chipsEl: HTMLElement | null = null;
+  /** Der Knopf „Plugins (n)“ in der Knopfreihe des Composers (neben Neu und Verlauf): bei offener Tastatur am Handy steht er für die Chip-Zeile, ein Tipp klappt sie auf. */
+  private chipsToggle: HTMLButtonElement | null = null;
+  private chipsOpen = false;
+  private readonly onInputFocus = (): void => { this.setChipsOpen(false); };
 
   constructor(leaf: WorkspaceLeaf, private readonly deps: ChatHostDeps) { super(leaf); }
 
@@ -156,7 +160,7 @@ export class SettingsChatHost extends ItemView {
   private drawComposer(el: HTMLElement): () => void {
     this.chipsEl = el.createDiv({ cls: "sa-chat-chips", attr: { "aria-label": t("chat.chips") } });
     this.fillChips();
-    if (!this.endpointOk) return () => {};
+    if (!this.endpointOk) return () => { this.dropToggle(); };
     const d = this.deps;
     const bar = buildModelBar({
       app: d.app,
@@ -171,17 +175,58 @@ export class SettingsChatHost extends ItemView {
     return () => {
       bar.destroy();
       if (this.bar === bar) this.bar = null;
+      this.dropToggle();
     };
+  }
+
+  /** Der Knopf „Plugins (n)“ steht in der Knopfreihe des Kit-Fensters (`.okit-chat-buttons-start`, die Zeile mit Neu und Verlauf hat in der Mitte Platz), nicht in einer eigenen Zeile: ob er sichtbar ist, entscheidet die CSS
+   *  (nur Handy, nur solange die Eingabe den Fokus hat, also bei offener Tastatur; dann ist die Chip-Zeile zu, bis man ihn tippt). Er wird einmal angelegt und zeichnet nur Zahl und Zustand neu. */
+  private ensureToggle(): HTMLButtonElement | null {
+    if (this.chipsToggle?.parentElement) return this.chipsToggle;
+    // Aufwärts über parentElement statt `closest` (das Fake-DOM der Tests kennt es nicht).
+    let composer: HTMLElement | null = this.chipsEl?.parentElement ?? null;
+    while (composer && !composer.classList.contains("okit-chat-composer")) composer = composer.parentElement;
+    const row = composer?.querySelector(".okit-chat-buttons-start") ?? null;
+    if (!row) return null;
+    const btn = (row as HTMLElement).createEl("button", { cls: "sa-chips-toggle", attr: { type: "button", "aria-expanded": "false" } });
+    // Der Druck darf der Eingabe den Fokus nicht nehmen: sonst schließt die Tastatur, der Knopf verschwindet unter dem Finger, und der Tipp kommt nie an (Maus in der Emulation; am Handy nimmt ein Knopf den Fokus ohnehin nicht).
+    btn.addEventListener("mousedown", (e) => { e.preventDefault(); });
+    btn.addEventListener("click", () => { this.setChipsOpen(!this.chipsOpen); });
+    // Ein neuer Fokus in der Eingabe klappt die Zeile wieder ein: wer weitertippt, will den Platz. Dieselbe Funktion je Aufruf, damit ein zweites addEventListener nichts verdoppelt.
+    row.parentElement?.querySelector(".okit-chat-input")?.addEventListener("focus", this.onInputFocus);
+    this.chipsToggle = btn;
+    return btn;
+  }
+
+  private dropToggle(): void {
+    this.chipsToggle?.remove();
+    this.chipsToggle = null;
+  }
+
+  private setChipsOpen(open: boolean): void {
+    this.chipsOpen = open;
+    this.chipsEl?.toggleClass("is-open", open);
+    this.chipsToggle?.setAttribute("aria-expanded", String(open));
   }
 
   /** Nur die Chips zeichnen sich neu: Modellzeile, Entwurf und die Bereiche unter den Antworten bleiben (der Zustand „gespeichert“ bleibt erhalten). */
   private drawChips(): void { this.fillChips(); }
+
+  /** Zahl der gewählten Plugins am Knopf; ohne Plugins, die man wählen könnte, gibt es keinen Knopf (die Chip-Zeile ist dann leer und fehlt ohnehin). */
+  private paintToggle(count: number, needed: boolean): void {
+    const btn = this.ensureToggle();
+    if (!btn) return;
+    btn.setText(t("chat.pluginsToggle", String(count)));
+    btn.setAttribute("aria-label", t("chat.pluginsToggleLabel", String(count)));
+    btn.toggleClass("is-empty", !needed);
+  }
 
   private fillChips(): void {
     const el = this.chipsEl;
     if (!el || !this.endpointOk) return;
     const d = this.deps;
     el.empty();
+    el.toggleClass("is-open", this.chipsOpen);
     const installed = d.installed();
     const names = new Map(installed.map((p) => [p.id, p.name]));
     for (const id of d.state.selected) {
@@ -195,6 +240,7 @@ export class SettingsChatHost extends ItemView {
       });
     }
     const free = installed.filter((p) => !d.state.selected.includes(p.id));
+    this.paintToggle(d.state.selected.length, d.state.selected.length > 0 || free.length > 0);
     if (free.length === 0) return;
     const sel = el.createEl("select", { cls: "dropdown sa-chip-add", attr: { "aria-label": t("chat.addPlugin") } });
     sel.createEl("option", { text: t("chat.addPlugin") }).value = "";

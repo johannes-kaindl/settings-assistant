@@ -179,7 +179,7 @@ interface Messung {
   viewport: [number, number];
   isMobile: boolean;
   chat: Box | null; log: Box | null; zeilenhoehe: number; logZeilen: number;
-  modellzeile: Box | null; chips: Box | null; chip: Box | null; dropdown: Box | null; eingabe: Box | null; knopfreihe: Box | null; senden: Box | null; neu: Box | null; statuszeile: Box | null; statustext: string;
+  modellzeile: Box | null; chips: Box | null; chip: Box | null; dropdown: Box | null; eingabe: Box | null; knopfreihe: Box | null; senden: Box | null; neu: Box | null; knopf: Box | null; knopfText: string; statuszeile: Box | null; statustext: string;
   kontext: Box | null; kontextOffen: boolean | null; kontextImLog: boolean | null;
   tiefster: number; abstandUnten: number;
   chipUndDropdownInEinerZeile: boolean | null;
@@ -208,7 +208,7 @@ const MESS_JS = `
   return {
     viewport: [innerWidth, innerHeight], isMobile: document.body.classList.contains("is-mobile"),
     chat: r(".okit-chat"), log: r(".okit-chat-log"), zeilenhoehe: +lh.toFixed(2), logZeilen: lb ? +(lb.height / lh).toFixed(1) : 0,
-    ...teile, chip, dropdown: dd, senden: r(".okit-chat-send"), neu: r(".okit-chat-new"),
+    ...teile, chip, dropdown: dd, senden: r(".okit-chat-send"), neu: r(".okit-chat-new"), knopf: r(".sa-chips-toggle"), knopfText: (document.querySelector(".sa-chips-toggle")?.textContent || "").trim(),
     statustext: (document.querySelector(".okit-chat-status")?.textContent || "").trim(),
     kontext: r(".sa-chat-sent"), kontextOffen: sent ? sent.open : null, kontextImLog: sent && log ? log.contains(sent) : null,
     tiefster, abstandUnten: +((document.querySelector('.app-container') ? document.querySelector('.app-container').getBoundingClientRect().bottom : innerHeight) - tiefster).toFixed(1),
@@ -235,6 +235,7 @@ function kurz(m: Messung): string {
     `  (c) Chip ${b(m.chip)} · Dropdown ${b(m.dropdown)} · in einer Zeile ${String(m.chipUndDropdownInEinerZeile)} · Mittellinien ${m.mittellinienAbstand ?? "—"} px auseinander (Soll < 1) · Abstand zur Modellzeile ${m.abstandZurModellzeile ?? "—"} px (Soll >= 4)`,
     `  (d) Kontext offen ${String(m.kontextOffen)} · im Verlauf ${String(m.kontextImLog)} · ${b(m.kontext)}`,
     `  Statuszeile „${m.statustext}“ ${b(m.statuszeile)} · Modellzeile ${b(m.modellzeile)} · Eingabe ${b(m.eingabe)} · Knopfreihe ${b(m.knopfreihe)}`,
+    `  Knopf „${m.knopfText}“ ${b(m.knopf)} · Chip-Zeile ${b(m.chips)}`,
     `  Reihenfolge von oben: ${m.reihenfolge.join(" > ")}`,
     `  Unter dem Chat: ${m.unterhalb}`,
     `  Navigationsleiste: ${m.navbar}`,
@@ -259,6 +260,9 @@ async function main(): Promise<void> {
   // --keyboard-height und --safe-area-inset-bottom stehen auf der Tastaturhöhe, env(safe-area-inset-bottom) bleibt 34 px. `viewport` (Welle 29) verkleinert den Viewport, so greift die Falte
   // (max-height: 640px), die am Gerät nie greift; nur noch als Vergleich.
   const tastaturart = flag("--tastaturart") ?? "geraet";
+  // Tastaturhöhe in px (Standard 336 = Container 508 bei 844); 298 ergibt den Container 546 (Master 2026-11-03).
+  const tastaturHoehe = Number(flag("--tastatur") ?? TASTATUR);
+  if (!Number.isFinite(tastaturHoehe) || tastaturHoehe < 0 || tastaturHoehe > 600) throw new Error("--tastatur <0-600> in px");
   mkdirSync(out, { recursive: true });
 
   const fake = await startFakeEndpoint();
@@ -319,7 +323,7 @@ async function main(): Promise<void> {
     for (const [schema, name] of [["moonstone", "hell"], ["obsidian", "dunkel"]] as const) {
       await cdp.evaluate(`app.vault.setConfig("theme", ${q(schema)}); app.updateTheme(); app.workspace.trigger("css-change"); await new Promise((r) => setTimeout(r, 600)); return true;`);
       for (const mitTastatur of [false, true]) {
-        const hoehe = mitTastatur ? HOEHE - TASTATUR : HOEHE;
+        const hoehe = mitTastatur ? HOEHE - tastaturHoehe : HOEHE;
         if (tastaturart === "viewport") {
           await cdp.send("Emulation.setDeviceMetricsOverride", { width: BREITE, height: hoehe, deviceScaleFactor: 2, mobile: true });
         } else {
@@ -327,7 +331,7 @@ async function main(): Promise<void> {
           await cdp.send("Emulation.setSafeAreaInsetsOverride", { insets: { top: 0, bottom: 34, left: 0, right: 0 } });
           // Auf :root UND body (in der Emulation steht unterhalb von :root eine eigene Definition).
           await cdp.evaluate(`const r = document.documentElement; const app = document.querySelector(".app-container");
-            for (const el of [r, document.body]) { el.style.setProperty("--keyboard-height", "${mitTastatur ? TASTATUR : 0}px"); el.style.setProperty("--safe-area-inset-bottom", "${mitTastatur ? TASTATUR : 34}px"); }
+            for (const el of [r, document.body]) { el.style.setProperty("--keyboard-height", "${mitTastatur ? tastaturHoehe : 0}px"); el.style.setProperty("--safe-area-inset-bottom", "${mitTastatur ? tastaturHoehe : 34}px"); }
             app.style.height = "${hoehe}px"; return true;`);
         }
         await cdp.evaluate(mitTastatur ? `document.querySelector(".okit-chat-input")?.focus(); return true;` : `document.activeElement?.blur?.(); return true;`);
@@ -336,6 +340,13 @@ async function main(): Promise<void> {
         const m = await messe(cdp, zustand);
         messungen.push(m);
         console.log(kurz(m));
+        if (mitTastatur && m.knopf) {
+          // Der Knopf klappt die Chip-Zeile auf und wieder zu (ein Tipp mehr, die Auswahl bleibt nutzbar).
+          const auf = await cdp.evaluate<{ offen: boolean; zu: boolean }>(`const k = document.querySelector(".sa-chips-toggle"); const c = document.querySelector(".sa-chat-chips"); const sicht = () => { const b = c.getBoundingClientRect(); return b.width > 0 && b.height > 0; };
+            k.click(); await new Promise((r) => setTimeout(r, 300)); const offen = sicht(); k.click(); await new Promise((r) => setTimeout(r, 300)); return { offen, zu: !sicht() };`);
+          console.log(`  Aufklappen: Chip-Zeile nach dem Tipp sichtbar ${String(auf.offen)}, nach dem zweiten Tipp wieder zu ${String(auf.zu)}`);
+        }
+        if (flag("--bilder") === "nein") continue; // reine DOM-Messung: braucht keinen Fokus-Lock (`--exclusive all`), die Bilder folgen unter `focus`
         const png = await capture(cdp, undefined, 1);
         const pfad = join(out, `${zustand}.png`);
         writeFileSync(pfad, png);

@@ -10,7 +10,7 @@ The chat needs an endpoint with a chat model. Under **Settings → Settings Assi
 
 1. Run **Open settings chat**, or use the ribbon icon. The chat opens in the right sidebar; on a phone it opens as a tab in the main area, where the on-screen keyboard leaves more room than in the drawer.
 2. Type your question and send with **Send** or Enter; Shift+Enter starts a new line. Name the plugin in the question, for example "Why does my-plugin stop after twenty rounds?". Plugins whose id or name appears in your message are picked as chips above the input.
-3. Correct the chips before you send: remove one with its **x**, add one with the **Add a plugin…** dropdown. Only these plugins' settings go with the question. A list of all installed plugins (id and name) always goes along.
+3. Correct the chips before you send: remove one with its **x**, add one with the **Add a plugin…** dropdown. Only these plugins' settings go with the question. A list of all installed plugins (id and name) always goes along. On a phone, while the keyboard is open, this row is folded into the button **Plugins (n)** (n is the number of chosen plugins) next to the New icon: tap it to show the row, tap it again or tap into the input to hide it.
 4. **Stop** (the Send button turns into Stop while an answer runs) or Escape cancels a running answer. **New chat**, the pen-and-square icon left of Send (or the command **Start new chat**), starts an empty conversation: with the history on it files the old one first and says so, without asking; with the history off (**Chats to keep** at 0, the default) it asks before it discards. It is locked while the conversation is empty and while an answer runs.
 
 ## Choose the model

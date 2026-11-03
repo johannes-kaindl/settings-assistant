@@ -1,5 +1,5 @@
 /**
- * GUI-Smoke — faehrt die Pruefpunkte P1-P40 gegen ein LAUFENDES Obsidian (CORE-TEST-02 b).
+ * GUI-Smoke — faehrt die Pruefpunkte P1-P41 gegen ein LAUFENDES Obsidian (CORE-TEST-02 b).
  *
  * Gemessen wird die SACHE: Dateiinhalt auf Platte (`sa-probe/data.json`, `hotkeys.json`, Schnappschuss-
  * Manifest), Dialogtext, Notice — nicht die Existenz eines Elements. Das Testplugin `sa-probe`
@@ -32,7 +32,7 @@
  * `npm run smoke:gui -- --launch --dataview --port <PORT>` fuehrt NUR drei eigene Punkte (D1-D3, eigener Nenner) und legt Dataview in den
  * Vault: die drei Dateien werden aus einer vorhandenen Installation unter ~/Documents/*\/.obsidian/plugins/dataview LESEND kopiert (oder
  * aus `DATAVIEW_QUELLE=<Ordner>`), JS-Abfragen und Inline-JS stehen an. D2 ist die Gegenprobe und laeuft zuerst: schlaegt sie nicht an
- * (kein Marker am nackten Renderer), sind D1 und D3 „nichts gemessen“, nicht „sicher“. Der Nenner ohne den Schalter bleibt bei P1-P40.
+ * (kein Marker am nackten Renderer), sind D1 und D3 „nichts gemessen“, nicht „sicher“. Der Nenner ohne den Schalter bleibt bei P1-P41.
  *
  * Der erste Lauf nach Profilanlage ist ein Aufwaermlauf und zaehlt nicht. Die regulaere Instanz auf 9222
  * wird nicht angefasst. Gemessen wird im eigenen Staging-Vault (`stagingVaultDir()`), nie im
@@ -115,6 +115,7 @@ const PUNKTE = [
   "P38 Einstellungs-Tab baut bei jedem Oeffnen neu auf (der Haken haelt nach hide()); Gegenprobe: ohne Haken (dispose) kein Neuaufbau",
   "P39 Verlauf am echten Adapter: die Runde liegt als .json im Ordner (ohne Schluessel), Neu legt ab und leert, die Liste zeigt sie, Laden setzt das Gespraech fort, Export schreibt eine .md, Loeschen entfernt die .json",
   "P40 Aufbewahrung 0: der Verlauf-Knopf verschwindet, Neu fragt zurueck, Abbrechen behaelt das Gespraech, Verwerfen leert es und schreibt nichts",
+  "P41 Knopf „Plugins (n)“: am Handy (Vorfahr mit is-mobile) bei fokussierter Eingabe steht die Chip-Zeile hinter dem Knopf in der Knopfreihe, ein Tipp klappt sie auf und zu; auf dem Desktop und ohne Fokus bleibt die Zeile, der Knopf fehlt",
 ] as const;
 type PunktName = (typeof PUNKTE)[number];
 const pn = (prefix: string): PunktName => {
@@ -123,7 +124,7 @@ const pn = (prefix: string): PunktName => {
   return hit;
 };
 
-// Dataview-Messung (`--dataview`): drei eigene Punkte mit eigenem Nenner. Ohne den Schalter bleibt die Bilanz bei den 40 Punkten oben.
+// Dataview-Messung (`--dataview`): drei eigene Punkte mit eigenem Nenner. Ohne den Schalter bleibt die Bilanz bei den 41 Punkten oben.
 const DV_PUNKTE = [
   "D1 Dataview-Kette: dataviewjs-Zaun und $=-Ausdruck einer Chat-Antwort laufen durch das echte Chat-Fenster, beide Marker bleiben leer",
   "D2 Dataview-Gegenprobe: derselbe Text ohne Neutralisierung am nackten Renderer setzt beide Marker (Dataview-JS laeuft in dieser Instanz)",
@@ -1755,6 +1756,52 @@ async function p40(c: Ctx): Promise<void> {
     `Verlauf-Knopf sichtbar ${String(knopf)} (verlangt: nein) · Rueckfrage „${frage.text.replace(/\s+/g, " ").trim().slice(0, 120)}“ · nach Abbrechen ${bleibt} Runden · nach Verwerfen leer ${String(leer !== null)} · Dateien im Ordner ${dat.json.length} .json / ${dat.md.length} .md (verlangt: 0 / 0)`);
 }
 
+/** P41: Knopf „Plugins (n)“. Die Handy-Bedingung der CSS ist ein Vorfahr mit der Klasse `is-mobile`; sie wird am view-content des Chats gesetzt (nicht am body: dort klappt Obsidian die Seitenleiste zu, in der der Chat auf dem Desktop steht; kein emulateMobile, das Obsidian neu lädt) und am Ende wieder entfernt. Der Fokus der Eingabe ersetzt die Tastatur. */
+async function p41(c: Ctx): Promise<void> {
+  // Ein offener Dialog aus einem frueheren Punkt (im Vollauf: die Hotkey-Eingabe) haelt den Fokus; solo laeuft der Punkt ohne ihn.
+  await schliesseDialoge(c.cdp);
+  // Die Eingabeleiste (`prompt-input`) hat keinen Schliessen-Knopf: Escape, wie ein Nutzer, bis kein Dialog mehr steht.
+  for (let i = 0; i < 3; i++) {
+    const offen = await c.cdp.evaluate<{ n: number }>(`const el = document.querySelector(".modal-container .prompt-input") || document.activeElement || document.body; if (document.querySelector(".modal-container")) el.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", keyCode: 27, bubbles: true, cancelable: true })); await new Promise((r) => setTimeout(r, 300)); return { n: document.querySelectorAll(".modal-container").length };`);
+    if (offen.n === 0) break;
+  }
+  await chatVorbereiten(c);
+  const m = await c.cdp.evaluate<{ knopfInReihe: boolean; text: string; desk: { knopf: string; chips: boolean }; fokus: boolean; diag: { aktiv: string; hasFocus: boolean; eingabe: string; sichtbarkeit: string }; mobil: { knopf: string; chips: boolean }; auf: { chips: boolean; expanded: string }; zu: { chips: boolean; expanded: string }; ohneFokus: { knopf: string; chips: boolean } }>(`
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    const k = document.querySelector(".sa-chips-toggle"); const chips = document.querySelector(".sa-chat-chips"); const input = document.querySelector(".okit-chat-input");
+    if (!k || !chips || !input) return null;
+    const sichtbar = (el) => { const b = el.getBoundingClientRect(); return b.width > 0 && b.height > 0; };
+    const zustand = () => ({ knopf: getComputedStyle(k).display, chips: sichtbar(chips) });
+    input.blur(); await sleep(250);
+    const knopfInReihe = !!k.parentElement && k.parentElement.classList.contains("okit-chat-buttons-start");
+    const text = k.textContent;
+    const desk = zustand();
+    const host = input.closest(".view-content"); host.classList.add("is-mobile");
+    try {
+      input.focus(); await sleep(400);
+      const fokus = document.activeElement === input;
+      const diag = { aktiv: document.activeElement ? document.activeElement.tagName + "." + String(document.activeElement.className).slice(0, 40) + " in " + String((document.activeElement.closest(".modal-container, .suggestion-container, .workspace-leaf-content") || {}).className || "-").slice(0, 60) + " «" + String((document.activeElement.closest(".modal") || document.body).textContent || "").replace(/\s+/g, " ").slice(0, 60) + "»" : "-", hasFocus: document.hasFocus(), eingabe: (() => { const b = input.getBoundingClientRect(); return Math.round(b.width) + "x" + Math.round(b.height); })(), sichtbarkeit: document.visibilityState };
+      const mobil = zustand();
+      k.click(); await sleep(300);
+      const auf = { chips: sichtbar(chips), expanded: k.getAttribute("aria-expanded") };
+      k.click(); await sleep(300);
+      const zu = { chips: sichtbar(chips), expanded: k.getAttribute("aria-expanded") };
+      input.blur(); await sleep(300);
+      const ohneFokus = zustand();
+      return { knopfInReihe, text, desk, fokus, diag, mobil, auf, zu, ohneFokus };
+    } finally { host.classList.remove("is-mobile"); input.blur(); }
+  `);
+  if (!m) { unmeasured(pn("P41"), "Knopf, Chip-Zeile oder Eingabe fehlen im Chat (kein .sa-chips-toggle / .sa-chat-chips / .okit-chat-input)"); return; }
+  if (!m.fokus) { unmeasured(pn("P41"), `die Eingabe nahm den Fokus nicht an (document.activeElement ist ${m.diag.aktiv}, hasFocus ${String(m.diag.hasFocus)}, Eingabe ${m.diag.eingabe}, ${m.diag.sichtbarkeit}): ohne Fokus gibt es keine Tastatur zu messen`); return; }
+  record(pn("P41"),
+    m.knopfInReihe && /^Plugins \(\d+\)$/.test(m.text) &&
+      m.desk.knopf === "none" && m.desk.chips &&
+      m.mobil.knopf !== "none" && !m.mobil.chips &&
+      m.auf.chips && m.auf.expanded === "true" && !m.zu.chips && m.zu.expanded === "false" &&
+      m.ohneFokus.knopf === "none" && m.ohneFokus.chips,
+    `Knopf in der Knopfreihe ${String(m.knopfInReihe)} · Text „${m.text}“ · Desktop: Knopf ${m.desk.knopf}, Chip-Zeile sichtbar ${String(m.desk.chips)} · Handy mit Fokus: Knopf ${m.mobil.knopf}, Chip-Zeile sichtbar ${String(m.mobil.chips)} · Tipp: Zeile ${String(m.auf.chips)} (aria-expanded ${String(m.auf.expanded)}), zweiter Tipp: ${String(m.zu.chips)} (${String(m.zu.expanded)}) · Handy ohne Fokus: Knopf ${m.ohneFokus.knopf}, Zeile ${String(m.ohneFokus.chips)}`);
+}
+
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
   if (args.has("setup")) { setupVault(); console.log("\nDen Vault in der Zweitinstanz oeffnen, dann: npm run smoke:gui -- --port <PORT>"); return; }
@@ -1800,9 +1847,12 @@ async function main(): Promise<void> {
         [pn("P1"), p1], [pn("P2"), p2], [pn("P13"), p13], [pn("P7"), p7], [pn("P14"), p14],
         [pn("P3"), p3], [pn("P4"), p4], [pn("P5"), p5], [pn("P11"), p11], [pn("P6"), p6],
         [pn("P9"), p9], [pn("P10"), p10], [pn("P8"), p8p12], [pn("P15"), p15], [pn("P16"), p16], [pn("P17"), p17], [pn("P18"), p18], [pn("P19"), p19], [pn("P20"), p20], [pn("P21"), p21], [pn("P22"), p22], [pn("P23"), p23], [pn("P25"), p25], [pn("P26"), p26],
-        [pn("P32"), p32], [pn("P33"), p33p34], [pn("P35"), p35], [pn("P36"), p36], [pn("P37"), p37], [pn("P38"), p38], [pn("P39"), p39], [pn("P40"), p40],
+        [pn("P32"), p32], [pn("P33"), p33p34], [pn("P35"), p35], [pn("P36"), p36], [pn("P37"), p37], [pn("P38"), p38], [pn("P39"), p39], [pn("P40"), p40], [pn("P41"), p41],
       ];
+      // `--nur P41`: nur dieser Punkt (Mutationsprobe, Wiederholung); die übrigen zählen dann als „nichts gemessen“, die Bilanz ist keine Vollbilanz.
+      const nur = args.value("nur");
       for (const [name, fn] of reihe) {
+        if (nur !== undefined && !String(name).startsWith(`${nur} `)) continue;
         await schliesseDialoge(cdp);
         await punkt(name, () => fn(ctx));
       }

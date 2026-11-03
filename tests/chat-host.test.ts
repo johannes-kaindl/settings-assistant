@@ -364,6 +364,59 @@ describe("chat-host", () => {
     });
   });
 
+  describe("Knopf „Plugins (n)“ (Chip-Zeile hinter einem Knopf bei offener Tastatur am Handy)", () => {
+    const toggle = (v: SettingsChatHost) => all(v, ".sa-chips-toggle");
+    const chips = (v: SettingsChatHost) => all(v, ".sa-chat-chips")[0];
+
+    it("steht in der Knopfreihe des Composers (keine eigene Zeile) und zählt die gewählten Plugins", async () => {
+      const s = await openWith();
+      expect(toggle(s.view).length).toBe(1);
+      expect(toggle(s.view)[0].parentElement.classList.contains("okit-chat-buttons-start")).toBe(true);
+      expect(toggle(s.view)[0].textContent).toBe("Plugins (0)");
+      s.state.selected = ["koda-agent"];
+      await ask(s.view, "koda-agent rounds");
+      expect(toggle(s.view)[0].textContent).toBe("Plugins (1)");
+      buttons(s.view).find((b) => b.getAttribute("aria-label") === "Remove Koda").click();
+      expect(toggle(s.view)[0].textContent).toBe("Plugins (0)");
+    });
+
+    it("ein Tipp klappt die Chip-Zeile auf und wieder zu (aria-expanded folgt), ein neuer Fokus in der Eingabe klappt sie zu", async () => {
+      const s = await openWith();
+      const t = toggle(s.view)[0];
+      expect(t.getAttribute("aria-expanded")).toBe("false");
+      expect(chips(s.view).classList.contains("is-open")).toBe(false);
+      t.click();
+      expect(t.getAttribute("aria-expanded")).toBe("true");
+      expect(chips(s.view).classList.contains("is-open")).toBe(true);
+      t.click();
+      expect(chips(s.view).classList.contains("is-open")).toBe(false);
+      t.click();
+      all(s.view, ".okit-chat-input")[0].dispatchEvent({ type: "focus" });
+      expect(chips(s.view).classList.contains("is-open")).toBe(false);
+      expect(t.getAttribute("aria-expanded")).toBe("false");
+    });
+
+    it("die aufgeklappte Zeile bleibt offen, wenn ein Chip dazukommt oder geht (die Zeile zeichnet sich neu)", async () => {
+      const s = await openWith();
+      toggle(s.view)[0].click();
+      s.state.selected = ["koda-agent"];
+      await ask(s.view, "koda-agent rounds");
+      expect(chips(s.view).classList.contains("is-open")).toBe(true);
+    });
+
+    it("ein Neuzeichnen des Fensters (refresh) lässt genau einen Knopf stehen", async () => {
+      const s = await openWith();
+      s.view.refreshArchive();
+      s.view.refreshArchive();
+      expect(toggle(s.view).length).toBe(1);
+    });
+
+    it("ohne einen Endpunkt gibt es keine Chip-Zeile und keinen Knopf", async () => {
+      const s = await openWith({ endpoint: false });
+      expect(toggle(s.view).length).toBe(0);
+    });
+  });
+
   describe("Verlauf", () => {
     it("überlebt das Schließen und Öffnen der Ansicht (der Zustand gehört dem Plugin)", async () => {
       const state = newChatState();
