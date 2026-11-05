@@ -43,9 +43,15 @@
         "i18n",
         "settings",
         "sampling-profiles",
-        "rotation",
+        {
+          "name": "rotation",
+          "ref": "0.60.0"
+        },
         "backend-probe",
-        "redact",
+        {
+          "name": "redact",
+          "ref": "0.60.0"
+        },
         "safe-markdown",
         "secrets",
         "embeddings-client",
@@ -118,7 +124,10 @@
         "endpoint-status-text",
         "plugin-api",
         "anthropic-transport",
-        "chat-window",
+        {
+          "name": "chat-window",
+          "ref": "0.80.3"
+        },
         "chat-host",
         "chat-leaf",
         "chat-window-strings",
