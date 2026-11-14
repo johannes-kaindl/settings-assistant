@@ -1,5 +1,5 @@
 /**
- * GUI-Smoke — faehrt die Pruefpunkte P1-P43 gegen ein LAUFENDES Obsidian (CORE-TEST-02 b).
+ * GUI-Smoke — faehrt die Pruefpunkte P1-P46 gegen ein LAUFENDES Obsidian (CORE-TEST-02 b).
  *
  * Gemessen wird die SACHE: Dateiinhalt auf Platte (`sa-probe/data.json`, `hotkeys.json`, Schnappschuss-
  * Manifest), Dialogtext, Notice — nicht die Existenz eines Elements. Das Testplugin `sa-probe`
@@ -32,7 +32,7 @@
  * `npm run smoke:gui -- --launch --dataview --port <PORT>` fuehrt NUR drei eigene Punkte (D1-D3, eigener Nenner) und legt Dataview in den
  * Vault: die drei Dateien werden aus einer vorhandenen Installation unter ~/Documents/*\/.obsidian/plugins/dataview LESEND kopiert (oder
  * aus `DATAVIEW_QUELLE=<Ordner>`), JS-Abfragen und Inline-JS stehen an. D2 ist die Gegenprobe und laeuft zuerst: schlaegt sie nicht an
- * (kein Marker am nackten Renderer), sind D1 und D3 „nichts gemessen“, nicht „sicher“. Der Nenner ohne den Schalter bleibt bei P1-P43.
+ * (kein Marker am nackten Renderer), sind D1 und D3 „nichts gemessen“, nicht „sicher“. Der Nenner ohne den Schalter bleibt bei P1-P46.
  *
  * Der erste Lauf nach Profilanlage ist ein Aufwaermlauf und zaehlt nicht. Die regulaere Instanz auf 9222
  * wird nicht angefasst. Gemessen wird im eigenen Staging-Vault (`stagingVaultDir()`), nie im
@@ -46,7 +46,8 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { cwd } from "node:process";
 
-import { Cdp, attachTo, beimAbbruch, bereiteInstanzVor, clearNotices, closeExtraLeaves, istAbgebrochen, notices, openExisting, pollUntil, reopenNote, requireVisible, schliesseDialog, schliesseEinstellungen } from "../../tools/obsidian-cdp/cdp.js";
+import { fakeManagerAendereMit as fakeManagerAendere } from "../../tools/obsidian-cdp/fake-manager.js";
+import { Cdp, attachTo, beimAbbruch, bereiteInstanzVor, clearNotices, closeExtraLeaves, entferneFakeManager, installFakeManager, istAbgebrochen, notices, openExisting, pollUntil, reopenNote, requireVisible, schliesseDialog, schliesseEinstellungen } from "../../tools/obsidian-cdp/cdp.js";
 import { messeFolge, zeichneFolge } from "../../tools/obsidian-cdp/folge.js";
 import { fokusAufraeumSkript, fokusMutationSkript, gegenprobeErreichbarkeit, gegenprobeFokus, messeDenkblockKopierbar, messeErreichbarkeit, messeFokusFenster, optOutPflicht, zeichneDenkblock, zeichnePflicht } from "../../tools/obsidian-cdp/pflichtpunkte.js";
 import { neutralizeModelMarkdown } from "../src/vendor/kit/safe-markdown";
@@ -118,6 +119,9 @@ const PUNKTE = [
   "P41 Knopf „Plugins (n)“: am Handy (Vorfahr mit is-mobile) bei fokussierter Eingabe steht die Chip-Zeile hinter dem Knopf in der Knopfreihe, ein Tipp klappt sie auf und zu; auf dem Desktop und ohne Fokus bleibt die Zeile, der Knopf fehlt",
   "P42 Linkschutz-Haertung (code-kit 0.68.0, dom-guard 0.88.0): rohes HTML im beobachteten Bereich des Chats verliert <form>, formaction, on*-Attribute und ping, der https-Link bleibt; Gegenprobe: dasselbe HTML ausserhalb behaelt alle Marker",
   "P43 Befehl „Save plugin settings as profile note…“: Auswahl nennt sa-probe (nie das eigene Plugin), die Notiz entsteht neben der offenen Notiz, ohne den Schluessel, die Meldung nennt den zurueckgehaltenen Pfad, und gegen denselben Stand geprueft aendert sie nichts (nur die Schluessel-Zeile bleibt „secret“)",
+  "P44 Modellzeile mit Gruppen (obsidian-kit 0.89.0, Fake-Manager mit drei Endpunkten): ohne Manager keine Gruppe, mit Manager eine Gruppe je Endpunkt (der unerreichbare mit gesperrtem Hinweis), die Wahl unter dem zweiten Endpunkt bindet Endpunkt UND Modell",
+  "P45 Verwaiste Wahl: schaltet der Manager den gewaehlten Endpunkt ab, zeigt die Zeile „Automatisch“ mit Warnzeichen und Text, die gespeicherte Wahl bleibt in der data.json und gilt wieder, sobald der Endpunkt zurueck ist",
+  "P46 Selbst-Abo: meldet der Manager eine Aenderung (Endpunkt entfernt), zeichnet die Zeile neu, ohne dass der Wirt sie neu baut oder die Ansichten aktualisiert",
 ] as const;
 type PunktName = (typeof PUNKTE)[number];
 const pn = (prefix: string): PunktName => {
@@ -1588,6 +1592,122 @@ async function p43(c: Ctx): Promise<void> {
   }
 }
 
+/** P44-P46: Modellzeile mit Gruppen je Endpunkt am echten Fenster (obsidian-kit 0.89.0, Welle 34). Ein echter Endpoint Manager gibt es im Staging-Vault nicht; `installFakeManager` setzt den Fake in den
+ *  Slot (drei Endpunkte: `lm`, `zwei`, `aus` unerreichbar), `fakeManagerAendere` aendert ihn und meldet „changed“. Die Zeile sitzt im Composer des Chats (`.okit-model-bar-select`). Der Treiber stellt Fake,
+ *  Einstellung und Chat-Ansicht am Ende wieder her (CORE-TEST-21). Gegenproben im Punkt: P44 misst die flache Liste VOR dem Manager, P45 den Zustand VOR dem Abschalten, P46 die Zahl der Hoerer. */
+/** `--mutation endpoints|abo`: Gegenprobe des Treibers fuer P44-P46 (siehe p44p46). */
+let MUTATION: string | undefined;
+interface Zeile44 { alle: string[]; gruppen: Array<{ label: string; optionen: Array<{ text: string; disabled: boolean; wert: string }> }>; erste: string; wert: string; text: string; warn: boolean; warnText: string }
+const LIES44 = (bedingung: string): string => `
+  const s = document.querySelector(".okit-model-bar-select");
+  if (!s) return null;
+  const w = document.querySelector(".okit-model-bar-warn");
+  const z = { alle: [...s.options].map((o) => o.textContent ?? ""),
+    gruppen: [...s.querySelectorAll("optgroup")].map((g) => ({ label: g.label, optionen: [...g.querySelectorAll("option")].map((o) => ({ text: o.textContent ?? "", disabled: o.disabled, wert: o.value })) })),
+    erste: s.options[0] ? s.options[0].textContent ?? "" : "", wert: s.value, text: s.selectedOptions[0] ? s.selectedOptions[0].textContent ?? "" : "",
+    warn: !!w && !w.classList.contains("is-hidden"), warnText: w ? (w.getAttribute("aria-label") ?? "") : "" };
+  return (${bedingung}) ? z : null;`;
+
+async function p44p46(c: Ctx): Promise<void> {
+  const PLG = `app.plugins.plugins[${q(PLUGIN_ID)}]`;
+  const warte = (bedingung: string, ms = 15_000): Promise<Zeile44 | null> => pollUntil<Zeile44>(c.cdp, LIES44(bedingung), ms, 250).catch(() => null);
+  const oeffneChat = async (): Promise<void> => {
+    await c.cdp.evaluate(`app.workspace.detachLeavesOfType("settings-assistant-chat"); await new Promise((r) => setTimeout(r, 300)); app.commands.executeCommandById(${q(`${PLUGIN_ID}:open-chat`)}); return { ok: true };`);
+  };
+  const gespeicherteWahl = async (): Promise<unknown> => c.cdp.evaluate<unknown>(`
+    try { return JSON.parse(await app.vault.adapter.read(app.vault.configDir + "/plugins/" + ${q(PLUGIN_ID)} + "/data.json")).endpointChoice ?? null; } catch { return "unlesbar"; }`);
+  const P44 = pn("P44"), P45 = pn("P45"), P46 = pn("P46");
+  try {
+    // Ohne Manager: die flache Liste (Gegenprobe zu P44). Der eigene Endpunkt zeigt den Fake des Treibers.
+    await chatVorbereiten(c);
+    const flach = await warte(`z.alle.length >= 1`);
+    if (flach === null) { for (const n of [P44, P45, P46]) unmeasured(n, "die Modellzeile ist ohne Manager nicht erschienen (kein .okit-model-bar-select)"); return; }
+    const ep = (id: string, url: string, models: string[], extra: Record<string, unknown> = {}) => ({ id, label: `Smoke ${id}`, url, models, ...extra });
+    const inst = await installFakeManager(c.cdp, { endpunkte: [ep("lm", c.fake.url, ["qwen-smoke", "lm-zwei"]), ep("zwei", c.fake.url, ["z-eins", "z-zwei"]), ep("aus", c.fake.url, ["aus-std"], { unerreichbar: true })], invalidiere: [PLUGIN_ID] });
+    if (!inst.installiert) throw new Vorbedingung(`Fake-Manager nicht eingebaut: ${inst.grund ?? "?"}`);
+    await c.cdp.evaluate(`const p = ${PLG}; p.settings.endpointChoice = {}; await p.saveSettings(); return { ok: true };`);
+    // Gegenprobe des Treibers (`--mutation endpoints|abo`): macht die Modellzeile blind, damit der Punkt rot werden MUSS. `endpoints`: die Verbindung kennt keine Endpunkte (flache Liste), `abo`: weder Verbindung
+    // noch Manager melden der Zeile etwas. Ohne den Schalter bleibt alles unberuehrt.
+    if (MUTATION === "endpoints") await c.cdp.evaluate(`const l = ${PLG}.llm; window.__saMut = { e: l.endpoints }; l.endpoints = () => []; return { ok: true };`);
+    if (MUTATION === "abo") await c.cdp.evaluate(`const l = ${PLG}.llm; const a = app.plugins.plugins["llm-endpoint-manager"].api; window.__saMut = { s: l.subscribe, o: a.on }; l.subscribe = () => () => {}; a.on = () => () => {}; return { ok: true };`);
+    await oeffneChat();
+
+    // --- P44: Gruppen und Wahl ----------------------------------------------------------------
+    const z = await warte(`z.gruppen.length === 3 && z.gruppen.every((g) => g.optionen.length > 0) && !z.gruppen.some((g) => g.optionen.some((o) => /loading|laedt|lädt/i.test(o.text)))`);
+    if (z === null) {
+      // Der Fake steht nachweislich im Slot (list liefert drei Chat-Endpunkte): zeigt die Zeile trotzdem keine Gruppen, ist das ein Befund am Plugin (rot), nicht „nichts gemessen“.
+      const jetzt = await c.cdp.evaluate<{ endpunkte: number; optionen: string[] }>(`const a = app.plugins.plugins["llm-endpoint-manager"]?.api; const s = document.querySelector(".okit-model-bar-select"); return { endpunkte: a ? a.list({ capability: "chat" }).length : -1, optionen: s ? [...s.options].map((o) => o.textContent ?? "") : [] };`);
+      if (jetzt.endpunkte !== 3) unmeasured(P44, `der Fake-Manager liefert ${jetzt.endpunkte} statt 3 Chat-Endpunkte: die Ausgangslage fehlt`);
+      else record(P44, false, `der Manager liefert 3 Endpunkte, die Zeile zeigte nach 15 s keine drei fertigen Gruppen · Optionen ${JSON.stringify(jetzt.optionen)}`);
+    }
+    else {
+      const gr = (label: string) => z.gruppen.find((g) => g.label === label);
+      const lm = gr("Smoke lm"), zwei = gr("Smoke zwei"), aus = gr("Smoke aus");
+      const texte = (g?: { optionen: Array<{ text: string }> }) => (g ? g.optionen.map((o) => o.text).join("|") : "");
+      const gruppenOk = !!lm && !!zwei && !!aus && texte(lm) === "Default (qwen-smoke)|qwen-smoke|lm-zwei" && texte(zwei) === "Default (z-eins)|z-eins|z-zwei"
+        && aus.optionen.some((o) => o.disabled && o.wert === "" && /not reachable|nicht erreichbar/i.test(o.text));
+      const waehle = await c.cdp.evaluate<boolean>(`
+        const s = document.querySelector(".okit-model-bar-select");
+        const o = [...s.querySelectorAll("optgroup")].filter((g) => g.label === "Smoke zwei").flatMap((g) => [...g.querySelectorAll("option")]).find((x) => x.textContent === "z-zwei");
+        if (!o) return false;
+        s.value = o.value; s.dispatchEvent(new Event("change", { bubbles: true })); return true;`);
+      const nach = await pollUntil<{ wahl: unknown; text: string }>(c.cdp, `
+        const p = ${PLG}; const s = document.querySelector(".okit-model-bar-select");
+        const w = p.settings.endpointChoice;
+        return w && w.endpointId === "zwei" && w.model === "z-zwei" ? { wahl: w, text: s.selectedOptions[0] ? s.selectedOptions[0].textContent : "" } : null;`, 10_000, 250).catch(() => null);
+      const gespeichert = await gespeicherteWahl();
+      record(P44, gruppenOk && waehle && nach !== null && nach.text === "z-zwei" && JSON.stringify(gespeichert) === JSON.stringify({ endpointId: "zwei", model: "z-zwei" }) && flach.gruppen.length === 0 && /Automatic|Automatisch/i.test(z.erste),
+        `ohne Manager ${flach.gruppen.length} Gruppen (Optionen ${JSON.stringify(flach.alle)}) · mit Manager ${z.gruppen.map((g) => `${g.label}[${g.optionen.map((o) => o.text + (o.disabled ? " (gesperrt)" : "")).join(", ")}]`).join(" · ")} · erste Option „${z.erste}“ · nach der Wahl: gewaehlt ${waehle ? "ja" : "NEIN"}, gezeigt „${nach?.text ?? "?"}“, data.json ${JSON.stringify(gespeichert)}`);
+    }
+
+    // --- P45: verwaiste Wahl ------------------------------------------------------------------
+    const vorWaise = await warte(`z.text === "z-zwei"`, 5000);
+    if (vorWaise === null) unmeasured(P45, "die Wahl z-zwei war vor dem Abschalten nicht gezeigt (P44 hat sie nicht gesetzt): die Ausgangslage fehlt");
+    else {
+      const a1 = await fakeManagerAendere(c.cdp, { enabled: { zwei: false } });
+      if ("fehler" in a1) throw new Vorbedingung(a1.fehler);
+      // Die Aufloesung laeuft wie bei der naechsten Sendung (verwaiste Wahl faellt auf „Automatisch“ zurueck); die Zeile selbst ruft nie resolve().
+      await c.cdp.evaluate(`const p = ${PLG}; p.llm.invalidate(); await p.llm.resolve(); return { ok: true };`);
+      const w = await warte(`z.warn && z.wert === "" && /Automatic|Automatisch/i.test(z.text)`, 10_000);
+      const waehrend = await gespeicherteWahl();
+      await fakeManagerAendere(c.cdp, { enabled: { zwei: true } });
+      await c.cdp.evaluate(`const p = ${PLG}; p.llm.invalidate(); await p.llm.resolve(); return { ok: true };`);
+      const zurueck = await warte(`z.text === "z-zwei" && !z.warn`, 10_000);
+      if (w === null) record(P45, false, `nach dem Abschalten von „zwei“ zeigte die Zeile kein Warnzeichen mit „Automatisch“ (vorher gezeigt „${vorWaise.text}“, Warnzeichen ${String(vorWaise.warn)}) · data.json ${JSON.stringify(waehrend)}`);
+      else record(P45, !vorWaise.warn && /switched off|abgeschaltet/i.test(w.warnText) && /zwei/.test(w.warnText) && JSON.stringify(waehrend) === JSON.stringify({ endpointId: "zwei", model: "z-zwei" }) && zurueck !== null,
+        `vorher „${vorWaise.text}“ ohne Warnzeichen · abgeschaltet: gezeigt „${w.text}“, Warnzeichen „${w.warnText}“, data.json ${JSON.stringify(waehrend)} · wieder an: ${zurueck === null ? "Wahl NICHT zurueck" : `gezeigt „${zurueck.text}“, ohne Warnzeichen`}`);
+    }
+
+    // --- P46: Selbst-Abo ----------------------------------------------------------------------
+    const vor = await warte(`z.gruppen.length === 3`, 5000);
+    if (vor === null) unmeasured(P46, "vor der Aenderung standen nicht drei Gruppen: die Ausgangslage fehlt");
+    else {
+      // Das Plugin selbst haengt am Manager (`main.ts`: `onEndpointManagerChanged` → `refreshChatViews`) und wuerde die Zeile neu bauen. Fuer diese Messung wird `refreshChatViews` zum Zaehler OHNE Durchruf:
+      // zeichnet die Zeile trotzdem neu, hat sie sich selbst abonniert (Kit 0.87.0 `onManagerChanged`/`subscribe`), nicht der Wirt.
+      await c.cdp.evaluate(`
+        const p = ${PLG}; window.__saRefresh46 = 0; window.__saRefreshOrig46 = p.refreshChatViews;
+        p.refreshChatViews = function () { window.__saRefresh46 += 1; return Promise.resolve(); };
+        const s = document.querySelector(".okit-model-bar-select"); window.__saSelect46 = s; return { ok: true };`);
+      const a2 = await fakeManagerAendere(c.cdp, { entferne: ["aus"] });
+      if ("fehler" in a2) throw new Vorbedingung(a2.fehler);
+      const nach = await warte(`z.gruppen.length === 2 && !z.gruppen.some((g) => g.label === "Smoke aus")`, 8000);
+      const host = await c.cdp.evaluate<{ refresh: number; gleich: boolean }>(`
+        const p = ${PLG}; const r = { refresh: window.__saRefresh46, gleich: document.querySelector(".okit-model-bar-select") === window.__saSelect46 };
+        p.refreshChatViews = window.__saRefreshOrig46; delete window.__saRefresh46; delete window.__saRefreshOrig46; delete window.__saSelect46; return r;`);
+      record(P46, a2.hoerer >= 1 && a2.gemeldet >= 1 && nach !== null && host.gleich,
+        `Hoerer am Manager ${a2.hoerer}, gemeldet ${a2.gemeldet} · Gruppen vorher ${vor.gruppen.length}, nachher ${nach === null ? "unveraendert/anders" : String(nach.gruppen.length)} (soll 2, ohne „Smoke aus“) · refreshChatViews des Wirts ${host.refresh}-mal gerufen (gesperrt, ohne Durchruf; der Aufruf ist nicht der Grund der Neuzeichnung) · dieselbe Zeile (select) ${String(host.gleich)}`);
+    }
+  } finally {
+    await c.cdp.evaluate(`
+      const p = ${PLG};
+      if (window.__saRefreshOrig46) p.refreshChatViews = window.__saRefreshOrig46;
+      const m = window.__saMut; if (m) { if (m.e) p.llm.endpoints = m.e; if (m.s) p.llm.subscribe = m.s; delete window.__saMut; }
+      p.settings.endpointChoice = {}; await p.saveSettings(); return { ok: true };`).catch(() => undefined);
+    await entferneFakeManager(c.cdp, { invalidiere: [PLUGIN_ID] }).catch(() => undefined);
+    await c.cdp.evaluate(`app.workspace.detachLeavesOfType("settings-assistant-chat"); return { ok: true };`).catch(() => undefined);
+  }
+}
+
 /** P42: Haertung des Linkschutzes (code-kit 0.68.0 `link-guard`, obsidian-kit 0.88.0 `dom-guard`). Modelltext erreicht den Waechter im Betrieb nie: `neutralizeModelMarkdown` maskiert `<`
  *  vor dem Parser, die Antwort steht als Text da (Kit-Doku `dom-guard.ts`: „erreicht keiner dieser Faelle den Waechter“). Gemessen wird der Waechter deshalb selbst, am echten Fenster:
  *  rohes HTML mit `on*`, `ping`, `formaction`, `form` und einem sicheren Link wird per DOM (`innerHTML`, kein Obsidian-Sanitizer) in den Bereich gesetzt, den der Beobachter des
@@ -1914,6 +2034,7 @@ async function p41(c: Ctx): Promise<void> {
 
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
+  MUTATION = args.value("mutation");
   if (args.has("setup")) { setupVault(); console.log("\nDen Vault in der Zweitinstanz oeffnen, dann: npm run smoke:gui -- --port <PORT>"); return; }
   const port = Number(args.value("port"));
   if (!Number.isInteger(port) || port < 1024 || port > 65535) {
@@ -1957,7 +2078,7 @@ async function main(): Promise<void> {
         [pn("P1"), p1], [pn("P2"), p2], [pn("P13"), p13], [pn("P7"), p7], [pn("P14"), p14],
         [pn("P3"), p3], [pn("P4"), p4], [pn("P5"), p5], [pn("P11"), p11], [pn("P6"), p6],
         [pn("P9"), p9], [pn("P10"), p10], [pn("P8"), p8p12], [pn("P15"), p15], [pn("P16"), p16], [pn("P17"), p17], [pn("P18"), p18], [pn("P19"), p19], [pn("P20"), p20], [pn("P21"), p21], [pn("P22"), p22], [pn("P23"), p23], [pn("P25"), p25], [pn("P26"), p26],
-        [pn("P32"), p32], [pn("P33"), p33p34], [pn("P35"), p35], [pn("P36"), p36], [pn("P37"), p37], [pn("P38"), p38], [pn("P39"), p39], [pn("P40"), p40], [pn("P41"), p41], [pn("P42"), p42], [pn("P43"), p43],
+        [pn("P32"), p32], [pn("P33"), p33p34], [pn("P35"), p35], [pn("P36"), p36], [pn("P37"), p37], [pn("P38"), p38], [pn("P39"), p39], [pn("P40"), p40], [pn("P41"), p41], [pn("P42"), p42], [pn("P43"), p43], [pn("P44"), p44p46],
       ];
       // `--nur P41`: nur dieser Punkt (Mutationsprobe, Wiederholung); die übrigen zählen dann als „nichts gemessen“, die Bilanz ist keine Vollbilanz.
       const nur = args.value("nur");
