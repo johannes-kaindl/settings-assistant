@@ -9,6 +9,10 @@ describe("Kit-CSS", () => {
     expect(missingKitCss(vendorDir, readFileSync("styles.css", "utf8"))).toEqual([]);
   });
 
+  it("styles.css trägt keine Einsetzung `${…}` (ein Rohtext-Kopieren einer Kit-Konstante mit Einsetzung: Store-Scorecard „Caution“, Unknown word)", () => {
+    expect(readFileSync("styles.css", "utf8")).not.toContain("${");
+  });
+
   it("MODEL_BAR_CSS steht vor CHAT_WINDOW_CSS (Kit 0.73.0): die Regel in @container verliert sonst gegen eine spätere gleicher Spezifität", () => {
     const css = readFileSync("styles.css", "utf8");
     const marker = (name: string): number => css.indexOf(`(${name}), obsidian-kit`);

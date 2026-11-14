@@ -88,7 +88,7 @@
       "modules": [
         {
           "name": "endpoint-source",
-          "ref": "0.88.0"
+          "ref": "0.89.0"
         },
         "endpoint-secret-hook",
         "plugin-id",
@@ -125,14 +125,14 @@
         "stream-area",
         {
           "name": "endpoint-source",
-          "ref": "0.88.0"
+          "ref": "0.89.0"
         },
         "request-section",
         "status-indicator",
         "request-session",
         {
           "name": "thinking-control",
-          "ref": "0.88.0"
+          "ref": "0.89.0"
         },
         "collapsible",
         "chat-client",
@@ -143,16 +143,16 @@
         "version-list",
         {
           "name": "llm-connection",
-          "ref": "0.88.0"
+          "ref": "0.89.0"
         },
         {
           "name": "llm-connection-strings",
-          "ref": "0.88.0"
+          "ref": "0.89.0"
         },
         "backend-probe",
         {
           "name": "endpoint-plumbing",
-          "ref": "0.88.0"
+          "ref": "0.89.0"
         },
         "embedding-connection",
         "endpoint-status-text",
@@ -167,11 +167,11 @@
         "chat-window-strings",
         {
           "name": "model-bar",
-          "ref": "0.88.0"
+          "ref": "0.89.0"
         },
         {
           "name": "model-bar-strings",
-          "ref": "0.88.0"
+          "ref": "0.89.0"
         },
         "stable-writer",
         {
@@ -206,7 +206,10 @@
       "source": "obsidian-kit",
       "from": "src/testing",
       "modules": [
-        "kit-css",
+        {
+          "name": "kit-css",
+          "ref": "0.89.0"
+        },
         "obsidian-mock"
       ]
     }
