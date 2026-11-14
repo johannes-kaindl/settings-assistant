@@ -1,4 +1,4 @@
-// vendored from obsidian-kit@0.77.0, src/pure/endpoint-source.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
+// vendored from obsidian-kit@0.88.0, src/pure/endpoint-source.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
 import { hydrateEndpointSecrets, resolveActiveEndpointConfig, type EndpointConfig } from "./endpoint_config";
 import type { SecretStore } from "./secrets";
 import { familyFromName, type BackendId, type FamilyId, type ModelFamilyId } from "./sampling-profiles";
@@ -219,7 +219,10 @@ export async function resolveEndpointSource(
       const fixable = reason === "disabled" || reason === "secret-missing" ? reason : undefined;
       return finish({ kind: "manager", config: null, model: "", reason: fixable ?? r.error }, input, null);
     }
-    const base = { kind: "manager" as const, config: r.config, model: modelOf(input.choice, r.defaultModel), ...(reason ? { reason } : {}) };
+    // Verwaiste Wahl (`reason` gesetzt): `choice.model` gehörte zum gewählten, nicht erreichbaren Endpunkt. An den automatischen geschickt wäre es ein
+    // fremder Modellname an einen fremden Endpunkt (0.87.0, Spec § 4.9); es gilt dessen Standard-Modell. Die gespeicherte Wahl bleibt unberührt:
+    // wird der Endpunkt wieder eingeschaltet, gilt sie wieder. Eine Alt-Wahl `{ model }` ohne `endpointId` hat keinen `reason` und behält ihr Modell.
+    const base = { kind: "manager" as const, config: r.config, model: reason ? modelOf(undefined, r.defaultModel) : modelOf(input.choice, r.defaultModel), ...(reason ? { reason } : {}) };
     return finish(base, input, r);
   } catch {
     return finish({ kind: "manager", config: null, model: "", reason: "unreachable" }, input, null);

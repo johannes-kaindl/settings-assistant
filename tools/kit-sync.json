@@ -48,7 +48,10 @@
         "error_body",
         "i18n",
         "settings",
-        "sampling-profiles",
+        {
+          "name": "sampling-profiles",
+          "ref": "0.68.0"
+        },
         {
           "name": "rotation",
           "ref": "0.60.0"
@@ -71,7 +74,11 @@
         "anthropic-wire",
         "chat-archive",
         "filename-template",
-        "rel-path"
+        "rel-path",
+        {
+          "name": "error-message",
+          "ref": "0.68.0"
+        }
       ]
     },
     {
@@ -79,7 +86,10 @@
       "source": "obsidian-kit",
       "from": "src/pure",
       "modules": [
-        "endpoint-source",
+        {
+          "name": "endpoint-source",
+          "ref": "0.88.0"
+        },
         "endpoint-secret-hook",
         "plugin-id",
         "override-guard",
@@ -113,11 +123,17 @@
         "settings_walker",
         "folder-suggest",
         "stream-area",
-        "endpoint-source",
+        {
+          "name": "endpoint-source",
+          "ref": "0.88.0"
+        },
         "request-section",
         "status-indicator",
         "request-session",
-        "thinking-control",
+        {
+          "name": "thinking-control",
+          "ref": "0.88.0"
+        },
         "collapsible",
         "chat-client",
         "chat-transport",
@@ -125,10 +141,19 @@
         "clock",
         "help-setting",
         "version-list",
-        "llm-connection",
-        "llm-connection-strings",
+        {
+          "name": "llm-connection",
+          "ref": "0.88.0"
+        },
+        {
+          "name": "llm-connection-strings",
+          "ref": "0.88.0"
+        },
         "backend-probe",
-        "endpoint-plumbing",
+        {
+          "name": "endpoint-plumbing",
+          "ref": "0.88.0"
+        },
         "embedding-connection",
         "endpoint-status-text",
         "plugin-api",
@@ -140,8 +165,14 @@
         "chat-host",
         "chat-leaf",
         "chat-window-strings",
-        "model-bar",
-        "model-bar-strings",
+        {
+          "name": "model-bar",
+          "ref": "0.88.0"
+        },
+        {
+          "name": "model-bar-strings",
+          "ref": "0.88.0"
+        },
         "stable-writer",
         {
           "name": "dom-guard",

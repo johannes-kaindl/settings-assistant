@@ -27,7 +27,7 @@ export function newChatState(): ChatState { return { history: EMPTY_CHAT, select
 
 export interface ChatHostDeps extends ChatAnswerDeps {
   app: App;
-  llm: Pick<LlmConnection, "complete" | "models" | "setModel" | "modelInUse" | "source">;
+  llm: Pick<LlmConnection, "complete" | "models" | "setModel" | "modelInUse" | "source" | "endpoints" | "activeEndpointId" | "modelsOf" | "choice" | "setChoice" | "subscribe">;
   state: ChatState;
   /** Der Verlauf vergangener Chats (Kit-Speicher, `payloadType okit-chat-history/1`). */
   archive: ChatArchive;

@@ -354,7 +354,7 @@
 .is-mobile .okit-chat.sa-kbd-open .sa-chips-toggle:not(.is-empty) { display: inline-flex; align-items: center; min-height: var(--input-height); }
 .is-mobile .okit-chat.sa-kbd-open .sa-chat-chips:not(.is-open) { display: none; }
 
-/* uebernommen aus obsidian-kit/src/obsidian/model-bar.ts (MODEL_BAR_CSS), obsidian-kit 0.76.1 */
+/* uebernommen aus obsidian-kit/src/obsidian/model-bar.ts (MODEL_BAR_CSS), obsidian-kit 0.88.0 */
 .okit-model-bar { position: relative; width: 100%; min-width: 0; container-type: inline-size; container-name: okit-model-bar; }
 .okit-model-bar-row { display: flex; flex-wrap: nowrap; align-items: center; gap: var(--size-2-2) var(--size-4-1); min-width: 0; }
 .okit-model-bar-label { flex: 0 0 auto; color: var(--text-muted); font-size: var(--font-ui-small); white-space: nowrap; }
@@ -372,7 +372,7 @@
 @keyframes okit-model-bar-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .okit-model-bar-refresh.is-loading svg { animation: none; } .okit-model-bar-refresh.is-loading { opacity: 0.5; } }
 .okit-model-bar .okit-thinking-control { flex: 0 0 auto; }
-@container okit-model-bar (width < 260px) { .okit-model-bar .okit-thinking-control select { width: calc(var(--size-2-3) + var(--size-4-6) + 1.2em); min-width: 0; padding-inline: var(--size-2-3) var(--size-4-6); text-overflow: clip; } }
+@container okit-model-bar (width < 340px) { .okit-model-bar .okit-thinking-control select { width: calc(var(--size-2-3) + var(--size-4-6) + 1.2em); min-width: 0; padding-inline: var(--size-2-3) var(--size-4-6); text-overflow: clip; } }
 @container okit-model-bar (width < 200px) { .okit-model-bar-row { flex-wrap: wrap; } }
 .okit-model-bar-status { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0; overflow: hidden; white-space: nowrap; }
 

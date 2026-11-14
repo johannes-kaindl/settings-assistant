@@ -21,12 +21,26 @@ const broken = `${F}settings-profile\n{oops sk-DETAIL-LEAK\n${F}`;
 
 type Complete = (req: { messages: Array<{ role: string; content: unknown }> }, h: ChatSendHandlers) => Promise<ChatSendResult>;
 
-function setup(opts: { endpoint?: boolean; answer?: string; complete?: Complete; state?: ChatState; readSettings?: ChatHostDeps["readSettings"]; keep?: number } = {}) {
+type Ep = { id: string; label: string; defaultModel?: string };
+interface FakeEndpoints { list: Ep[]; active?: string; choice?: { endpointId?: string; model?: string }; lists?: Record<string, { models: string[]; reachable: boolean }>; reason?: string }
+
+function setup(opts: { endpoint?: boolean; answer?: string; complete?: Complete; state?: ChatState; readSettings?: ChatHostDeps["readSettings"]; keep?: number; endpoints?: FakeEndpoints } = {}) {
   const flag = { ok: opts.endpoint ?? true };
   const complete = vi.fn<Complete>(opts.complete ?? (async (_req, h) => { h.onToken("hi"); return { ok: true, content: opts.answer ?? "plain answer" }; }));
   const models = vi.fn(async () => ({ models: ["m1", "m2"], reachable: true }));
   const setModel = vi.fn(async (_m: string) => {});
-  const llm = { complete, models, setModel, modelInUse: () => "m1", source: () => ({ family: null, model: "m1", sentModel: "m1" }) };
+  // Die Verbindung wie die `LlmConnection` des Kits ab 0.87.0: ohne `endpoints` (Adapter ohne Manager) zeigt die Zeile eine Liste ohne Gruppen, mit `endpoints` je Endpunkt eine Gruppe.
+  const fe: FakeEndpoints = opts.endpoints ?? { list: [] };
+  const subs = new Set<() => void>();
+  const setChoice = vi.fn(async (c: { endpointId?: string; model?: string }) => { fe.choice = c; if (c.endpointId !== undefined) fe.active = c.endpointId; fe.reason = undefined; for (const cb of [...subs]) cb(); });
+  const modelsOf = vi.fn(async (id: string) => fe.lists?.[id] ?? { models: [], reachable: false });
+  const llm = {
+    complete, models, setModel, modelInUse: () => "m1",
+    source: () => ({ family: null, model: "m1", sentModel: "m1", ...(fe.reason ? { reason: fe.reason } : {}) }),
+    endpoints: () => fe.list, activeEndpointId: () => fe.active, modelsOf, choice: () => fe.choice ?? {}, setChoice,
+    subscribe: (cb: () => void) => { subs.add(cb); return () => { subs.delete(cb); }; },
+  };
+  const notify = (): void => { for (const cb of [...subs]) cb(); };
   const service = { plan: vi.fn(async () => []), applyInteractive: vi.fn(async () => ({ cancelled: true as const })) };
   const state = opts.state ?? newChatState();
   // Der Speicher des Verlaufs: im Fake-DOM zählt nur, ob er an ist (`keep` > 0) und dass der Wirt ihn ans Fenster reicht; Speichern, Liste und Dialog prüft der Kit-Pilot am echten Adapter.
@@ -47,7 +61,7 @@ function setup(opts: { endpoint?: boolean; answer?: string; complete?: Complete;
     domGuard: false,
   };
   const view = new SettingsChatHost(new WorkspaceLeaf() as never, deps);
-  return { view, deps, state, service, flag, complete, llm, archive };
+  return { view, deps, state, service, flag, complete, llm, archive, fe, notify, subs };
 }
 type Setup = ReturnType<typeof setup>;
 const el = (v: SettingsChatHost) => v.contentEl as any;
@@ -166,6 +180,68 @@ describe("chat-host", () => {
       select.value = "m2";
       select.dispatchEvent({ type: "change" });
       await vi.waitFor(() => { expect(s.llm.setModel).toHaveBeenCalledWith("m2"); });
+    });
+
+    describe("mit Endpunkten (Kit 0.88.0: Gruppen, verwaiste Wahl, Selbst-Abo)", () => {
+      const two: FakeEndpoints = {
+        list: [{ id: "a", label: "Lokal", defaultModel: "m1" }, { id: "b", label: "Zweiter" }],
+        active: "a", choice: {},
+        lists: { a: { models: ["m1", "m2"], reachable: true }, b: { models: ["x1"], reachable: true } },
+      };
+      const fresh = (): FakeEndpoints => ({ ...two, lists: { ...two.lists }, choice: {} });
+      const groups = (v: SettingsChatHost): any[] => all(v, "optgroup");
+      const optionTexts = (g: any): string[] => [...g.querySelectorAll("option")].map((o: any) => o.textContent as string);
+
+      it("zeigt je Endpunkt eine Gruppe mit dessen Modellen, der Auswahlwert trägt Endpunkt und Modell", async () => {
+        const s = await openWith({ endpoints: fresh() });
+        await vi.waitFor(() => { expect(groups(s.view).length).toBe(2); });
+        await vi.waitFor(() => { expect(optionTexts(groups(s.view)[1])).toContain("x1"); });
+        expect(groups(s.view)[0].getAttribute("label")).toBe("Lokal");
+        expect(groups(s.view)[1].getAttribute("label")).toBe("Zweiter");
+        expect(optionTexts(groups(s.view)[0])).toEqual(expect.arrayContaining(["m1", "m2"]));
+        expect(s.llm.modelsOf).toHaveBeenCalledWith("b", undefined);
+      });
+
+      it("eine Wahl unter einem anderen Endpunkt ruft setChoice mit Endpunkt UND Modell, nie setModel", async () => {
+        const s = await openWith({ endpoints: fresh() });
+        const select = all(s.view, ".okit-model-bar-select")[0];
+        await vi.waitFor(() => { expect(optionTexts(groups(s.view)[1])).toContain("x1"); });
+        const wert = [...groups(s.view)[1].querySelectorAll("option")].find((o: any) => o.textContent === "x1").getAttribute("value");
+        select.value = wert;
+        select.dispatchEvent({ type: "change" });
+        await vi.waitFor(() => { expect(s.llm.setChoice).toHaveBeenCalledWith({ endpointId: "b", model: "x1" }); });
+        expect(s.llm.setModel).not.toHaveBeenCalled();
+      });
+
+      it("verwaiste Wahl: die Zeile zeigt Automatisch mit Warnzeichen und Grund, die gespeicherte Wahl bleibt unangetastet", async () => {
+        const e = fresh();
+        e.choice = { endpointId: "gone", model: "alt" };
+        e.reason = "not-found";
+        const s = await openWith({ endpoints: e });
+        await vi.waitFor(() => { expect(groups(s.view).length).toBe(2); });
+        const warn = all(s.view, ".okit-model-bar-warn")[0];
+        expect(warn.hasClass("is-hidden")).toBe(false);
+        expect((warn.getAttribute("aria-label") ?? "").length).toBeGreaterThan(0);
+        expect(all(s.view, ".okit-model-bar-select")[0].value).toBe("");
+        expect(e.choice).toEqual({ endpointId: "gone", model: "alt" });
+        expect(s.llm.setChoice).not.toHaveBeenCalled();
+      });
+
+      it("Selbst-Abo: ein Wechsel, den die Verbindung meldet, zeichnet die Zeile neu, ohne dass der Wirt reload ruft; destroy meldet ab", async () => {
+        const e = fresh();
+        const s = await openWith({ endpoints: e });
+        await vi.waitFor(() => { expect(groups(s.view).length).toBe(2); });
+        expect(s.subs.size).toBe(1);
+        const select = all(s.view, ".okit-model-bar-select")[0];
+        expect(select.value).toBe("");
+        e.choice = { endpointId: "b", model: "x1" };
+        e.active = "b";
+        s.notify();
+        await vi.waitFor(() => { expect(all(s.view, ".okit-model-bar-select")[0].value).not.toBe(""); });
+        expect(all(s.view, ".okit-model-bar-select")[0].getAttribute("title")).toContain("x1");
+        await s.view.onClose();
+        expect(s.subs.size).toBe(0);
+      });
     });
 
     it("sperrt sich während eines Laufs und gibt sich danach frei", async () => {
