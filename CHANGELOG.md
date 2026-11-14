@@ -4,6 +4,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Security
+
+- **Links and forms in model answers are now cut harder.** The link guard of the shared library (obsidian-kit 0.88.0, code-kit 0.68.0) removes event-handler attributes (`on*`) from every element of an answer, and `form`, `formaction`, `ping`, `commandfor`/`popovertarget` and `label for` as well; a model answer can no longer submit a form or fire a script-like attribute from the chat window. Only the four guard modules moved to the new version, the rest of the library stays on 0.77.0. The GUI smoke has a new check (P42) that measures this in the real chat window.
+
 ## [0.11.1] — 2026-11-03
 
 ### Fixed
