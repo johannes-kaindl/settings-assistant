@@ -14,8 +14,14 @@
       "from": "src/ts/web",
       "modules": [
         "clipboard",
-        "link-guard",
-        "remote-resources"
+        {
+          "name": "link-guard",
+          "ref": "0.68.0"
+        },
+        {
+          "name": "remote-resources",
+          "ref": "0.68.0"
+        }
       ],
       "rewrite": [
         [
@@ -52,7 +58,10 @@
           "name": "redact",
           "ref": "0.60.0"
         },
-        "safe-markdown",
+        {
+          "name": "safe-markdown",
+          "ref": "0.68.0"
+        },
         "secrets",
         "embeddings-client",
         "model-context",
@@ -134,7 +143,10 @@
         "model-bar",
         "model-bar-strings",
         "stable-writer",
-        "dom-guard",
+        {
+          "name": "dom-guard",
+          "ref": "0.88.0"
+        },
         "chat-archive-dialog",
         "chat-archive",
         "chat-archive-strings",

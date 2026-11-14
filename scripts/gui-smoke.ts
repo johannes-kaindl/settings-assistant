@@ -1,5 +1,5 @@
 /**
- * GUI-Smoke — faehrt die Pruefpunkte P1-P41 gegen ein LAUFENDES Obsidian (CORE-TEST-02 b).
+ * GUI-Smoke — faehrt die Pruefpunkte P1-P42 gegen ein LAUFENDES Obsidian (CORE-TEST-02 b).
  *
  * Gemessen wird die SACHE: Dateiinhalt auf Platte (`sa-probe/data.json`, `hotkeys.json`, Schnappschuss-
  * Manifest), Dialogtext, Notice — nicht die Existenz eines Elements. Das Testplugin `sa-probe`
@@ -32,7 +32,7 @@
  * `npm run smoke:gui -- --launch --dataview --port <PORT>` fuehrt NUR drei eigene Punkte (D1-D3, eigener Nenner) und legt Dataview in den
  * Vault: die drei Dateien werden aus einer vorhandenen Installation unter ~/Documents/*\/.obsidian/plugins/dataview LESEND kopiert (oder
  * aus `DATAVIEW_QUELLE=<Ordner>`), JS-Abfragen und Inline-JS stehen an. D2 ist die Gegenprobe und laeuft zuerst: schlaegt sie nicht an
- * (kein Marker am nackten Renderer), sind D1 und D3 „nichts gemessen“, nicht „sicher“. Der Nenner ohne den Schalter bleibt bei P1-P41.
+ * (kein Marker am nackten Renderer), sind D1 und D3 „nichts gemessen“, nicht „sicher“. Der Nenner ohne den Schalter bleibt bei P1-P42.
  *
  * Der erste Lauf nach Profilanlage ist ein Aufwaermlauf und zaehlt nicht. Die regulaere Instanz auf 9222
  * wird nicht angefasst. Gemessen wird im eigenen Staging-Vault (`stagingVaultDir()`), nie im
@@ -116,6 +116,7 @@ const PUNKTE = [
   "P39 Verlauf am echten Adapter: die Runde liegt als .json im Ordner (ohne Schluessel), Neu legt ab und leert, die Liste zeigt sie, Laden setzt das Gespraech fort, Export schreibt eine .md, Loeschen entfernt die .json",
   "P40 Aufbewahrung 0: der Verlauf-Knopf verschwindet, Neu fragt zurueck, Abbrechen behaelt das Gespraech, Verwerfen leert es und schreibt nichts",
   "P41 Knopf „Plugins (n)“: am Handy (Vorfahr mit is-mobile) bei fokussierter Eingabe steht die Chip-Zeile hinter dem Knopf in der Knopfreihe, ein Tipp klappt sie auf und zu; auf dem Desktop und ohne Fokus bleibt die Zeile, der Knopf fehlt",
+  "P42 Linkschutz-Haertung (code-kit 0.68.0, dom-guard 0.88.0): rohes HTML im beobachteten Bereich des Chats verliert <form>, formaction, on*-Attribute und ping, der https-Link bleibt; Gegenprobe: dasselbe HTML ausserhalb behaelt alle Marker",
 ] as const;
 type PunktName = (typeof PUNKTE)[number];
 const pn = (prefix: string): PunktName => {
@@ -200,11 +201,20 @@ const DV_ANSWER = [
   "",
   `Inline: \`$= window.${DV_INLINE} = 1\``,
 ].join("\n");
+// P42: Marker einer ausgefuehrten on*-Kennung (Fenster-Variable), gelesen per CDP.
+const HTML_MARKER = "__saOnMarker";
 const LINKS_ANSWER = [
   "Links:",
   "",
   "[a-js](javascript:alert(1)) [b-data](data:text/html,x) [c-obs](obsidian://open?vault=x) [d-file](file:///etc/passwd) [e-ok](https://example.org/ok)",
 ].join("\n");
+// P42: rohes HTML, das der Test selbst per DOM einsetzt (nie als Modelltext: der waere maskiert). Ohne Ladeziele ausser .invalid.
+const HTML_PROBE = [
+  `<a href="https://example.org/ok" onclick="window.${HTML_MARKER} = 1" ping="https://example.invalid/ping">h-ok</a>`,
+  `<p onmouseover="window.${HTML_MARKER} = 2">h-p</p>`,
+  '<form action="https://example.invalid/form"><button formaction="https://example.invalid/fa">h-form</button></form>',
+].join("");
+const HTML_ANSWER = "HTML probe.";
 function antwortFuer(body: string): string {
   let last = "";
   try {
@@ -215,6 +225,7 @@ function antwortFuer(body: string): string {
   if (last.includes("SMOKE-RAW")) return RAW_ANSWER;
   if (last.includes("SMOKE-NEUTRAL")) return NEUTRAL_ANSWER;
   if (last.includes("SMOKE-LINKS")) return LINKS_ANSWER;
+  if (last.includes("SMOKE-HTML")) return HTML_ANSWER;
   if (last.includes("SMOKE-DATAVIEW")) return DV_ANSWER;
   if (last.includes("SMOKE-REDACT")) {
     // Spiegelt die Platzhalter der Anfrage zurueck (so, wie ein Modell sie wiederholt) — samt einem Bild mit Platzhalter in der URL.
@@ -1535,6 +1546,63 @@ async function p37(c: Ctx): Promise<void> {
     `Anker im Antworttext: ${links.map((l) => `${l.t} -> ${String(l.h)}`).join("; ")} · alle vier Anker da: ${String(alleDa)}`);
 }
 
+/** P42: Haertung des Linkschutzes (code-kit 0.68.0 `link-guard`, obsidian-kit 0.88.0 `dom-guard`). Modelltext erreicht den Waechter im Betrieb nie: `neutralizeModelMarkdown` maskiert `<`
+ *  vor dem Parser, die Antwort steht als Text da (Kit-Doku `dom-guard.ts`: „erreicht keiner dieser Faelle den Waechter“). Gemessen wird der Waechter deshalb selbst, am echten Fenster:
+ *  rohes HTML mit `on*`, `ping`, `formaction`, `form` und einem sicheren Link wird per DOM (`innerHTML`, kein Obsidian-Sanitizer) in den Bereich gesetzt, den der Beobachter des
+ *  Chat-Schreibers ueberwacht (Elternknoten des Antwortblocks). Gegenprobe: dasselbe HTML in einem Element ausserhalb davon muss alle fuenf Marker behalten, sonst haette
+ *  der Punkt nie rot werden koennen. Die Kappung wirkt asynchron im Beobachter-Callback; gelesen wird nach einer kurzen Wartezeit. */
+async function p42(c: Ctx): Promise<void> {
+  await c.cdp.evaluate(`delete window.${HTML_MARKER}; return { ok: true };`);
+  // Langsamer Strom: der Beobachter lebt nur bis zum Ende der Antwort (`writer.destroy()`), die Probe muss mitten im Strom einfallen.
+  const stub = await startLlmStub({ models: [FAKE_MODEL], takt: 250, standard: { laenge: 8, text: "Probe laeuft, bitte warten. ".repeat(12), model: FAKE_MODEL } });
+  try {
+    await chatSenden(c, "SMOKE-HTML please render html", stub.url);
+    const probe = `
+      const HTML = ${q(HTML_PROBE)};
+      const body = document.querySelector(".okit-chat-turn.is-assistant .okit-stream-body");
+      if (!body) return null;
+      const zaehle = (root) => {
+        const all = Array.from(root.querySelectorAll("*"));
+        const anker = all.find((e) => e.localName === "a" && e.textContent === "h-ok");
+        return {
+          anker: anker ? { h: anker.getAttribute("href"), attrs: anker.getAttributeNames().filter((n) => n.startsWith("on") || n === "ping") } : null,
+          forms: all.filter((e) => e.localName === "form").length,
+          formaction: all.filter((e) => e.hasAttribute("formaction")).length,
+          on: all.filter((e) => e.getAttributeNames().some((n) => n.startsWith("on"))).length,
+          ping: all.filter((e) => e.hasAttribute("ping")).length,
+        };
+      };
+      const send = document.querySelector(".okit-chat-send");
+      const laeuft = !!send && send.textContent !== "Send";
+      // Gegenprobe: ausserhalb des beobachteten Bereichs, im Dokument angehaengt (kein Sanitizer; Ladeziele zeigen auf .invalid).
+      const aussen = document.body.createDiv();
+      aussen.innerHTML = HTML;
+      const gegen = zaehle(aussen);
+      // Messung: in den beobachteten Bereich (area.bodyEl des Schreibers).
+      const innen = body.createDiv({ cls: "sa-p42-probe" });
+      innen.innerHTML = HTML;
+      await new Promise((r) => setTimeout(r, 800));
+      const mess = zaehle(innen);
+      const laeuftNoch = !!document.querySelector(".okit-chat-send") && document.querySelector(".okit-chat-send").textContent !== "Send";
+      innen.remove(); aussen.remove();
+      return { laeuft, laeuftNoch, gegen, mess, marker: String(window.${HTML_MARKER}) };`;
+    type Zahl = { anker: { h: string | null; attrs: string[] } | null; forms: number; formaction: number; on: number; ping: number };
+    const d = await pollUntil<{ laeuft: boolean; laeuftNoch: boolean; gegen: Zahl; mess: Zahl; marker: string }>(c.cdp, probe, 20_000, 150).catch(() => null);
+    if (!d) { unmeasured(pn("P42"), "kein Antwortbereich im laufenden Strom gefunden (nach 20 s)"); return; }
+    // Gueltig nur, wenn der Strom waehrend der ganzen Probe lief: danach ist der Beobachter getrennt und „nicht gekappt“ waere kein Befund ueber den Waechter.
+    if (!d.laeuft || !d.laeuftNoch) { unmeasured(pn("P42"), `der Strom lief nicht waehrend der Probe (Beginn ${String(d.laeuft)}, Ende ${String(d.laeuftNoch)}): der Beobachter war nicht angehaengt`); return; }
+    const g = d.gegen;
+    const gegenWirkt = g.forms >= 1 && g.formaction >= 1 && g.on >= 2 && g.ping >= 1 && g.anker !== null && g.anker.attrs.length >= 2;
+    if (!gegenWirkt) { unmeasured(pn("P42"), `die Gegenprobe ausserhalb des Beobachters behielt nicht alle Marker (form ${g.forms}, formaction ${g.formaction}, on* ${g.on}, ping ${g.ping}, Anker ${JSON.stringify(g.anker)}): „gekappt“ waere ohne sie nichts wert`); return; }
+    const m = d.mess;
+    const anker = m.anker !== null && m.anker.h === "https://example.org/ok" && m.anker.attrs.length === 0;
+    record(pn("P42"), anker && m.forms === 0 && m.formaction === 0 && m.on === 0 && m.ping === 0 && d.marker === "undefined",
+      `im beobachteten Bereich (Strom lief): https-Anker ${m.anker ? `da, href ${String(m.anker.h)}, on*/ping [${m.anker.attrs.join(",")}]` : "FEHLT"} · form ${m.forms} · formaction ${m.formaction} · on* ${m.on} · ping ${m.ping} · Marker ${d.marker} (verlangt: undefined) · Gegenprobe ausserhalb: form ${g.forms}, formaction ${g.formaction}, on* ${g.on}, ping ${g.ping}, Anker-Attribute [${g.anker?.attrs.join(",")}] (alle > 0 verlangt)`);
+  } finally {
+    await stub.stop();
+  }
+}
+
 /** Der Haken `installTabRefreshOnOpen` trägt nur, solange er installiert bleibt (Vertrag in `settings_walker.ts`, Welle 27): `hide()` baut ihn nicht ab, `onunload` über `dispose()`.
  *  Gemessen wird, wie oft der Tab sich beim Öffnen neu aufbaut (Zähler um `renderImperative`); die Gegenprobe ruft `dispose()` selbst und öffnet erneut, dann darf
  *  kein Neuaufbau mehr kommen — sonst zählte der Zähler nichts. Danach lädt der Punkt das Plugin neu, damit der Tab wieder einen Haken hat. */
@@ -1847,7 +1915,7 @@ async function main(): Promise<void> {
         [pn("P1"), p1], [pn("P2"), p2], [pn("P13"), p13], [pn("P7"), p7], [pn("P14"), p14],
         [pn("P3"), p3], [pn("P4"), p4], [pn("P5"), p5], [pn("P11"), p11], [pn("P6"), p6],
         [pn("P9"), p9], [pn("P10"), p10], [pn("P8"), p8p12], [pn("P15"), p15], [pn("P16"), p16], [pn("P17"), p17], [pn("P18"), p18], [pn("P19"), p19], [pn("P20"), p20], [pn("P21"), p21], [pn("P22"), p22], [pn("P23"), p23], [pn("P25"), p25], [pn("P26"), p26],
-        [pn("P32"), p32], [pn("P33"), p33p34], [pn("P35"), p35], [pn("P36"), p36], [pn("P37"), p37], [pn("P38"), p38], [pn("P39"), p39], [pn("P40"), p40], [pn("P41"), p41],
+        [pn("P32"), p32], [pn("P33"), p33p34], [pn("P35"), p35], [pn("P36"), p36], [pn("P37"), p37], [pn("P38"), p38], [pn("P39"), p39], [pn("P40"), p40], [pn("P41"), p41], [pn("P42"), p42],
       ];
       // `--nur P41`: nur dieser Punkt (Mutationsprobe, Wiederholung); die übrigen zählen dann als „nichts gemessen“, die Bilanz ist keine Vollbilanz.
       const nur = args.value("nur");
