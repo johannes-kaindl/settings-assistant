@@ -19,6 +19,7 @@ import { CHAT_MODE, SettingsAssistantSettingTab } from "./obsidian/settings-tab"
 import { listSnapshots, pickUndoTarget } from "./obsidian/snapshots";
 import { SettingsChatHost, VIEW_TYPE_SA_CHAT, newChatState, refreshChatViews } from "./obsidian/chat-host";
 import { readConfig } from "./obsidian/config-io";
+import { openExportState } from "./obsidian/export-state";
 import { installedPlugins } from "./obsidian/plugin-host";
 import { targetPath } from "./core/write-policy";
 
@@ -160,6 +161,11 @@ export default class SettingsAssistantPlugin extends Plugin {
       },
     });
     this.addCommand({ id: "open-chat", name: t("cmd.chat"), callback: () => { void this.openChat(); } });
+    this.addCommand({
+      id: "export-plugin-state",
+      name: t("cmd.exportState"),
+      callback: () => { openExportState({ app: this.app, save: (name, text) => this.saveProfileNote(name, text), now: () => new Date() }); },
+    });
     this.addRibbonIcon("sliders-horizontal", t("cmd.chat"), () => { void this.openChat(); });
 
     void this.llm.resolve().catch(() => undefined);

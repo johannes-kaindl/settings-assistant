@@ -5,8 +5,8 @@ A plugin cannot read another vault through Obsidian's API. Aligning two vaults t
 ## Create the profile in vault A
 
 1. Write a `settings-profile` block with the plugins and keys you want to share (see [Profile format](reference-profile-format.md)). For values you do not remember, open the chat, name the plugin and ask; the answer comes with a profile block (see [Ask the chat](howto-ask-the-chat.md)).
-2. Use **Save as profile note** under a chat answer to keep a proposed profile as a note. The note is named `Settings profile YYYY-MM-DD HH-mm` and is created in the folder of the note you had open, or in the vault root.
-3. Look at the note before you move it. Values that were withheld as secrets are written as `🔒`, and notes belonging to a plugin with withheld values are dropped from the saved profile. A line under the button names what was withheld.
+2. Or save the current state of one plugin without writing anything by hand: run **Save plugin settings as profile note…** from the command palette and choose the plugin. No model is involved; the note contains the plugin's settings file as a profile. Or use **Save as profile note** under a chat answer to keep a proposed profile as a note. The note is named `Settings profile YYYY-MM-DD HH-mm` and is created in the folder of the note you had open, or in the vault root.
+3. Look at the note before you move it. Values that were withheld as secrets are written as `🔒`, and notes belonging to a plugin with withheld values are dropped from the saved profile. A message (and for a chat answer a line under the button) names what was withheld. A plugin that has no settings file yet, or whose file is not a JSON object, is refused with a message and no note is created. The settings of Settings Assistant itself are never offered.
 
 ## Apply it in vault B
 

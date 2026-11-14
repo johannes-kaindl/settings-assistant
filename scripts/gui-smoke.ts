@@ -1,5 +1,5 @@
 /**
- * GUI-Smoke — faehrt die Pruefpunkte P1-P42 gegen ein LAUFENDES Obsidian (CORE-TEST-02 b).
+ * GUI-Smoke — faehrt die Pruefpunkte P1-P43 gegen ein LAUFENDES Obsidian (CORE-TEST-02 b).
  *
  * Gemessen wird die SACHE: Dateiinhalt auf Platte (`sa-probe/data.json`, `hotkeys.json`, Schnappschuss-
  * Manifest), Dialogtext, Notice — nicht die Existenz eines Elements. Das Testplugin `sa-probe`
@@ -32,7 +32,7 @@
  * `npm run smoke:gui -- --launch --dataview --port <PORT>` fuehrt NUR drei eigene Punkte (D1-D3, eigener Nenner) und legt Dataview in den
  * Vault: die drei Dateien werden aus einer vorhandenen Installation unter ~/Documents/*\/.obsidian/plugins/dataview LESEND kopiert (oder
  * aus `DATAVIEW_QUELLE=<Ordner>`), JS-Abfragen und Inline-JS stehen an. D2 ist die Gegenprobe und laeuft zuerst: schlaegt sie nicht an
- * (kein Marker am nackten Renderer), sind D1 und D3 „nichts gemessen“, nicht „sicher“. Der Nenner ohne den Schalter bleibt bei P1-P42.
+ * (kein Marker am nackten Renderer), sind D1 und D3 „nichts gemessen“, nicht „sicher“. Der Nenner ohne den Schalter bleibt bei P1-P43.
  *
  * Der erste Lauf nach Profilanlage ist ein Aufwaermlauf und zaehlt nicht. Die regulaere Instanz auf 9222
  * wird nicht angefasst. Gemessen wird im eigenen Staging-Vault (`stagingVaultDir()`), nie im
@@ -117,6 +117,7 @@ const PUNKTE = [
   "P40 Aufbewahrung 0: der Verlauf-Knopf verschwindet, Neu fragt zurueck, Abbrechen behaelt das Gespraech, Verwerfen leert es und schreibt nichts",
   "P41 Knopf „Plugins (n)“: am Handy (Vorfahr mit is-mobile) bei fokussierter Eingabe steht die Chip-Zeile hinter dem Knopf in der Knopfreihe, ein Tipp klappt sie auf und zu; auf dem Desktop und ohne Fokus bleibt die Zeile, der Knopf fehlt",
   "P42 Linkschutz-Haertung (code-kit 0.68.0, dom-guard 0.88.0): rohes HTML im beobachteten Bereich des Chats verliert <form>, formaction, on*-Attribute und ping, der https-Link bleibt; Gegenprobe: dasselbe HTML ausserhalb behaelt alle Marker",
+  "P43 Befehl „Save plugin settings as profile note…“: Auswahl nennt sa-probe (nie das eigene Plugin), die Notiz entsteht neben der offenen Notiz, ohne den Schluessel, die Meldung nennt den zurueckgehaltenen Pfad, und gegen denselben Stand geprueft aendert sie nichts (nur die Schluessel-Zeile bleibt „secret“)",
 ] as const;
 type PunktName = (typeof PUNKTE)[number];
 const pn = (prefix: string): PunktName => {
@@ -125,7 +126,7 @@ const pn = (prefix: string): PunktName => {
   return hit;
 };
 
-// Dataview-Messung (`--dataview`): drei eigene Punkte mit eigenem Nenner. Ohne den Schalter bleibt die Bilanz bei den 41 Punkten oben.
+// Dataview-Messung (`--dataview`): drei eigene Punkte mit eigenem Nenner. Ohne den Schalter bleibt die Bilanz bei den 43 Punkten oben.
 const DV_PUNKTE = [
   "D1 Dataview-Kette: dataviewjs-Zaun und $=-Ausdruck einer Chat-Antwort laufen durch das echte Chat-Fenster, beide Marker bleiben leer",
   "D2 Dataview-Gegenprobe: derselbe Text ohne Neutralisierung am nackten Renderer setzt beide Marker (Dataview-JS laeuft in dieser Instanz)",
@@ -1546,6 +1547,47 @@ async function p37(c: Ctx): Promise<void> {
     `Anker im Antworttext: ${links.map((l) => `${l.t} -> ${String(l.h)}`).join("; ")} · alle vier Anker da: ${String(alleDa)}`);
 }
 
+/** P43: Befehl „Plugin-Stand als Profilnotiz speichern“ am echten Fenster: Befehlspalette → Auswahl (Obsidian-natives FuzzySuggestModal) → Notiz im Vault → Block gerendert und gegen denselben Stand geprueft.
+ *  Zustand: die Notiz wird am Ende geloescht (CORE-TEST-21), der Probe-Stand ist durch `resetProbe` bekannt (maxRounds 50, clamp 10, apiKey = Geheimnis). */
+async function p43(c: Ctx): Promise<void> {
+  const cmdId = `${PLUGIN_ID}:export-plugin-state`;
+  await resetProbe(c.cdp);
+  await oeffneNotiz(c.cdp, "Profile demo");
+  const vorher = await c.cdp.evaluate<{ pfade: string[] }>(`return { pfade: app.vault.getMarkdownFiles().map((f) => f.path) };`);
+  await clearNotices(c.cdp);
+  const cmd = await c.cdp.evaluate<{ da: boolean; name: string }>(`const cmd = app.commands.commands[${q(cmdId)}]; if (cmd) app.commands.executeCommandById(${q(cmdId)}); return { da: !!cmd, name: cmd ? cmd.name : "" };`);
+  if (!cmd.da) { record(pn("P43"), false, `Befehl ${cmdId} ist nicht registriert`); return; }
+  let angelegt: string | null = null;
+  try {
+    const auswahl = await pollUntil<{ items: string[] }>(c.cdp, `const items = Array.from(document.querySelectorAll(".prompt .suggestion-item")).map((e) => (e.textContent ?? "").trim()); return items.length > 0 ? { items } : null;`, 6000, 150);
+    if (!auswahl) { record(pn("P43"), false, `Befehl „${cmd.name}“ oeffnet keine Auswahl (kein .prompt .suggestion-item)`); return; }
+    const gewaehlt = await c.cdp.evaluate<{ ok: boolean }>(`const el = Array.from(document.querySelectorAll(".prompt .suggestion-item")).find((e) => (e.textContent ?? "").includes("(" + ${q(PROBE_ID)} + ")")); if (!el) return { ok: false }; el.click(); return { ok: true };`);
+    if (!gewaehlt.ok) { record(pn("P43"), false, `die Auswahl nennt ${PROBE_ID} nicht: ${JSON.stringify(auswahl.items)}`); return; }
+    const gespeichert = await warteAufNotice(c.cdp, "Saved profile note:");
+    const zurueck = await warteAufNotice(c.cdp, `plugins.${PROBE_ID}.apiKey`, 3000);
+    const nachher = await c.cdp.evaluate<{ pfade: string[] }>(`return { pfade: app.vault.getMarkdownFiles().map((f) => f.path) };`);
+    const neu = nachher.pfade.filter((p) => !vorher.pfade.includes(p));
+    angelegt = neu[0] ?? null;
+    if (neu.length !== 1 || angelegt === null) { record(pn("P43"), false, `erwartet genau eine neue Notiz, gefunden ${neu.length}: ${JSON.stringify(neu)} · Meldung ${gespeichert === null ? "FEHLT" : "da"}`); return; }
+    const inhalt = (await c.cdp.evaluate<{ t: string }>(`return { t: await app.vault.adapter.read(${q(angelegt)}) };`)).t;
+    const stand = await leseProbeText(c.cdp);
+    await oeffneNotiz(c.cdp, angelegt.replace(/\.md$/, ""));
+    const z = await leseZeilen(c.cdp);
+    const status = z.rows.map((r) => `${r.path}:${r.status.split(" ")[0]}`);
+    const alleGleich = z.rows.length >= 3 && z.rows.every((r) => r.status === "already set" || r.status.startsWith("secret"));
+    const schluesselZeile = z.rows.some((r) => r.path === "apiKey" && r.status.startsWith("secret"));
+    const nameOk = /^(?:.*\/)?Settings profile \d{4}-\d{2}-\d{2} \d{2}-\d{2}(?: \d+)?\.md$/.test(angelegt);
+    const ohneSelbst = auswahl.items.every((i) => !i.includes(`(${PLUGIN_ID})`));
+    const ohneSchluessel = !inhalt.includes(PROBE_API_KEY) && !(zurueck ?? "").includes(PROBE_API_KEY);
+    const trifft = inhalt.includes("settings-profile") && inhalt.includes('"maxRounds": 50') && inhalt.includes(PROBE_ID);
+    record(pn("P43"), /Save plugin settings as profile note/.test(cmd.name) && gespeichert !== null && zurueck !== null && ohneSchluessel && trifft && nameOk && ohneSelbst && alleGleich && schluesselZeile && stand.includes(PROBE_API_KEY),
+      `Befehl „${cmd.name}“ · Auswahl ${JSON.stringify(auswahl.items)} (ohne ${PLUGIN_ID}: ${String(ohneSelbst)}) · Notiz ${angelegt} (Name ok ${String(nameOk)}, traegt maxRounds 50: ${String(trifft)}, ohne Schluessel ${String(ohneSchluessel)}) · Meldung „${(gespeichert ?? "FEHLT").split("\n")[0]}“ · zurueckgehalten ${zurueck === null ? "FEHLT" : "genannt"} · Pruefung gegen denselben Stand: ${status.join(", ")} (alle gleich/secret ${String(alleGleich)}, Schluessel-Zeile secret ${String(schluesselZeile)}) · data.json unveraendert ${String(stand.includes(PROBE_API_KEY))}`);
+  } finally {
+    // Eigener Zustand: die angelegte Notiz weg, das Blatt zu (der Folgepunkt misst nicht auf unserem Rest).
+    await c.cdp.evaluate(`const f = ${q(angelegt ?? "")} ? app.vault.getAbstractFileByPath(${q(angelegt ?? "")}) : null; if (f) await app.vault.delete(f); return { ok: true };`).catch(() => undefined);
+  }
+}
+
 /** P42: Haertung des Linkschutzes (code-kit 0.68.0 `link-guard`, obsidian-kit 0.88.0 `dom-guard`). Modelltext erreicht den Waechter im Betrieb nie: `neutralizeModelMarkdown` maskiert `<`
  *  vor dem Parser, die Antwort steht als Text da (Kit-Doku `dom-guard.ts`: „erreicht keiner dieser Faelle den Waechter“). Gemessen wird der Waechter deshalb selbst, am echten Fenster:
  *  rohes HTML mit `on*`, `ping`, `formaction`, `form` und einem sicheren Link wird per DOM (`innerHTML`, kein Obsidian-Sanitizer) in den Bereich gesetzt, den der Beobachter des
@@ -1915,7 +1957,7 @@ async function main(): Promise<void> {
         [pn("P1"), p1], [pn("P2"), p2], [pn("P13"), p13], [pn("P7"), p7], [pn("P14"), p14],
         [pn("P3"), p3], [pn("P4"), p4], [pn("P5"), p5], [pn("P11"), p11], [pn("P6"), p6],
         [pn("P9"), p9], [pn("P10"), p10], [pn("P8"), p8p12], [pn("P15"), p15], [pn("P16"), p16], [pn("P17"), p17], [pn("P18"), p18], [pn("P19"), p19], [pn("P20"), p20], [pn("P21"), p21], [pn("P22"), p22], [pn("P23"), p23], [pn("P25"), p25], [pn("P26"), p26],
-        [pn("P32"), p32], [pn("P33"), p33p34], [pn("P35"), p35], [pn("P36"), p36], [pn("P37"), p37], [pn("P38"), p38], [pn("P39"), p39], [pn("P40"), p40], [pn("P41"), p41], [pn("P42"), p42],
+        [pn("P32"), p32], [pn("P33"), p33p34], [pn("P35"), p35], [pn("P36"), p36], [pn("P37"), p37], [pn("P38"), p38], [pn("P39"), p39], [pn("P40"), p40], [pn("P41"), p41], [pn("P42"), p42], [pn("P43"), p43],
       ];
       // `--nur P41`: nur dieser Punkt (Mutationsprobe, Wiederholung); die übrigen zählen dann als „nichts gemessen“, die Bilanz ist keine Vollbilanz.
       const nur = args.value("nur");

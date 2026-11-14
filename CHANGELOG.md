@@ -4,6 +4,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+
+- **A new command "Save plugin settings as profile note…" saves the current state of a plugin as a profile note, without the chat or a model.** Choose a plugin; its settings file becomes a `settings-profile` note (same name, same place and same withholding of secrets as "Save as profile note" in the chat), and a message names the values that were left out. Importing is the note itself: put it into another vault and apply it through the usual check and dialog. A plugin without a settings file, with an unreadable file, or with an empty one is refused with a message and no note is created; the settings of Settings Assistant itself are never offered.
+
 ### Changed
 
 - **The model dropdown in the chat lists the models of all your endpoints, grouped by endpoint** (shared model row of obsidian-kit 0.88.0). The first entry is "Automatic" (with the endpoint and its default model), every endpoint has its own group with "Default (…)" and its models, the last entry "Manage endpoints …" opens the settings of the endpoint manager and selects nothing. A choice fixes endpoint and model for this plugin only, never the model of another plugin; an endpoint that does not answer keeps its group with a disabled note ("not reachable", "no models reported"). If the chosen endpoint was switched off, deleted or lost its key, the row shows "Automatic" with a warning symbol and the reason in its tooltip, and your saved choice stays untouched. The row redraws itself when the endpoint or the choice changes elsewhere (for example in the settings), and the open list is never redrawn while you are choosing. Without the endpoint manager the row stays a plain list as before. The thinking-level list also knows the level "minimal" (offered by gpt-oss).

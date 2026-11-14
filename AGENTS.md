@@ -51,7 +51,7 @@ bash tools/sync-kit.sh [--check]
 npm run release       # delegiert an ../tools/release/release.mjs
 ```
 
-**GUI-Smoke (P1–P42)** gegen eine Obsidian-Zweitinstanz mit eigenem Profil und Port 9361, der Treiber startet und beendet sie selbst und baut den Vault VOR jedem Lauf aus `fixtures/vault/` (Testplugin `sa-probe` aus `fixtures/plugins/sa-probe/` korrigiert beim Laden einen Wert und speichert beim Abschalten). Orts- und Lock-Regeln stehen im Dach-`../AGENTS.md`, Abschnitt „Staging-Vaults: ein Ort, eine Variable“:
+**GUI-Smoke (P1–P43)** gegen eine Obsidian-Zweitinstanz mit eigenem Profil und Port 9361, der Treiber startet und beendet sie selbst und baut den Vault VOR jedem Lauf aus `fixtures/vault/` (Testplugin `sa-probe` aus `fixtures/plugins/sa-probe/` korrigiert beim Laden einen Wert und speichert beim Abschalten). Orts- und Lock-Regeln stehen im Dach-`../AGENTS.md`, Abschnitt „Staging-Vaults: ein Ort, eine Variable“:
 
 ```bash
 npm run build

@@ -69,7 +69,7 @@ npm run build   # produces main.js
    ````
 
 2. Press **Apply N change(s)**. A dialog lists the rows grouped by file; untick what you do not want, then confirm. A plugin that is switched on is turned off, written and turned on again, so open views of it close.
-3. To ask instead of write: run **Open settings chat** (or use the ribbon icon), name a plugin in your question, and read the answer. A proposed profile appears with the same rows and the same apply button; **Save as profile note** keeps it for another vault.
+3. To ask instead of write: run **Open settings chat** (or use the ribbon icon), name a plugin in your question, and read the answer. A proposed profile appears with the same rows and the same apply button; **Save as profile note** keeps it for another vault. To save the current state of a plugin without asking, run **Save plugin settings as profile note…** and choose the plugin; the note is the same, secrets are left out the same way.
 4. To undo: run **Undo last apply**, or pick a snapshot in the settings under **Snapshots**. A file that changed since the apply is shown as such and is not ticked.
 
 <img src="https://raw.githubusercontent.com/johannes-kaindl/settings-assistant/main/docs/images/apply-dialog.png" width="550" alt="The Apply settings dialog: rows grouped by plugin with checkboxes, a reload notice, a locked secret row and the Apply 3 changes button">

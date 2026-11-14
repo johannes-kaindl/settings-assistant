@@ -69,7 +69,7 @@ npm run build   # erzeugt main.js
    ````
 
 2. Drücke **N Änderung(en) anwenden**. Ein Dialog listet die Zeilen nach Datei gruppiert; hake ab, was du nicht willst, und bestätige. Ein eingeschaltetes Plugin wird ausgeschaltet, beschrieben und wieder eingeschaltet, offene Ansichten davon schließen sich.
-3. Fragen statt schreiben: Führe **Einstellungs-Chat öffnen** aus (oder nimm das Ribbon-Symbol), nenne in deiner Frage ein Plugin und lies die Antwort. Ein vorgeschlagenes Profil erscheint mit denselben Zeilen und demselben Anwenden-Knopf; **Als Profilnotiz speichern** hebt es für einen anderen Vault auf.
+3. Fragen statt schreiben: Führe **Einstellungs-Chat öffnen** aus (oder nimm das Ribbon-Symbol), nenne in deiner Frage ein Plugin und lies die Antwort. Ein vorgeschlagenes Profil erscheint mit denselben Zeilen und demselben Anwenden-Knopf; **Als Profilnotiz speichern** hebt es für einen anderen Vault auf. Den Ist-Stand eines Plugins ohne Frage speicherst du mit **Plugin-Stand als Profilnotiz speichern…**: Plugin wählen, die Notiz ist dieselbe, Geheimnisse bleiben genauso draußen.
 4. Zurücknehmen: Führe **Letztes Anwenden zurücknehmen** aus oder wähle in den Einstellungen unter **Schnappschüsse** einen Schnappschuss. Eine Datei, die sich seit dem Anwenden geändert hat, wird so angezeigt und ist nicht angehakt.
 
 <img src="https://raw.githubusercontent.com/johannes-kaindl/settings-assistant/main/docs/images/apply-dialog.png" width="550" alt="Der Dialog Settings anwenden: Zeilen je Plugin gruppiert mit Häkchen, Neuladen-Hinweis, gesperrte Geheimnis-Zeile und der Knopf Apply 3 changes">
