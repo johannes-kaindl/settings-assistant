@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.12.0] — 2026-11-14
+
 ### Added
 
 - **A new command "Save plugin settings as profile note…" saves the current state of a plugin as a profile note, without the chat or a model.** Choose a plugin; its settings file becomes a `settings-profile` note (same name, same place and same withholding of secrets as "Save as profile note" in the chat), and a message names the values that were left out. Importing is the note itself: put it into another vault and apply it through the usual check and dialog. A plugin without a settings file, with an unreadable file, or with an empty one is refused with a message and no note is created; the settings of Settings Assistant itself are never offered.
