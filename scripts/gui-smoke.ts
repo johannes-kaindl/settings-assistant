@@ -24,7 +24,7 @@
  * Instanz ins Profil, startet einen FRISCHEN Prozess, bestaetigt den Vertrauensdialog, schaltet den
  * Restricted Mode ab, misst und beendet NUR den eigenen Prozess ueber seine PID. Das Profil ist
  * `/tmp/obs-test-settings-assistant`; haelt dort eine fremde Instanz das Profil, weicht der Treiber auf
- * `<profil>-w1` aus (nie beenden). Ohne `--launch` haengt sich der Treiber an eine bereits laufende
+ * `<profil>-w30` aus (nie beenden). Ohne `--launch` haengt sich der Treiber an eine bereits laufende
  * Instanz auf `--port` (Vault muss dann schon gebaut und geoeffnet sein: `--setup`).
  *
  * ## Dataview-Messung (`--dataview`, Welle 27)
@@ -40,7 +40,7 @@
  *
  * Typen: `tsconfig.scripts.json` (im `gate` ueber `npm run typecheck:scripts`).
  */
-import { execFileSync, spawn, type ChildProcess } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import { copyFileSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -52,8 +52,10 @@ import { messeFolge, zeichneFolge } from "../../tools/obsidian-cdp/folge.js";
 import { fokusAufraeumSkript, fokusMutationSkript, gegenprobeErreichbarkeit, gegenprobeFokus, messeDenkblockKopierbar, messeErreichbarkeit, messeFokusFenster, optOutPflicht, zeichneDenkblock, zeichnePflicht } from "../../tools/obsidian-cdp/pflichtpunkte.js";
 import { neutralizeModelMarkdown } from "../src/vendor/kit/safe-markdown";
 import { Vorbedingung, createBilanz, parseArgs, runDriver } from "../../tools/obsidian-cdp/bilanz.js";
+import { zweitinstanzStartargumente } from "../../tools/obsidian-cdp/instanz.js";
 import { startLlmStub, type StubAnfrage } from "../../tools/obsidian-cdp/llm-stub.js";
 import { buildVault, requireEigenerBuild, stagingVaultDir } from "../../tools/obsidian-cdp/vault.js";
+import { raeumeZweitinstanzHome, starteZweitinstanzMitHome, type ZweitinstanzMitHome } from "../../tools/obsidian-cdp/zweitinstanz.js";
 
 const REPO_NAME = "settings-assistant";
 const PLUGIN_ID = "settings-assistant";
@@ -63,7 +65,6 @@ const REPO_ROOT = cwd();
 const FIXTURE_DIR = join(REPO_ROOT, "fixtures/vault");
 const PROBE_FIXTURE = join(REPO_ROOT, "fixtures/plugins", PROBE_ID);
 const PROFILE_BASE = "/tmp/obs-test-settings-assistant";
-const OBSIDIAN_BIN = "/Applications/Obsidian.app/Contents/MacOS/Obsidian";
 const FAKE_MODEL = "smoke-model";
 const FAKE_MODEL_2 = "smoke-model-2";
 const FAKE_ENDPOINT_KEY = "sk-FAKE-SMOKE";
@@ -302,39 +303,28 @@ function installiereDataview(vaultDir: string): string {
 function pgrepProfile(ud: string): string {
   try { return execFileSync("pgrep", ["-f", `user-data-dir=${ud}`], { encoding: "utf8" }).trim(); } catch { return ""; }
 }
-function portHalten(port: number): boolean {
-  try { return execFileSync("lsof", ["-nP", `-iTCP:${port}`, "-sTCP:LISTEN", "-t"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim() !== ""; } catch { return false; }
-}
-
-function neuesteAsar(): string | null {
-  const dir = join(homedir(), "Library/Application Support/obsidian");
-  const dateien = readdirSync(dir).filter((f) => /^obsidian-\d+\.\d+\.\d+\.asar$/.test(f));
-  dateien.sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
-  const letzte = dateien[dateien.length - 1];
-  return letzte ? join(dir, letzte) : null;
-}
-
-interface Instanz { child: ChildProcess; ud: string }
+/** Start aus der Brücke (Welle 35, TREIBER-HOME): fremdes `HOME` mit Link auf den Schlüsselbund, Profil mit Ausweichname, aktuelle `.asar`, Englisch per `--lang=en-US`. */
+type Instanz = ZweitinstanzMitHome;
 function startInstanz(vaultDir: string, port: number): Instanz {
-  if (portHalten(port)) throw new Error(`Port ${port} ist belegt — anderen waehlen (nichts beendet).`);
-  let ud = PROFILE_BASE;
-  if (pgrepProfile(ud) !== "") ud = `${PROFILE_BASE}-w1`;
-  if (pgrepProfile(ud) !== "") throw new Error(`Auch ${ud} wird von einer fremden Instanz gehalten — Abbruch (nichts beendet).`);
-  mkdirSync(ud, { recursive: true });
-  // Obsidian liest obsidian.json nur beim Start; ein alter Eintrag wuerde einen fremden Vault oeffnen.
-  writeFileSync(join(ud, "obsidian.json"), JSON.stringify({ vaults: { [REPO_NAME]: { path: vaultDir, ts: Date.now(), open: true } }, language: "en" }));
-  // Die gebuendelte Version kann unter der minAppVersion liegen — dann laedt ein Plugin still nicht.
-  for (const f of readdirSync(ud)) if (/^obsidian-.*\.asar$/.test(f)) rmSync(join(ud, f));
-  const asar = neuesteAsar();
-  if (asar) copyFileSync(asar, join(ud, asar.split("/").pop() ?? "obsidian.asar"));
-  else console.warn("WARNUNG: keine obsidian-*.asar im regulaeren Profil — es laeuft die gebuendelte Version.");
-  const child = spawn(OBSIDIAN_BIN, [`--user-data-dir=${ud}`, `--remote-debugging-port=${port}`, "-AppleLanguages", "(en)"], { stdio: "ignore" });
-  console.log(`Zweitinstanz gestartet: PID ${child.pid ?? "?"}, Profil ${ud}, Port ${port}, ${asar ? asar.split("/").pop() : "gebuendelt"}`);
-  return { child, ud };
+  return starteZweitinstanzMitHome({
+    port,
+    profilBasis: PROFILE_BASE,
+    vaultName: REPO_NAME,
+    vaultPfad: vaultDir,
+    startargumente: (profil) => zweitinstanzStartargumente({ profil, port, sprache: "en" }),
+  });
 }
 
 /** Idempotent: im Normalweg (`finally`) und im Abbruch-Modul (hoechstens eine Sekunde, daher kurze Fristen). */
 async function stopInstanz(inst: Instanz): Promise<void> {
+  try {
+    await beendeInstanz(inst);
+  } finally {
+    // Das fremde HOME geht in jedem Pfad weg, auch im eiligen Abbruchpfad (es ist ein Link und eine Marke, kein Datenbestand); wiederholbar.
+    try { raeumeZweitinstanzHome(inst.fremdesHome, inst.echtesHome); } catch (e) { console.warn(`WARNUNG: fremdes HOME nicht abgeräumt: ${(e as Error).message}`); }
+  }
+}
+async function beendeInstanz(inst: Instanz): Promise<void> {
   if (inst.child.exitCode !== null || inst.child.signalCode !== null) return;
   const eilig = istAbgebrochen();
   const exited = new Promise<void>((resolve) => { inst.child.once("exit", () => { resolve(); }); });
@@ -343,7 +333,7 @@ async function stopInstanz(inst: Instanz): Promise<void> {
   if (inst.child.exitCode === null && inst.child.signalCode === null) { inst.child.kill("SIGKILL"); await Promise.race([exited, sleep(eilig ? 200 : 4000)]); }
   if (eilig) return;
   await sleep(500);
-  const rest = pgrepProfile(inst.ud);
+  const rest = pgrepProfile(inst.profil);
   console.log(`Zweitinstanz beendet (PID ${inst.child.pid ?? "?"}); verbleibende Prozesse im Profil: ${rest === "" ? "keine" : rest.replace(/\n/g, ",")}`);
 }
 

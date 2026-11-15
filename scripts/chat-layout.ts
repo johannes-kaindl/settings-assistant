@@ -15,16 +15,16 @@
  * Grenze: die Emulation verkleinert den Viewport um die Tastaturhöhe (iOS-Tastatur mit Vorschlagsleiste rund 336 pt); sie ersetzt
  * weder das Verhalten von WKWebView noch die Schublade von Obsidian Mobile am Gerät.
  */
-import { execFileSync, spawn, type ChildProcess } from "node:child_process";
-import { copyFileSync, mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
-import { homedir } from "node:os";
+import { copyFileSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { argv, cwd, exit } from "node:process";
 
 import { Cdp, attachTo, bereiteInstanzVor, requireVisible } from "../../tools/obsidian-cdp/cdp.js";
+import { zweitinstanzStartargumente } from "../../tools/obsidian-cdp/instanz.js";
 import { startLlmStub } from "../../tools/obsidian-cdp/llm-stub.js";
 import { capture } from "../../tools/obsidian-cdp/shot.js";
 import { buildVault, stagingVaultDir } from "../../tools/obsidian-cdp/vault.js";
+import { beendeZweitinstanzMitHome, starteZweitinstanzMitHome, type ZweitinstanzMitHome } from "../../tools/obsidian-cdp/zweitinstanz.js";
 
 const REPO_NAME = "settings-assistant";
 const PLUGIN_ID = "settings-assistant";
@@ -32,7 +32,6 @@ const DEMO_ID = "quick-capture";
 const REPO_ROOT = cwd();
 const FIXTURE_DIR = join(REPO_ROOT, "docs/images/fixture");
 const PROFILE_BASE = "/tmp/obs-test-settings-assistant";
-const OBSIDIAN_BIN = "/Applications/Obsidian.app/Contents/MacOS/Obsidian";
 const FAKE_MODEL = "local-model";
 const BREITE = 390;
 const HOEHE = 844;
@@ -95,45 +94,19 @@ function setupVault(): string {
   return vaultDir;
 }
 
-function pgrepProfile(ud: string): string {
-  try { return execFileSync("pgrep", ["-f", `user-data-dir=${ud}`], { encoding: "utf8" }).trim(); } catch { return ""; }
-}
-function portHalten(port: number): boolean {
-  try { return execFileSync("lsof", ["-nP", `-iTCP:${port}`, "-sTCP:LISTEN", "-t"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim() !== ""; } catch { return false; }
-}
-function neuesteAsar(): string | null {
-  const dir = join(homedir(), "Library/Application Support/obsidian");
-  const dateien = readdirSync(dir).filter((f) => /^obsidian-\d+\.\d+\.\d+\.asar$/.test(f));
-  dateien.sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
-  const letzte = dateien[dateien.length - 1];
-  return letzte ? join(dir, letzte) : null;
-}
-
-interface Instanz { child: ChildProcess; ud: string }
+/** Start und Ende der Zweitinstanz aus der Brücke (Welle 35, TREIBER-HOME): fremdes `HOME` mit Link auf den Schlüsselbund, die CLI der Haupt-App bleibt heil. */
+type Instanz = ZweitinstanzMitHome;
 function startInstanz(vaultDir: string, port: number): Instanz {
-  if (portHalten(port)) throw new Error(`Port ${port} ist belegt — anderen waehlen (nichts beendet).`);
-  let ud = PROFILE_BASE;
-  if (pgrepProfile(ud) !== "") ud = `${PROFILE_BASE}-w30`;
-  if (pgrepProfile(ud) !== "") throw new Error(`Auch ${ud} wird von einer fremden Instanz gehalten — Abbruch (nichts beendet).`);
-  mkdirSync(ud, { recursive: true });
-  // Oberflaeche Englisch: obsidian.json UND localStorage (das zweite setzt `bereiteVor`).
-  writeFileSync(join(ud, "obsidian.json"), JSON.stringify({ vaults: { [REPO_NAME]: { path: vaultDir, ts: Date.now(), open: true } }, language: "en" }));
-  for (const f of readdirSync(ud)) if (/^obsidian-.*\.asar$/.test(f)) rmSync(join(ud, f));
-  const asar = neuesteAsar();
-  if (asar) copyFileSync(asar, join(ud, asar.split("/").pop() ?? "obsidian.asar"));
-  else console.warn("WARNUNG: keine obsidian-*.asar im regulaeren Profil — es laeuft die gebuendelte Version.");
-  const child = spawn(OBSIDIAN_BIN, [`--user-data-dir=${ud}`, `--remote-debugging-port=${port}`, "-AppleLanguages", "(en)"], { stdio: "ignore" });
-  console.log(`Zweitinstanz gestartet: PID ${child.pid ?? "?"}, Profil ${ud}, Port ${port}`);
-  return { child, ud };
+  return starteZweitinstanzMitHome({
+    port,
+    profilBasis: PROFILE_BASE,
+    vaultName: REPO_NAME,
+    vaultPfad: vaultDir,
+    startargumente: (profil) => zweitinstanzStartargumente({ profil, port, sprache: "en" }),
+  });
 }
 async function stopInstanz(inst: Instanz): Promise<void> {
-  const exited = new Promise<void>((resolve) => { inst.child.once("exit", () => { resolve(); }); });
-  if (inst.child.exitCode === null) inst.child.kill("SIGTERM");
-  await Promise.race([exited, sleep(8000)]);
-  if (inst.child.exitCode === null && inst.child.signalCode === null) { inst.child.kill("SIGKILL"); await Promise.race([exited, sleep(4000)]); }
-  await sleep(500);
-  const rest = pgrepProfile(inst.ud);
-  console.log(`Zweitinstanz beendet; verbleibende Prozesse im Profil: ${rest === "" ? "keine" : rest.replace(/\n/g, ",")}`);
+  await beendeZweitinstanzMitHome(inst);
 }
 async function warteAufFenster(port: number, timeoutMs: number): Promise<Cdp> {
   const bis = Date.now() + timeoutMs;
