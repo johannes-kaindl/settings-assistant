@@ -1559,6 +1559,26 @@ async function p43(c: Ctx): Promise<void> {
   await oeffneNotiz(c.cdp, "Profile demo");
   const vorher = await c.cdp.evaluate<{ pfade: string[] }>(`return { pfade: app.vault.getMarkdownFiles().map((f) => f.path) };`);
   await clearNotices(c.cdp);
+  // Gegenprobe des Treibers (`--mutation schwaerzen`): die Notiz entsteht, als haette der Befehl nicht geschwaerzt. `saveProfileNote` ist die einzige Stelle, an der der Befehl den Text hinausgibt; der Patch setzt den
+  // echten Wert aus der data.json des Probe-Plugins in den Eintrag zurueck (genau das waere der Schaden ohne `redactedProfileNote`). P43 MUSS dann rot werden; der Vorwert kommt im `finally` zurueck.
+  if (MUTATION === "schwaerzen") {
+    const m = await c.cdp.evaluate<{ ok: boolean; grund?: string }>(`
+      const p = app.plugins.plugins[${q(PLUGIN_ID)}];
+      if (!p || typeof p.saveProfileNote !== "function") return { ok: false, grund: "saveProfileNote fehlt am Plugin" };
+      window.__saMutP43 = p.saveProfileNote;
+      const orig = p.saveProfileNote.bind(p);
+      p.saveProfileNote = async (name, text) => {
+        const m = /^(\\x60{3,})settings-profile\\n([\\s\\S]*?)\\n\\1\\n?$/.exec(text);
+        if (!m) return orig(name, text);
+        const profil = JSON.parse(m[2]);
+        const roh = JSON.parse(await app.vault.adapter.read(app.vault.configDir + ${q(PROBE_DATA)}));
+        if (!profil.plugins || !(${q(PROBE_ID)} in profil.plugins)) throw new Error("Mutation schwaerzen: die Notiz traegt " + ${q(PROBE_ID)} + " nicht unter plugins");
+        profil.plugins[${q(PROBE_ID)}] = roh;
+        return orig(name, m[1] + "settings-profile\\n" + JSON.stringify(profil, null, 2) + "\\n" + m[1] + "\\n");
+      };
+      return { ok: true };`);
+    if (!m.ok) throw new Vorbedingung(`--mutation schwaerzen laesst sich nicht einbauen: ${m.grund ?? "?"}`);
+  }
   const cmd = await c.cdp.evaluate<{ da: boolean; name: string }>(`const cmd = app.commands.commands[${q(cmdId)}]; if (cmd) app.commands.executeCommandById(${q(cmdId)}); return { da: !!cmd, name: cmd ? cmd.name : "" };`);
   if (!cmd.da) { record(pn("P43"), false, `Befehl ${cmdId} ist nicht registriert`); return; }
   let angelegt: string | null = null;
@@ -1589,13 +1609,14 @@ async function p43(c: Ctx): Promise<void> {
   } finally {
     // Eigener Zustand: die angelegte Notiz weg, das Blatt zu (der Folgepunkt misst nicht auf unserem Rest).
     await c.cdp.evaluate(`const f = ${q(angelegt ?? "")} ? app.vault.getAbstractFileByPath(${q(angelegt ?? "")}) : null; if (f) await app.vault.delete(f); return { ok: true };`).catch(() => undefined);
+    await c.cdp.evaluate(`const p = app.plugins.plugins[${q(PLUGIN_ID)}]; if (p && window.__saMutP43) { p.saveProfileNote = window.__saMutP43; delete window.__saMutP43; } return { ok: true };`).catch(() => undefined);
   }
 }
 
 /** P44-P46: Modellzeile mit Gruppen je Endpunkt am echten Fenster (obsidian-kit 0.89.0, Welle 34). Ein echter Endpoint Manager gibt es im Staging-Vault nicht; `installFakeManager` setzt den Fake in den
  *  Slot (drei Endpunkte: `lm`, `zwei`, `aus` unerreichbar), `fakeManagerAendere` aendert ihn und meldet „changed“. Die Zeile sitzt im Composer des Chats (`.okit-model-bar-select`). Der Treiber stellt Fake,
  *  Einstellung und Chat-Ansicht am Ende wieder her (CORE-TEST-21). Gegenproben im Punkt: P44 misst die flache Liste VOR dem Manager, P45 den Zustand VOR dem Abschalten, P46 die Zahl der Hoerer. */
-/** `--mutation endpoints|abo`: Gegenprobe des Treibers fuer P44-P46 (siehe p44p46). */
+/** `--mutation endpoints|abo|schwaerzen`: Gegenprobe des Treibers (endpoints und abo fuer P44-P46, siehe p44p46; schwaerzen fuer P43, siehe p43). */
 let MUTATION: string | undefined;
 interface Zeile44 { alle: string[]; gruppen: Array<{ label: string; optionen: Array<{ text: string; disabled: boolean; wert: string }> }>; erste: string; wert: string; text: string; warn: boolean; warnText: string }
 const LIES44 = (bedingung: string): string => `
