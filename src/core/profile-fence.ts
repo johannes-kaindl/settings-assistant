@@ -1,10 +1,14 @@
 /** Einzige Stelle, die `settings-profile`-Zäune erkennt — für das Herausziehen (chat-context) UND das Entfernen aus dem
- *  gerenderten Chat-Text. Zwei getrennte Regexe liefen auseinander (I3: Leerzeichen vor dem Tag fiel durch beide).
- *  Großzügig wie CommonMark und etwas darüber: beliebiger Einzug, ``` oder ~~~ beliebiger Länge, Leerraum vor dem Tag,
- *  Tag ohne Rücksicht auf Groß/Klein, beliebiger Rest des Info-Strings. Geschlossen wird mit demselben Zeichen in
- *  mindestens derselben Länge; ein Zaun ohne Schluss reicht bis zum Textende. */
+ *  gerenderten Chat-Text. Der Zaun-Scanner ist `listFences` aus code-kit (`fences`, seit 0.71.0), mit `maxIndent: Infinity`
+ *  (beliebiger Einzug, großzügiger als CommonMark) und einem Filter auf `lang === "settings-profile"` (Groß/Klein egal, das
+ *  Kit senkt das Wort). Geschlossen wird mit demselben Zeichen in mindestens derselben Länge; ein Zaun ohne Schluss reicht
+ *  bis zum Textende. Zwei Abweichungen von der früheren Eigenfassung sind gewollt, weil ein Modell-Antworttext CommonMark-genau
+ *  gerendert wird (`tests/profile-fence.test.ts`, Gruppe „Abweichungen vom Kit“): (1) ein Info-String mit Backtick nach dem
+ *  Tag („```settings-profile x`“) ist kein Zaun, (2) ein anderer Zaun davor verschluckt einen späteren `settings-profile`-Öffner
+ *  (er steht dann im Inhalt des anderen Zauns), (3) bei einem Tilde-Zaun darf der Info-String einen Backtick tragen, (4) ein einzelnes `\r` am Textende bleibt im Inhalt eines offenen Zauns. */
+import { listFences } from "../vendor/kit/fences";
 
-const OPEN = /^[ \t]*(`{3,}|~{3,})[ \t]*settings-profile(?=[ \t]|$)/i;
+const LANG = "settings-profile";
 
 export interface ProfileFence {
   /** Erste Zeile (Öffner), Index in `text.split("\n")`. */
@@ -15,26 +19,10 @@ export interface ProfileFence {
   closed: boolean;
 }
 
-function isCloser(line: string, char: string, len: number): boolean {
-  const m = /^[ \t]*(`{3,}|~{3,})[ \t]*$/.exec(line);
-  return m !== null && m[1][0] === char && m[1].length >= len;
-}
-
 export function findProfileFences(text: string): ProfileFence[] {
-  const lines = text.split("\n").map((l) => l.replace(/\r$/, ""));
-  const out: ProfileFence[] = [];
-  let i = 0;
-  while (i < lines.length) {
-    const m = OPEN.exec(lines[i]);
-    if (m === null) { i++; continue; }
-    const char = m[1][0]; const len = m[1].length;
-    let j = i + 1;
-    while (j < lines.length && !isCloser(lines[j], char, len)) j++;
-    const closed = j < lines.length;
-    out.push({ start: i, end: closed ? j + 1 : lines.length, body: lines.slice(i + 1, j).join("\n"), closed });
-    i = closed ? j + 1 : lines.length;
-  }
-  return out;
+  return listFences(text, { maxIndent: Infinity })
+    .filter((f) => f.lang === LANG)
+    .map((f) => ({ start: f.openLine, end: f.closeLine + 1, body: f.body, closed: f.closed }));
 }
 
 /** Entfernt Profilblöcke (auch unvollständige) aus dem Text, damit der Codeblock-Prozessor sie nicht ein zweites Mal rendert. */
