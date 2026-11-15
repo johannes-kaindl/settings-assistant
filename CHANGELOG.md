@@ -4,6 +4,12 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Changed
+
+- **The model row follows the endpoint manager more closely** (shared library obsidian-kit 0.93.0): when the manager is switched off or comes back, the model row notices within about two seconds and redraws, without a restart.
+- **A removed `iframe`, `frame`, `object` or `embed` in a model answer stays in the page for another 250 ms as a hidden, empty shell** (link guard of code-kit 0.73.0). The error box "A JavaScript error occurred in the main process" that Obsidian could show for an `iframe` with an `app:`, relative or `file:` target no longer appears.
+- **The chat window checks the shape of a stored chat before it loads it** (shared chat window of obsidian-kit 0.93.0): a chat file with a damaged history is refused with a message instead of passing silently. The copy buttons of the chat and of the reasoning block share one component; they look the same.
+
 ## [0.12.0] — 2026-11-14
 
 ### Added

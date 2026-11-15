@@ -2,9 +2,9 @@
   "source": "code-kit",
   "version": "0.40.0",
   "sha": "97b7277",
-  "vendored": "clipboard.ts, link-guard.ts (code-kit@0.68.0, 70b5b41), remote-resources.ts (code-kit@0.68.0, 70b5b41), sse.ts, endpoint.ts, endpoint_config.ts, endpoint_diagnostics.ts, model-choice.ts, model-list-cache.ts, reasoning.ts, capabilities.ts, think-splitter.ts, timeout.ts, error_body.ts, i18n.ts, settings.ts, sampling-profiles.ts (code-kit@0.68.0, 70b5b41), rotation.ts (code-kit@0.60.0, acd3fe7), backend-probe.ts, redact.ts (code-kit@0.60.0, acd3fe7), safe-markdown.ts (code-kit@0.68.0, 70b5b41), secrets.ts, embeddings-client.ts, model-context.ts, local-stamp.ts, chat-history.ts, stream-blocks.ts, anthropic-wire.ts, chat-archive.ts, filename-template.ts, rel-path.ts, error-message.ts (code-kit@0.68.0, 70b5b41)",
+  "vendored": "clipboard.ts, link-guard.ts (code-kit@0.73.0, 09b7dcb), remote-resources.ts (code-kit@0.73.0, 09b7dcb), leave-tree.ts (code-kit@0.73.0, 09b7dcb), sse.ts, endpoint.ts, endpoint_config.ts, endpoint_diagnostics.ts, model-choice.ts, model-list-cache.ts, reasoning.ts, capabilities.ts, think-splitter.ts, timeout.ts, error_body.ts, i18n.ts, settings.ts, sampling-profiles.ts (code-kit@0.73.0, 09b7dcb), rotation.ts (code-kit@0.60.0, acd3fe7), backend-probe.ts, redact.ts (code-kit@0.60.0, acd3fe7), safe-markdown.ts (code-kit@0.73.0, 09b7dcb), secrets.ts, embeddings-client.ts, model-context.ts, local-stamp.ts, chat-history.ts (code-kit@0.73.0, 09b7dcb), stream-blocks.ts, anthropic-wire.ts, chat-archive.ts, filename-template.ts, rel-path.ts (code-kit@0.73.0, 09b7dcb), error-message.ts (code-kit@0.73.0, 09b7dcb), chat-archive-store.ts (code-kit@0.73.0, 09b7dcb), chat-archive-strings.ts (code-kit@0.73.0, 09b7dcb), run-exclusive.ts (code-kit@0.73.0, 09b7dcb)",
   "obsidian_kit_version": "0.77.0",
   "obsidian_kit_sha": "33d1188",
-  "obsidian_kit_vendored": "endpoint-source.ts (obsidian-kit@0.89.0, d7d2edc), endpoint-secret-hook.ts, plugin-id.ts, override-guard.ts, tool-provider.ts",
+  "obsidian_kit_vendored": "endpoint-source.ts (obsidian-kit@0.93.0, 7997447), endpoint-secret-hook.ts, plugin-id.ts, override-guard.ts, tool-provider.ts",
   "license": "AGPL-3.0-or-later"
 }
