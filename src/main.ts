@@ -3,7 +3,7 @@ import "./i18n/strings";
 import { getLang, pickLang, setLang, t } from "./vendor/kit/i18n";
 import { thinkingLevelTexts, thinkingOffTexts } from "./vendor/kit-obsidian/thinking-control";
 import { openChatLeaf } from "./vendor/kit-obsidian/chat-leaf";
-import { createChatArchive, type ChatArchive } from "./vendor/kit-obsidian/chat-archive";
+import { createChatArchive, type ChatArchive } from "./vendor/kit/chat-archive-store";
 import { clampChatKeep } from "./vendor/kit-obsidian/chat-archive-settings";
 import type { EndpointConfig } from "./vendor/kit/endpoint_config";
 import { onLevelFor, thinkingFor, withThinkingLevel, type RequestSettings, type ThinkingLevel } from "./vendor/kit/sampling-profiles";

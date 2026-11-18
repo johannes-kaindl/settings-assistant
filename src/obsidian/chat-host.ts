@@ -6,7 +6,7 @@ import { getLang, t } from "../vendor/kit/i18n";
 import { EMPTY_CHAT, type ChatHistory, type ChatModelMessage } from "../vendor/kit/chat-history";
 import { buildChatWindow, type ChatSendHandlers, type ChatSendResult, type ChatWindow } from "../vendor/kit-obsidian/chat-window";
 import { buildModelBar, type ModelBar } from "../vendor/kit-obsidian/model-bar";
-import type { ChatArchive } from "../vendor/kit-obsidian/chat-archive";
+import type { ChatArchive } from "../vendor/kit/chat-archive-store";
 import type { LlmConnection } from "../vendor/kit-obsidian/llm-connection";
 import type { ThinkingControlOptions } from "../vendor/kit-obsidian/thinking-control";
 import type { PluginInfo } from "../core/chat-context";

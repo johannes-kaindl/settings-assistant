@@ -9,7 +9,7 @@ import { installTabRefreshOnOpen, renderSettingDefinitions, settingBodyHost } fr
 import type { LlmConnection } from "../vendor/kit-obsidian/llm-connection";
 import { buildVersionList } from "../vendor/kit-obsidian/version-list";
 import { chatArchiveSettingDefinitions } from "../vendor/kit-obsidian/chat-archive-settings";
-import { resolveChatArchiveStrings } from "../vendor/kit-obsidian/chat-archive-strings";
+import { resolveChatArchiveStrings } from "../vendor/kit/chat-archive-strings";
 import type { ModeId } from "../vendor/kit/sampling-profiles";
 import type { GfsPolicy } from "../vendor/kit/rotation";
 

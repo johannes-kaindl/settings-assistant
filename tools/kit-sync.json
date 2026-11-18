@@ -1,10 +1,10 @@
 {
   "sources": {
     "obsidian-kit": {
-      "ref": "0.77.0"
+      "ref": "0.95.0"
     },
     "code-kit": {
-      "ref": "0.40.0"
+      "ref": "0.75.0"
     }
   },
   "targets": [
@@ -14,18 +14,9 @@
       "from": "src/ts/web",
       "modules": [
         "clipboard",
-        {
-          "name": "link-guard",
-          "ref": "0.73.0"
-        },
-        {
-          "name": "remote-resources",
-          "ref": "0.73.0"
-        },
-        {
-          "name": "leave-tree",
-          "ref": "0.73.0"
-        }
+        "link-guard",
+        "remote-resources",
+        "leave-tree"
       ],
       "rewrite": [
         [
@@ -52,59 +43,26 @@
         "error_body",
         "i18n",
         "settings",
-        {
-          "name": "sampling-profiles",
-          "ref": "0.73.0"
-        },
-        {
-          "name": "rotation",
-          "ref": "0.60.0"
-        },
+        "sampling-profiles",
+        "rotation",
         "backend-probe",
-        {
-          "name": "redact",
-          "ref": "0.60.0"
-        },
-        {
-          "name": "safe-markdown",
-          "ref": "0.73.0"
-        },
+        "redact",
+        "safe-markdown",
         "secrets",
         "embeddings-client",
         "model-context",
         "local-stamp",
-        {
-          "name": "chat-history",
-          "ref": "0.73.0"
-        },
+        "chat-history",
         "stream-blocks",
         "anthropic-wire",
         "chat-archive",
         "filename-template",
-        {
-          "name": "rel-path",
-          "ref": "0.73.0"
-        },
-        {
-          "name": "error-message",
-          "ref": "0.73.0"
-        },
-        {
-          "name": "chat-archive-store",
-          "ref": "0.73.0"
-        },
-        {
-          "name": "chat-archive-strings",
-          "ref": "0.73.0"
-        },
-        {
-          "name": "run-exclusive",
-          "ref": "0.73.0"
-        },
-        {
-          "name": "fences",
-          "ref": "0.73.0"
-        }
+        "rel-path",
+        "error-message",
+        "chat-archive-store",
+        "chat-archive-strings",
+        "run-exclusive",
+        "fences"
       ]
     },
     {
@@ -112,10 +70,7 @@
       "source": "obsidian-kit",
       "from": "src/pure",
       "modules": [
-        {
-          "name": "endpoint-source",
-          "ref": "0.93.0"
-        },
+        "endpoint-source",
         "endpoint-secret-hook",
         "plugin-id",
         "override-guard",
@@ -148,82 +103,41 @@
         "model-picker",
         "settings_walker",
         "folder-suggest",
-        {
-          "name": "stream-area",
-          "ref": "0.93.0"
-        },
-        {
-          "name": "endpoint-source",
-          "ref": "0.93.0"
-        },
+        "stream-area",
+        "endpoint-source",
         "request-section",
         "status-indicator",
         "request-session",
-        {
-          "name": "thinking-control",
-          "ref": "0.93.0"
-        },
+        "thinking-control",
         "collapsible",
         "chat-client",
         "chat-transport",
         "shortcuts-bridge",
-        {
-          "name": "clock",
-          "ref": "0.93.0"
-        },
+        "clock",
         "help-setting",
         "version-list",
-        {
-          "name": "llm-connection",
-          "ref": "0.93.0"
-        },
-        {
-          "name": "llm-connection-strings",
-          "ref": "0.93.0"
-        },
+        "llm-connection",
+        "llm-connection-strings",
         "backend-probe",
-        {
-          "name": "endpoint-plumbing",
-          "ref": "0.93.0"
-        },
+        "endpoint-plumbing",
         "embedding-connection",
         "endpoint-status-text",
         "plugin-api",
         "anthropic-transport",
-        {
-          "name": "chat-window",
-          "ref": "0.93.0"
-        },
+        "chat-window",
         "chat-host",
         "chat-leaf",
         "chat-window-strings",
-        {
-          "name": "model-bar",
-          "ref": "0.93.0"
-        },
-        {
-          "name": "model-bar-strings",
-          "ref": "0.93.0"
-        },
-        {
-          "name": "stable-writer",
-          "ref": "0.93.0"
-        },
-        {
-          "name": "dom-guard",
-          "ref": "0.93.0"
-        },
+        "model-bar",
+        "model-bar-strings",
+        "stable-writer",
+        "dom-guard",
         "chat-archive-dialog",
-        "chat-archive",
-        "chat-archive-strings",
-        "run-exclusive",
         "confirm",
         "chat-archive-settings",
         "chat-archive-css",
-        {
-          "name": "copy-button",
-          "ref": "0.93.0"
-        }
+        "copy-button",
+        "setting-body-host"
       ],
       "rewrite": [
         [
@@ -245,15 +159,9 @@
       "source": "obsidian-kit",
       "from": "src/testing",
       "modules": [
-        {
-          "name": "kit-css",
-          "ref": "0.93.0"
-        },
+        "kit-css",
         "obsidian-mock",
-        {
-          "name": "dom-guard-probe",
-          "ref": "0.93.0"
-        }
+        "dom-guard-probe"
       ]
     }
   ]
