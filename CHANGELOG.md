@@ -4,6 +4,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Fixed
+
+- **Saving a profile as a note no longer fails when the profile contains hundreds of thousands of backtick runs** (the fence length was computed with a spread over all runs and hit the argument limit of the engine, around 150,000 runs).
+
 ## [0.12.1] — 2026-11-18
 
 ### Changed

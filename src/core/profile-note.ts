@@ -5,7 +5,8 @@ import { targetKey, type Json, type SettingsProfile } from "./types";
 
 /** Zaun länger als jede Backtick-Folge im Inhalt, mindestens drei. */
 function fenceFor(body: string): string {
-  const longest = Math.max(0, ...(body.match(/`+/g) ?? []).map((r) => r.length));
+  let longest = 0;
+  for (const run of body.matchAll(/`+/g)) longest = Math.max(longest, run[0].length);
   return "`".repeat(Math.max(3, longest + 1));
 }
 
