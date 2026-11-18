@@ -182,7 +182,6 @@ async function schliesseDialoge(cdp: Cdp): Promise<void> {
 
 /** Profil-Notiz im Lesemodus oeffnen und auf den gerenderten Block warten. */
 async function oeffneProfilNotiz(cdp: Cdp): Promise<boolean> {
-  await cdp.send("Page.bringToFront");
   await setAppConfig(cdp, "livePreview", true);
   if (!(await openExisting(cdp, "Weekly review setup.md", "preview"))) return false;
   await closeExtraLeaves(cdp);
@@ -431,7 +430,6 @@ async function main(): Promise<void> {
   let fehlend = 0;
   try {
     cdp = await warteAufFenster(port, 60_000);
-    await cdp.send("Page.bringToFront");
     await sleep(3000);
     await bereiteVor(cdp);
     await setWindowSize(cdp, FENSTER_BREITE, FENSTER_HOEHE);
