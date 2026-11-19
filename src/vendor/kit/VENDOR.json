@@ -1,10 +1,10 @@
 {
   "source": "code-kit",
-  "version": "0.75.0",
-  "sha": "e6cd8be",
+  "version": "0.82.0",
+  "sha": "4e12a8e",
   "vendored": "clipboard.ts, link-guard.ts, remote-resources.ts, leave-tree.ts, sse.ts, endpoint.ts, endpoint_config.ts, endpoint_diagnostics.ts, model-choice.ts, model-list-cache.ts, reasoning.ts, capabilities.ts, think-splitter.ts, timeout.ts, error_body.ts, i18n.ts, settings.ts, sampling-profiles.ts, rotation.ts, backend-probe.ts, redact.ts, safe-markdown.ts, secrets.ts, embeddings-client.ts, model-context.ts, local-stamp.ts, chat-history.ts, stream-blocks.ts, anthropic-wire.ts, chat-archive.ts, filename-template.ts, rel-path.ts, error-message.ts, chat-archive-store.ts, chat-archive-strings.ts, run-exclusive.ts, fences.ts",
-  "obsidian_kit_version": "0.95.0",
-  "obsidian_kit_sha": "3853245",
+  "obsidian_kit_version": "0.102.0",
+  "obsidian_kit_sha": "c8312d9",
   "obsidian_kit_vendored": "endpoint-source.ts, endpoint-secret-hook.ts, plugin-id.ts, override-guard.ts, tool-provider.ts",
   "license": "AGPL-3.0-or-later"
 }
