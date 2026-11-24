@@ -1,4 +1,4 @@
-// vendored from code-kit@0.82.0, src/ts/pure/fences.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
+// vendored from code-kit@0.87.0, src/ts/pure/fences.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
 // Origin: obsidian-plugins `3d-codeblocks/src/core/shapes/fence.ts` (`fenceFor`), `src/core/shapes/references.ts` (`shapesBlock`,
 // here `wrapInFence` with the language as a parameter) and `src/obsidian/panel-accept.ts` (`closesOpenFence`, here on the opening
 // line instead of the notes text and a fence object). The scanner (`listFences`/`findFenceAt`) has the shape of obsidian-kit
@@ -39,7 +39,12 @@ export function fenceFor(body: string): string {
  *  (a BOM would sit in the first line of the body and break its parsing). Known, accepted normalisation: the way back (block → file)
  *  writes a file without BOM. The fence is measured on the normalised body. */
 export function wrapInFence(lang: string, body: string): string {
-  const clean = body.replace(/^\uFEFF/, "").replace(/\r\n/g, "\n").replace(/\n+$/, "");
+  const lf = body.replace(/^\uFEFF/, "").replace(/\r\n/g, "\n");
+  // the trailing breaks by a walk back from the end and one slice: `replace(/\n+$/, "")` tried the end check from every start of a long run of breaks in the MIDDLE of the text (quadratic:
+  // 98 ms at 10 000, 2.4 s at 50 000, measured by the breadth over 3d-codeblocks, 2026-11-19)
+  let end = lf.length;
+  while (end > 0 && lf.charCodeAt(end - 1) === 10) end--;
+  const clean = lf.slice(0, end);
   const fence = fenceFor(clean);
   return `${fence}${lang}\n${clean}\n${fence}`;
 }
@@ -657,6 +662,40 @@ export function countFences(markdown: string, lang: string, opts?: FenceOptions)
   for (const f of flat) if (f.lang === want) n += 1;
   scanNested(markdown.split(/\r?\n/), flat, maxIndent, Infinity, (f) => { if (f.lang === want) n += 1; return false; });
   return n;
+}
+
+/** A fence of {@link listAllFences}: the {@link Fence} plus where it was read. */
+export interface ListedFence extends Fence {
+  /** `false`: the fence of {@link listFences} (starts a line, or opens on the line of a list marker with no quote in front). `true`: one of the nested forms of
+   *  {@link findNestedFenceAt} (behind a quote or callout sign, or indented over `maxIndent` under a list item), whose `body` is without the quote signs.
+   *  It is on this type and not on {@link Fence} so that `listFences`, `findFenceAt` and `findNestedFenceAt` answer word for word as before (a test that compares
+   *  their result with `toEqual` would turn red on one more property). The quote and indent prefix is not reported: the caller who needs it reads the line
+   *  `openLine` of its own text; `nested` tells whether there is one to look for. */
+  nested: boolean;
+}
+
+/** EVERY fenced block of `text`, flat and nested, in document order (by `openLine`), each once: the fences of {@link listFences} and the ones of
+ *  {@link findNestedFenceAt}, which never overlap (the nested reader skips the lines of a flat fence), so the list is their merge, not a union that needs
+ *  a de-duplication. The same two readers as {@link countFences} (`listFences` and `scanNested`, no third one): `listAllFences(md).filter(f => f.lang === l)`
+ *  has the length of `countFences(md, l)` by construction, and a test holds it against markdown-it. An unclosed fence is in the list with `closed: false`.
+ *  A fence inside another fence (an example in a Markdown fence) is part of that fence and not in the list. One pass over the text for each reader: linear,
+ *  where asking `findNestedFenceAt` for each line would be quadratic. `opts` are those of `listFences`. */
+export function listAllFences(text: string, opts?: FenceOptions): ListedFence[] {
+  const maxIndent = resolveMaxIndent(opts);
+  const flat = listFences(text, opts);
+  const nested: Fence[] = [];
+  scanNested(text.split(/\r?\n/), flat, maxIndent, Infinity, (f) => { nested.push(f); return false; });
+  const out: ListedFence[] = [];
+  let a = 0;
+  let b = 0;
+  while (a < flat.length || b < nested.length) {
+    const x = flat[a];
+    const y = nested[b];
+    if (x !== undefined && (y === undefined || x.openLine < y.openLine)) { out.push({ ...x, nested: false }); a += 1; }
+    else if (y !== undefined) { out.push({ ...y, nested: true }); b += 1; }
+    else break; // not reachable: the loop runs while one of the two lists has an entry left
+  }
+  return out;
 }
 
 /** The rule for COMPARING a block body with a text that should hold the same (the other half of `wrapInFence`, which WRITES): a leading
