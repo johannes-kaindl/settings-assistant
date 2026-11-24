@@ -1,4 +1,5 @@
 import { buildContext, suggestPlugins, type PluginInfo } from "./chat-context";
+import { isStringList } from "../vendor/kit/string-list";
 
 /** Was für eine Frage tatsächlich gesendet wurde (Anzeige „Sent context“). `redacted` und `unreadable` nennen nur Pfade/Ids, nie Werte.
  *  Ein `type`-Alias, kein `interface`: nur so ist die Form ohne Umwandlung als `JsonValue` (Meta einer Kit-Antwort) ablegbar. */
@@ -57,8 +58,6 @@ export async function prepareAsk(input: { history: readonly HistoryMessage[]; se
     selected: ids,
   };
 }
-
-function isStringList(v: unknown): v is string[] { return Array.isArray(v) && v.every((x) => typeof x === "string"); }
 
 /** Liest den `SentContext` aus dem Meta einer Antwort zurück; jede andere Form ist `null` (das Meta ist `JsonValue`, nicht vertrauenswürdig typisiert). */
 export function sentFromMeta(meta: unknown): SentContext | null {

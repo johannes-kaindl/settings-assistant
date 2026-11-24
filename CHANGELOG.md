@@ -4,6 +4,12 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Fixed
+- Creating the folders for a snapshot or a config file no longer fails when another call has just created the same folder; the folder creation is the shared one of the library now.
+
+### Changed
+- Shared library updated (obsidian-kit 0.108.0, code-kit 0.88.0); the list check for a stored chat context is the library's.
+
 ## [0.12.2] — 2026-11-24
 
 ### Fixed

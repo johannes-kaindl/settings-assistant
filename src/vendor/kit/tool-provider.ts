@@ -1,4 +1,4 @@
-// vendored from obsidian-kit@0.106.0, src/pure/tool-provider.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
+// vendored from obsidian-kit@0.108.0, src/pure/tool-provider.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
 /** Vertrag `tool-provider` — ein Plugin bietet seine Fähigkeiten als LLM-Werkzeuge an, ein Wirt mit
  *  Agenten-Loop (koda-agent, später vault-crews) montiert sie, statt sie nachzubauen. Stern statt Netz:
  *  N Anbieter, 2 Wirte, ein Vertrag. Muster `pure/endpoint-source.ts`: EINE Quelle, der Anbieter
@@ -26,7 +26,12 @@
  *      Anbieters kennen. Der Anbieter macht `plan → confirm(Vorschau) → execute` INTERN.
  *      **Die Vorschau ist verbindlich, nicht Auskunft:** `paths` ist die vollständige Obergrenze der
  *      Vault-Pfade, die der Aufruf berührt, der Anbieter schreibt nirgends sonst und ruft `confirm`
- *      genau einmal vor dem ersten Schreiben. Das ist, was ein Wirt mit festem Ablauf (vault-crews)
+ *      genau einmal vor dem ersten Schreiben. **Ein Eintrag ist ein Vault-Pfad oder ein Muster** (Glob mit `*`, `?`,
+ *      `[` oder `{`, etwa `Crews/*.md` oder `Crews/{a,b}.md`): ein Muster gilt als Obergrenze aller Pfade, auf die es passt, nicht als
+ *      ein einzelner Pfad. Ein Wirt, der gegen eine Schreibgrenze prüft, behandelt es als „kann alles unter seinem
+ *      festen Vorspann berühren“ und lässt es nur durch, wenn die Grenze dieses Muster deckt (Entscheidung
+ *      2026-11-24, `docs/internal/decisions.md`; ein zweites Feld gibt es bewusst nicht, es wäre additiv, falls ein
+ *      Wirt Muster und Pfade getrennt braucht). Die Crews-API schreibt die Globs ihres `write_scope` hierher. Das ist, was ein Wirt mit festem Ablauf (vault-crews)
  *      braucht: sein `confirm` prüft `paths` gegen den `write_scope`, legt den Snapshot an und
  *      antwortet; die Argumente validiert er VOR `executeTool` gegen `parameters` (einen Validator
  *      hält die Bibliothek nicht, siehe Gegenleser-Befund in der Meldung). Wirkungen außerhalb des
@@ -72,7 +77,8 @@ export interface ProviderToolDef {
  *  die Prüfung gegen eine Schreibgrenze (vault-crews `write_scope`), `outside` für alles jenseits des Vaults. */
 export interface ProviderConfirmPreview {
   summary: string;
-  /** Vollständige Obergrenze der Vault-Pfade, die dieser Aufruf berührt (Festlegung (e)). */
+  /** Vollständige Obergrenze der Vault-Pfade, die dieser Aufruf berührt (Festlegung (e)). Ein Eintrag ist ein Vault-Pfad **oder ein Muster** (Glob mit `*`, `?`, `[` oder `{`): ein Muster steht für alle Pfade,
+   *  auf die es passt, und ist KEIN einzelner Pfad; ein Wirt mit Schreibgrenze lässt es nur durch, wenn die Grenze das Muster deckt. Der Wirt darf einen Eintrag also weder als Dateinamen öffnen noch an Kommas teilen (`a/{b,c}.md` ist ein Eintrag). */
   paths: string[];
   /** Wirkungen außerhalb des Vaults, je eine Zeile für den Menschen („CalDAV-Server: Termin löschen“,
    *  „Einladung per Mail an 2 Personen“). Fehlt oder leer: keine. */

@@ -33,6 +33,14 @@ describe("snapshots", () => {
   beforeEach(() => { vi.useFakeTimers(); vi.setSystemTime(new Date("2026-10-03T14:05:12.345Z")); });
   afterEach(() => { vi.useRealTimers(); });
 
+  it("a folder made by a parallel call between exists and mkdir is no error (shared ensureDir)", async () => {
+    const { app, files, dirs } = fakeApp({ [DATA]: "{}" });
+    const adapter = (app as unknown as { vault: { adapter: { mkdir: (p: string) => Promise<void> } } }).vault.adapter;
+    adapter.mkdir = async (p: string) => { dirs.add(p); throw new Error(`EEXIST ${p}`); };
+    const h = await beginSnapshot(app, [DATA], "api:race");
+    expect(files.has(`${snapshotRoot(app)}/${h.dir}/manifest.json`)).toBe(true);
+  });
+
   it("(a)(b) copies existing files and writes the manifest with afterHash null first; missing file is existed:false", async () => {
     const { app, files } = fakeApp({ [DATA]: '{"a":1}' });
     const h = await beginSnapshot(app, [DATA, HK], "api:test");

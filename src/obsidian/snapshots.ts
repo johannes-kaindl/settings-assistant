@@ -8,7 +8,8 @@ import { isValidPluginId } from "../core/profile";
 import { isSelfPluginId, isWritable, targetPath } from "../core/write-policy";
 import { OBSIDIAN_FILES, type ObsidianFile, type Target } from "../core/types";
 import { selectGfsRetention, type GfsPolicy } from "../vendor/kit/rotation";
-import { ensureDir, readConfig, removeConfig, writeConfig } from "./config-io";
+import { readConfig, removeConfig, writeConfig } from "./config-io";
+import { ensureDir } from "../vendor/kit/ensure-dir";
 import { disablePlugin, enablePlugin, isPluginEnabled } from "./plugin-host";
 
 /** `configDir` statt hartkodiertem Ordnernamen — der Pfad ist konfigurierbar. */
@@ -34,13 +35,13 @@ export async function beginSnapshot(app: App, paths: string[], origin: string): 
   const at = new Date().toISOString();
   const dir = await freeDirName(app, snapshotDirName(at));
   const root = `${snapshotRoot(app)}/${dir}`;
-  await ensureDir(app, `${root}/files`);
+  await ensureDir(app.vault.adapter, `${root}/files`);
   const files: SnapshotFile[] = [];
   for (const path of paths) {
     const text = await readConfig(app, path);
     if (text !== null) {
       const target = `${root}/files/${path}`;
-      await ensureDir(app, target.slice(0, target.lastIndexOf("/")));
+      await ensureDir(app.vault.adapter, target.slice(0, target.lastIndexOf("/")));
       await app.vault.adapter.write(target, text);
     }
     files.push({ path, existed: text !== null, afterHash: null });
