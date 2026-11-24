@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Fixed
 
+- **A key or token in a field with an ordinary name no longer goes to the model.** `sk-proj-…`, `AKIA…` and `Bearer …`, also glued to a word or underscore (`key_sk-…`), in a description, note or template field of a plugin's settings are blanked in the chat context, in saved profile notes, in the raw view of a chat block and in the settings the API hands to other plugins; before, only values under names like `apiKey` were left out and such a text went out in clear text. The review table is unchanged: a row is locked by its name, not by its text.
+
 - **Saving a profile as a note no longer fails when the profile contains hundreds of thousands of backtick runs** (the fence length was computed with a spread over all runs and hit the argument limit of the engine, around 150,000 runs).
 
 ## [0.12.1] — 2026-11-18

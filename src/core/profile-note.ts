@@ -1,5 +1,5 @@
 import { localFileStamp } from "../vendor/kit/local-stamp";
-import { redactFields } from "../vendor/kit/redact";
+import { redactValues } from "./redact-values";
 import { noteKey, serializeProfile, type ParseResult } from "./profile";
 import { targetKey, type Json, type SettingsProfile } from "./types";
 
@@ -23,7 +23,7 @@ export function redactedProfileJson(profile: SettingsProfile): { text: string; r
   const redacted: string[] = [];
   const hit = new Set<string>();
   const entries = profile.entries.map((e) => {
-    const r = redactFields(e.values);
+    const r = redactValues(e.values);
     if (r.redacted.length > 0) {
       hit.add(targetKey(e.target));
       for (const p of r.redacted) redacted.push(`${targetKey(e.target)}.${p}`);
@@ -44,7 +44,7 @@ export function redactedRawBlock(raw: string, result: ParseResult): string | nul
   if (result.ok) return redactedProfileJson(result.profile).text;
   let parsed: Json;
   try { parsed = JSON.parse(raw) as Json; } catch { return null; }
-  return JSON.stringify(redactFields(parsed).value, null, 2);
+  return JSON.stringify(redactValues(parsed).value, null, 2);
 }
 
 /** `Settings profile YYYY-MM-DD HH-mm` (Ortszeit), ohne Endung. */
