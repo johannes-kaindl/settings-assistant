@@ -40,7 +40,6 @@
  *
  * Typen: `tsconfig.scripts.json` (im `gate` ueber `npm run typecheck:scripts`).
  */
-import { execFileSync } from "node:child_process";
 import { copyFileSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -55,7 +54,7 @@ import { Vorbedingung, createBilanz, parseArgs, runDriver } from "../../tools/ob
 import { zweitinstanzStartargumente } from "../../tools/obsidian-cdp/instanz.js";
 import { startLlmStub, type StubAnfrage } from "../../tools/obsidian-cdp/llm-stub.js";
 import { buildVault, requireEigenerBuild, stagingVaultDir } from "../../tools/obsidian-cdp/vault.js";
-import { raeumeZweitinstanzHome, starteZweitinstanzMitHome, type ZweitinstanzMitHome } from "../../tools/obsidian-cdp/zweitinstanz.js";
+import { lebendeImProfil, raeumeZweitinstanzHome, starteZweitinstanzMitHome, type ZweitinstanzMitHome } from "../../tools/obsidian-cdp/zweitinstanz.js";
 
 const REPO_NAME = "settings-assistant";
 const PLUGIN_ID = "settings-assistant";
@@ -300,9 +299,6 @@ function installiereDataview(vaultDir: string): string {
   return `${DATAVIEW_ID} ${(JSON.parse(readFileSync(join(ziel, "manifest.json"), "utf8")) as { version: string }).version} nach .obsidian/plugins/${DATAVIEW_ID}/ kopiert (JS-Abfragen und Inline-JS an)`;
 }
 
-function pgrepProfile(ud: string): string {
-  try { return execFileSync("pgrep", ["-f", `user-data-dir=${ud}`], { encoding: "utf8" }).trim(); } catch { return ""; }
-}
 /** Start aus der Brücke (Welle 35, TREIBER-HOME): fremdes `HOME` mit Link auf den Schlüsselbund, Profil mit Ausweichname, aktuelle `.asar`, Englisch per `--lang=en-US`. */
 type Instanz = ZweitinstanzMitHome;
 function startInstanz(vaultDir: string, port: number): Instanz {
@@ -333,7 +329,7 @@ async function beendeInstanz(inst: Instanz): Promise<void> {
   if (inst.child.exitCode === null && inst.child.signalCode === null) { inst.child.kill("SIGKILL"); await Promise.race([exited, sleep(eilig ? 200 : 4000)]); }
   if (eilig) return;
   await sleep(500);
-  const rest = pgrepProfile(inst.profil);
+  const rest = lebendeImProfil(inst.profil);
   console.log(`Zweitinstanz beendet (PID ${inst.child.pid ?? "?"}); verbleibende Prozesse im Profil: ${rest === "" ? "keine" : rest.replace(/\n/g, ",")}`);
 }
 
