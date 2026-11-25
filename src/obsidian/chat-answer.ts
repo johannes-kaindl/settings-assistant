@@ -5,6 +5,7 @@ import { extractProfileBlocks } from "../core/chat-context";
 import { sentFromMeta, type SentContext } from "../core/chat-ask";
 import { redactedProfileNote, redactedRawBlock, profileNoteName } from "../core/profile-note";
 import { renderProfileResult, type ProfileResultDeps } from "./profile-block";
+import { errorMessage } from "../vendor/kit/error-message";
 
 export interface ChatAnswerDeps {
   service: ProfileResultDeps["service"];
@@ -50,7 +51,7 @@ function renderBlock(box: HTMLElement, b: Block, model: string, deps: ChatAnswer
         note.createDiv({ cls: "sa-chat-block-info", text: t("chat.saved", path) });
         if (r.redacted.length > 0) note.createDiv({ cls: "sa-chat-block-info", text: t("chat.saveRedacted", r.redacted.join(", ")) });
       } catch (e) {
-        note.createDiv({ cls: "sa-chat-block-info is-error", text: t("chat.saveFailed", e instanceof Error ? e.message : String(e)) });
+        note.createDiv({ cls: "sa-chat-block-info is-error", text: t("chat.saveFailed", errorMessage(e)) });
         btn.disabled = false;
       }
     })();

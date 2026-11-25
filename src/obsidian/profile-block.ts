@@ -5,6 +5,7 @@ import { parseProfile, type ParseResult, type ProfileError } from "../core/profi
 import type { SettingsProfile } from "../core/types";
 import type { ApplyService } from "./apply-service";
 import { renderCheckRows } from "./check-rows-view";
+import { errorMessage } from "../vendor/kit/error-message";
 
 export interface ProfileResultDeps {
   service: Pick<ApplyService, "plan" | "applyInteractive">;
@@ -48,7 +49,7 @@ async function renderValid(el: HTMLElement, profile: SettingsProfile, deps: Prof
       try {
         await deps.service.applyInteractive(profile, deps.origin); // Busy/Fehler meldet der Dienst selbst per Notice
       } catch (e) {
-        new Notice(t("apply.failed", e instanceof Error ? e.message : String(e)));
+        new Notice(t("apply.failed", errorMessage(e)));
       } finally {
         await renderValid(el, profile, deps);
       }

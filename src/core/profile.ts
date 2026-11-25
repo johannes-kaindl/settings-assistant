@@ -1,6 +1,7 @@
 // src/core/profile.ts
 import { isValidPluginId } from "../vendor/kit/plugin-id";
 import { OBSIDIAN_FILES, isPlainObject, targetKey, type Json, type ObsidianFile, type ProfileEntry, type SettingsProfile, type Target } from "./types";
+import { errorMessage } from "../vendor/kit/error-message";
 
 export const PROFILE_VERSION = 1;
 /** Einzige Stelle für die Plugin-ID-Prüfung: die Pfadsicherheits-Prüfung des Kits (`obsidian-kit` `pure/plugin-id`).
@@ -27,7 +28,7 @@ const fail = (error: ProfileError): ParseResult => ({ ok: false, error });
 export function parseProfile(text: string): ParseResult {
   let raw: unknown;
   try { raw = JSON.parse(text); } catch (e) {
-    return fail({ code: "invalid-json", detail: e instanceof Error ? e.message : String(e) });
+    return fail({ code: "invalid-json", detail: errorMessage(e) });
   }
   if (!isPlainObject(raw)) return fail({ code: "not-object" });
   if (!("version" in raw)) return fail({ code: "missing-version" });

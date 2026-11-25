@@ -9,6 +9,7 @@ import { profileNoteName, redactedProfileNote } from "../core/profile-note";
 import { targetPath } from "../core/write-policy";
 import { readConfig } from "./config-io";
 import { installedPlugins } from "./plugin-host";
+import { errorMessage } from "../vendor/kit/error-message";
 
 export class PluginPickerModal extends FuzzySuggestModal<PluginInfo> {
   constructor(app: App, private readonly plugins: readonly PluginInfo[], private readonly onPick: (plugin: PluginInfo) => void) {
@@ -48,6 +49,6 @@ export async function exportPluginState(deps: ExportStateDeps, plugin: PluginInf
     new Notice(t("chat.saved", path));
     if (note.redacted.length > 0) new Notice(t("chat.saveRedacted", note.redacted.join(", ")));
   } catch (e) {
-    new Notice(t("chat.saveFailed", e instanceof Error ? e.message : String(e)));
+    new Notice(t("chat.saveFailed", errorMessage(e)));
   }
 }

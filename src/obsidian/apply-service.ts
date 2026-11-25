@@ -11,6 +11,7 @@ import { readTargetStates } from "./config-io";
 import { isPluginEnabled } from "./plugin-host";
 import { openRestoreModal } from "./restore-modal";
 import { loadRestoreItems, makePorts, pruneSnapshots } from "./snapshots";
+import { errorMessage } from "../vendor/kit/error-message";
 
 export interface RestoreRow { path: string; decision: "restore" | "changed" | "unverified"; checked: boolean }
 export interface RestoreReport { origin: string; snapshotDir: string | null; results: RestoreResult[] }
@@ -89,7 +90,7 @@ export class ApplyService {
       return report;
     } catch (e) {
       // Nur Error.message — nie Dateiinhalt in die Meldung.
-      const error = e instanceof Error ? e.message : String(e);
+      const error = errorMessage(e);
       new Notice(t("apply.failed", error));
       return { error };
     } finally {
@@ -126,7 +127,7 @@ export class ApplyService {
       return report;
     } catch (e) {
       // Nur Error.message — nie Dateiinhalt in die Meldung.
-      const error = e instanceof Error ? e.message : String(e);
+      const error = errorMessage(e);
       new Notice(t("restore.failed", error));
       return { error };
     } finally {

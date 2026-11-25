@@ -1,4 +1,6 @@
 // src/core/types.ts
+import { isPlainObject as kitIsPlainObject } from "../vendor/kit/settings_schema";
+
 export type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
 export type ObsidianFile = "hotkeys" | "app" | "appearance" | "core-plugins" | "community-plugins";
 export const OBSIDIAN_FILES: readonly ObsidianFile[] = ["hotkeys", "app", "appearance", "core-plugins", "community-plugins"];
@@ -13,8 +15,9 @@ export interface SettingsProfile {
   unknownSections: string[];
 }
 
+/** Die Prüfung von code-kit (`isPlainObject`, settings_schema), hier nur auf den Json-Typ dieses Plugins verengt (Divergenz-Task isObj/isPlainObject, Welle 38). */
 export function isPlainObject(v: unknown): v is { [k: string]: Json } {
-  return typeof v === "object" && v !== null && !Array.isArray(v);
+  return kitIsPlainObject(v);
 }
 
 export function deepEqual(a: Json | undefined, b: Json | undefined): boolean {

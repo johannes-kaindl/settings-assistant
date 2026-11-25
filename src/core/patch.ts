@@ -27,7 +27,7 @@ export function applyRows(originalText: string | null, rows: ReadonlyArray<{ pat
       if (!isPlainObject(next)) throw new PatchError(`not-object:${row.path.slice(0, i + 1).join(".")}`);
       obj = next;
     }
-    obj[row.path[row.path.length - 1]] = JSON.parse(JSON.stringify(row.desired)) as Json;
+    obj[row.path[row.path.length - 1]] = structuredClone(row.desired);
   }
   const indent = originalText === null ? "  " : indentOf(originalText);
   const trailing = originalText !== null && originalText.endsWith("\n") ? "\n" : "";

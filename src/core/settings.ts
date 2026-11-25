@@ -3,6 +3,7 @@ import type { EndpointChoice } from "../vendor/kit/endpoint-source";
 import { DEFAULT_GFS_POLICY, type GfsPolicy } from "../vendor/kit/rotation";
 import { DEFAULT_REQUEST_SETTINGS, sanitizeRequestSettings, type RequestSettings } from "../vendor/kit/sampling-profiles";
 import { mergeSettings } from "../vendor/kit/settings";
+import { isPlainObject as isObj } from "../vendor/kit/settings_schema";
 
 export interface SettingsAssistantSettings {
   retention: GfsPolicy;
@@ -24,7 +25,6 @@ export const DEFAULT_SETTINGS: SettingsAssistantSettings = {
   chatKeep: 0,
 };
 
-const isObj = (v: unknown): v is Record<string, unknown> => v !== null && typeof v === "object" && !Array.isArray(v);
 
 /** Aufbewahrungswert: ganze Zahl ≥ 0 (0 heißt „keine“); alles andere fällt auf den Default des Feldes zurück. */
 export function isValidRetentionValue(v: unknown): v is number {

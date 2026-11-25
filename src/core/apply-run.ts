@@ -4,6 +4,7 @@ import { parseTarget, type CheckRow } from "./reconcile";
 import { hashText, restoreDecision, type SnapshotFile } from "./snapshot";
 import { deepEqual, getAt, sameTarget, type Json, type Target } from "./types";
 import { isWritable, targetPath } from "./write-policy";
+import { errorMessage } from "../vendor/kit/error-message";
 
 export interface SnapshotHandle { dir: string; finish(files: SnapshotFile[]): Promise<void> }
 export interface ApplyPorts {
@@ -19,7 +20,6 @@ export type RowOutcome = "written" | "corrected" | "skipped" | "changed-meanwhil
 export interface RowResult { row: CheckRow; outcome: RowOutcome; actual?: Json; error?: string }
 export interface ApplyReport { origin: string; snapshotDir: string | null; results: RowResult[]; stopped: boolean }
 
-const errText = (e: unknown): string => (e instanceof Error ? e.message : String(e));
 
 /** Plugin aus → fn → Plugin an (im finally). Nur aktive Plugins, nie Obsidian-Dateien. */
 async function withCycle<T>(target: Target, ports: ApplyPorts, fn: () => Promise<T>): Promise<T> {
@@ -50,7 +50,7 @@ export async function runApply(rows: readonly CheckRow[], ports: ApplyPorts, opt
 
   let handle: SnapshotHandle;
   try { handle = await ports.beginSnapshot(paths, opts.origin); } catch (e) {
-    return { origin: opts.origin, snapshotDir: null, results: [...selected.map((row): RowResult => ({ row, outcome: "error", error: `snapshot: ${errText(e)}` })), ...blocked.map((row): RowResult => ({ row, outcome: "skipped" }))], stopped: true };
+    return { origin: opts.origin, snapshotDir: null, results: [...selected.map((row): RowResult => ({ row, outcome: "error", error: `snapshot: ${errorMessage(e)}` })), ...blocked.map((row): RowResult => ({ row, outcome: "skipped" }))], stopped: true };
   }
 
   const finished: SnapshotFile[] = [];
@@ -79,7 +79,7 @@ export async function runApply(rows: readonly CheckRow[], ports: ApplyPorts, opt
         else results.push({ row, outcome: "corrected", ...(actual !== undefined ? { actual } : {}) });
       }
     } catch (e) {
-      for (const row of g.items) results.push({ row, outcome: "error", error: errText(e) });
+      for (const row of g.items) results.push({ row, outcome: "error", error: errorMessage(e) });
       let afterHash: string | null = null;
       try { const after = await ports.read(path); afterHash = after === null ? null : hashText(after); } catch { afterHash = null; }
       finished.push({ path, existed: existedBefore.get(path) ?? false, afterHash });
@@ -107,7 +107,7 @@ export async function runRestore(items: readonly RestoreItem[], force: ReadonlyS
   if (todo.length === 0) return { snapshotDir: null, results };
   let handle: SnapshotHandle;
   try { handle = await ports.beginSnapshot(todo.map((t) => t.file.path), opts.origin); } catch (e) {
-    return { snapshotDir: null, results: [...results, ...todo.map((t) => ({ path: t.file.path, outcome: "error" as const, error: `snapshot: ${errText(e)}` }))] };
+    return { snapshotDir: null, results: [...results, ...todo.map((t) => ({ path: t.file.path, outcome: "error" as const, error: `snapshot: ${errorMessage(e)}` }))] };
   }
   const finished: SnapshotFile[] = [];
   for (const [i, it] of todo.entries()) {
@@ -121,7 +121,7 @@ export async function runRestore(items: readonly RestoreItem[], force: ReadonlyS
       finished.push({ path: it.file.path, existed, afterHash: after === null ? null : hashText(after) });
       results.push({ path: it.file.path, outcome: "restored" });
     } catch (e) {
-      results.push({ path: it.file.path, outcome: "error", error: errText(e) });
+      results.push({ path: it.file.path, outcome: "error", error: errorMessage(e) });
       // Die übrigen Dateien erscheinen im Bericht, statt stillschweigend zu fehlen.
       for (const rest of todo.slice(i + 1)) results.push({ path: rest.file.path, outcome: "skipped" });
       break;
