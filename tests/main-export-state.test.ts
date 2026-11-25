@@ -19,7 +19,8 @@ async function setup(files: Record<string, string>, manifests: Record<string, { 
   (app as any).vault.adapter = { exists: async (p: string) => p in files, read: async (p: string) => files[p], list: async () => ({ files: [], folders: [] }) };
   (app as any).plugins = { plugins: {}, enabledPlugins: new Set<string>(), manifests };
   const created: Array<{ path: string; text: string }> = [];
-  (app as any).vault.create = vi.fn(async (path: string, text: string) => { created.push({ path, text }); return {}; });
+  // Eine angelegte Notiz liegt danach im Adapter (wie im echten Vault), damit ein zweites Anlegen den Namen belegt findet.
+  (app as any).vault.create = vi.fn(async (path: string, text: string) => { created.push({ path, text }); files[path] = text; return {}; });
   const p = new SettingsAssistantPlugin(app as never, { id: "settings-assistant", name: "x", version: "0", minAppVersion: "1.11.4", description: "", author: "", authorUrl: "", isDesktopOnly: false, dir: "" } as never);
   (p as unknown as { loadData: () => Promise<unknown> }).loadData = () => Promise.resolve({});
   (p as unknown as { saveData: () => Promise<void> }).saveData = () => Promise.resolve();
@@ -65,6 +66,23 @@ describe("Befehl „Plugin-Stand als Profilnotiz speichern“", () => {
     if (!parsed.ok) return;
     const rows = reconcile(parsed.profile, [{ target: { kind: "plugin", id: "some-plugin" }, installed: true, text: DATA }]);
     expect(rows.every((r) => r.status === "same" || r.status === "secret")).toBe(true);
+  });
+
+  it("zweimal in derselben Minute: die zweite Notiz bekommt „ 2“, nichts wird überschrieben (Kit createNote, obsidian-kit 0.111.0)", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(2026, 10, 25, 19, 40, 5));
+    try {
+      const { cmd, created } = await setup({ ".obsidian/plugins/some-plugin/data.json": DATA }, { "some-plugin": { id: "some-plugin", name: "Some Plugin" } });
+      for (let i = 0; i < 2; i++) {
+        cmd!.callback();
+        const modal = (FuzzySuggestModal as any).__instance;
+        modal.__choose(modal.getItems()[0]);
+        await settle();
+      }
+      expect(created.map((c) => c.path)).toEqual(["Settings profile 2026-11-25 19-40.md", "Settings profile 2026-11-25 19-40 2.md"]);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("ein Plugin ohne Einstellungsdatei: Meldung, keine Notiz", async () => {

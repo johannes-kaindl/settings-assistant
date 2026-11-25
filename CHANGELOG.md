@@ -5,6 +5,7 @@ All notable changes to this project are documented here. The format follows [Kee
 ## [Unreleased]
 
 ### Fixed
+- A profile note saved from the chat or with "Save plugin settings as profile note" is created with the shared note helper of the library (obsidian-kit 0.111.0): its name follows the file name rules of the Filename Sanitizer plugin when that plugin is installed, and a taken name gets " 2", " 3" and so on, also when the existing file differs only in upper and lower case.
 - Creating the folders for a snapshot or a config file no longer fails when another call has just created the same folder; the folder creation is the shared one of the library now.
 
 ### Changed

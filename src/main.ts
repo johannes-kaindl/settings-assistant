@@ -9,6 +9,7 @@ import type { EndpointConfig } from "./vendor/kit/endpoint_config";
 import { onLevelFor, thinkingFor, withThinkingLevel, type RequestSettings, type ThinkingLevel } from "./vendor/kit/sampling-profiles";
 import { createLlmConnection, type LlmConnection } from "./vendor/kit-obsidian/llm-connection";
 import { onEndpointManagerChanged } from "./vendor/kit-obsidian/endpoint-source";
+import { createNote } from "./vendor/kit-obsidian/create-note";
 import { loadSettings, type SettingsAssistantSettings } from "./core/settings";
 import { applyLlmPatch, toLlmSettings } from "./core/llm-settings";
 import { ApplyService } from "./obsidian/apply-service";
@@ -22,6 +23,7 @@ import { readConfig } from "./obsidian/config-io";
 import { openExportState } from "./obsidian/export-state";
 import { installedPlugins } from "./obsidian/plugin-host";
 import { targetPath } from "./core/write-policy";
+import { errorMessage } from "./vendor/kit/error-message";
 
 function safeGetLanguage(): string | null {
   try { return getLanguage(); } catch { return null; }
@@ -194,14 +196,13 @@ export default class SettingsAssistantPlugin extends Plugin {
     await this.saveRequestSettings(withThinkingLevel(this.settings.request, CHAT_MODE, level));
   }
 
-  /** Neue Notiz im Ordner der aktiven Notiz (sonst Vault-Wurzel); ein vorhandener Name bekommt ein Suffix. */
+  /** Neue Notiz im Ordner der aktiven Notiz (sonst Vault-Wurzel) über den Kit-Baustein `createNote` (obsidian-kit 0.111.0): ein vorhandener Name bekommt ` 2`, ` 3` …,
+   *  der Name läuft durch die Dateinamen-Richtlinie. Ein Fehler wirft wie früher `vault.create`, die Aufrufer zeigen ihn. */
   private async saveProfileNote(name: string, text: string): Promise<string> {
-    const dir = this.app.workspace.getActiveFile()?.parent?.path ?? "";
-    const prefix = dir === "" || dir === "/" ? "" : `${dir}/`;
-    let path = normalizePath(`${prefix}${name}.md`);
-    for (let i = 2; this.app.vault.getAbstractFileByPath(path) !== null; i++) path = normalizePath(`${prefix}${name} ${i}.md`);
-    await this.app.vault.create(path, text);
-    return path;
+    const folder = this.app.workspace.getActiveFile()?.parent?.path ?? "";
+    const r = await createNote(this.app, { folder, name, content: text, caller: this.manifest.id });
+    if (!r.ok) throw new Error(r.message);
+    return r.path;
   }
 
   onunload(): void {
@@ -224,7 +225,7 @@ export default class SettingsAssistantPlugin extends Plugin {
       if (!latest) { new Notice(t("snap.empty")); return; }
       await this.applyService.restoreInteractive(latest.dir);
     } catch (e) {
-      new Notice(t("restore.failed", e instanceof Error ? e.message : String(e)));
+      new Notice(t("restore.failed", errorMessage(e)));
     }
   }
 
