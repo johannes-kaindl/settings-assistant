@@ -1,4 +1,4 @@
-// vendored from code-kit@0.88.0, src/ts/pure/string-list.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
+// vendored from code-kit@0.91.1, src/ts/pure/string-list.ts — do not hand-edit; re-vendor via tools/sync-kit.sh
 /** Reading a list of strings out of a value nobody typed: JSON from disk, a settings object, a parsed frontmatter, a model's answer. Three contracts that
  *  stood in the plugins as private one-liners under three names, kept apart on purpose (they answer different questions):
  *

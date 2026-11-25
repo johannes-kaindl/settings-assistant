@@ -1,10 +1,10 @@
 {
   "sources": {
     "obsidian-kit": {
-      "ref": "0.108.0"
+      "ref": "0.111.0"
     },
     "code-kit": {
-      "ref": "0.88.0"
+      "ref": "0.91.1"
     }
   },
   "targets": [
@@ -64,7 +64,10 @@
         "run-exclusive",
         "fences",
         "string-list",
-        "ensure-dir"
+        "ensure-dir",
+        "filename-policy",
+        "settings_schema",
+        "num"
       ]
     },
     {
@@ -76,7 +79,8 @@
         "endpoint-secret-hook",
         "plugin-id",
         "override-guard",
-        "tool-provider"
+        "tool-provider",
+        "filename-sanitizer-source"
       ],
       "rewrite": [
         [
@@ -139,7 +143,9 @@
         "chat-archive-settings",
         "chat-archive-css",
         "copy-button",
-        "setting-body-host"
+        "setting-body-host",
+        "create-note",
+        "safe-file-name"
       ],
       "rewrite": [
         [
